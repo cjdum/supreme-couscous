@@ -1,11 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Globe, Lock, ChevronRight, Wrench, Camera, Loader2 } from "lucide-react";
+import { Globe, Lock, Wrench } from "lucide-react";
 import type { Car } from "@/lib/supabase/types";
-import { formatCurrency, formatRelativeDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 interface CarCardProps {
   car: Car;
@@ -19,11 +17,11 @@ const MAKE_COLORS: Record<string, string> = {
   mercedes: "#00adef",
   ferrari: "#cc0000",
   lamborghini: "#f5a623",
-  audi: "#555",
+  audi: "#888888",
   toyota: "#eb0a1e",
   honda: "#cc0000",
   subaru: "#003399",
-  nissan: "#1a1a1a",
+  nissan: "#444444",
   ford: "#003476",
   chevrolet: "#d4a017",
 };
@@ -33,189 +31,118 @@ function getMakeColor(make: string): string {
 }
 
 export function CarCard({ car, modCount = 0, totalSpent = 0 }: CarCardProps) {
-  const makeColor = getMakeColor(car.make);
-  const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  const coverUrl = previewUrl ?? car.cover_image_url;
-
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Optimistic local preview
-    setPreviewUrl(URL.createObjectURL(file));
-    setUploading(true);
-
-    const form = new FormData();
-    form.append("photo", file);
-
-    try {
-      const res = await fetch(`/api/cars/${car.id}/photo`, {
-        method: "POST",
-        body: form,
-      });
-      if (res.ok) {
-        const { url } = await res.json();
-        setPreviewUrl(url);
-        router.refresh();
-      } else {
-        // Revert preview on error
-        setPreviewUrl(null);
-      }
-    } catch {
-      setPreviewUrl(null);
-    } finally {
-      setUploading(false);
-      // Reset input so the same file can be re-selected
-      e.target.value = "";
-    }
-  }
+  const accent = getMakeColor(car.make);
 
   return (
     <Link
       href={`/garage/${car.id}`}
-      className="block rounded-[16px] border border-[var(--color-border)] bg-[var(--color-bg-card)] overflow-hidden card-hover group"
+      className="block relative rounded-2xl overflow-hidden group card-hover border border-[var(--color-border)]"
+      style={{ aspectRatio: "4/3" }}
     >
-      {/* Color band */}
-      <div
-        className="h-1.5 w-full"
-        style={{ backgroundColor: makeColor, opacity: 0.8 }}
-      />
-
-      {/* Cover image or placeholder */}
-      <div className="relative h-40 bg-[var(--color-bg-elevated)] overflow-hidden">
-        {coverUrl ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={coverUrl}
-              alt={`${car.year} ${car.make} ${car.model}`}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-            {/* Dark overlay so text stays readable */}
-            <div className="absolute inset-0 bg-black/40" />
-          </>
-        ) : (
+      {/* Background: photo or brand-tinted gradient */}
+      {car.cover_image_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={car.cover_image_url}
+          alt={`${car.year} ${car.make} ${car.model}`}
+          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+        />
+      ) : (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `radial-gradient(ellipse at 25% 40%, ${accent}33 0%, transparent 65%),
+                         linear-gradient(160deg, ${accent}1a 0%, #09090b 60%)`,
+          }}
+        >
+          {/* Placeholder car silhouette */}
           <div className="absolute inset-0 flex items-center justify-center">
             <svg
-              viewBox="0 0 80 36"
-              width="80"
-              height="36"
+              viewBox="0 0 120 54"
+              width="120"
+              height="54"
               fill="none"
               aria-hidden="true"
-              style={{ opacity: 0.15 }}
+              style={{ opacity: 0.08 }}
             >
               <path
-                d="M8 28l6-16h52l6 16H8z"
+                d="M12 42l9-24h78l9 24H12z"
                 stroke="white"
-                strokeWidth="2"
+                strokeWidth="2.5"
                 strokeLinejoin="round"
-                fill="none"
               />
-              <ellipse cx="20" cy="29" rx="4" ry="4" stroke="white" strokeWidth="2" />
-              <ellipse cx="60" cy="29" rx="4" ry="4" stroke="white" strokeWidth="2" />
-              <path d="M14 20h52" stroke="white" strokeWidth="1" strokeDasharray="3 3" />
+              <path
+                d="M21 26l6-12h66l6 12H21z"
+                stroke="white"
+                strokeWidth="1.5"
+                strokeLinejoin="round"
+                fill="white"
+                fillOpacity="0.04"
+              />
+              <ellipse cx="30" cy="43" rx="6" ry="6" stroke="white" strokeWidth="2.5" />
+              <ellipse cx="90" cy="43" rx="6" ry="6" stroke="white" strokeWidth="2.5" />
+              <path d="M22 32h76" stroke="white" strokeWidth="1" strokeDasharray="4 4" />
             </svg>
           </div>
-        )}
-
-        {/* Public/private badge */}
-        <div className="absolute top-2 right-2">
-          <div
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium"
-            style={{
-              backgroundColor: "rgba(0,0,0,0.6)",
-              backdropFilter: "blur(8px)",
-              color: car.is_public ? "#22c55e" : "#a1a1aa",
-            }}
-          >
-            {car.is_public ? (
-              <>
-                <Globe size={10} /> Public
-              </>
-            ) : (
-              <>
-                <Lock size={10} /> Private
-              </>
-            )}
-          </div>
         </div>
+      )}
 
-        {/* Photo upload button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            fileInputRef.current?.click();
-          }}
-          disabled={uploading}
-          className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium text-white transition-opacity"
+      {/* Bottom-heavy gradient overlay — keeps text readable */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/92 via-black/25 to-black/5" />
+
+      {/* Top-left: privacy badge */}
+      <div className="absolute top-3 left-3">
+        <div
+          className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium"
           style={{
-            backgroundColor: "rgba(0,0,0,0.6)",
-            backdropFilter: "blur(8px)",
-            opacity: uploading ? 1 : undefined,
+            backgroundColor: "rgba(0,0,0,0.55)",
+            backdropFilter: "blur(6px)",
+            color: car.is_public ? "#22c55e" : "#71717a",
           }}
-          aria-label="Upload car photo"
         >
-          {uploading ? (
-            <Loader2 size={10} className="animate-spin" />
+          {car.is_public ? (
+            <><Globe size={9} /> Public</>
           ) : (
-            <Camera size={10} />
+            <><Lock size={9} /> Private</>
           )}
-          {uploading ? "Uploading…" : coverUrl ? "Change photo" : "Add photo"}
-        </button>
-
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-        />
+        </div>
       </div>
 
-      {/* Info */}
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            {car.nickname && (
-              <p className="text-xs text-[var(--color-text-muted)] truncate mb-0.5">{car.nickname}</p>
-            )}
-            <h3 className="font-semibold text-sm truncate">
-              {car.year} {car.make} {car.model}
-            </h3>
-            {car.trim && (
-              <p className="text-xs text-[var(--color-text-secondary)] truncate">{car.trim}</p>
-            )}
-          </div>
-          <ChevronRight
-            size={16}
-            className="text-[var(--color-text-muted)] shrink-0 mt-0.5 group-hover:text-[var(--color-accent)] transition-colors"
-          />
-        </div>
+      {/* Top-right: make color accent dot */}
+      {!car.cover_image_url && (
+        <div
+          className="absolute top-3 right-3 w-2 h-2 rounded-full opacity-70"
+          style={{ backgroundColor: accent }}
+        />
+      )}
 
-        {/* Stats row */}
-        <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--color-border)]">
-          <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-            <Wrench size={12} className="text-[var(--color-text-muted)]" />
-            <span>{modCount} mod{modCount !== 1 ? "s" : ""}</span>
-          </div>
+      {/* Bottom content */}
+      <div className="absolute bottom-0 left-0 right-0 p-4">
+        {car.nickname && (
+          <p
+            className="text-[11px] font-semibold mb-0.5 truncate"
+            style={{ color: accent === "#3b82f6" ? "#60a5fa" : accent }}
+          >
+            {car.nickname}
+          </p>
+        )}
+        <h3 className="font-bold text-sm text-white truncate leading-snug">
+          {car.year} {car.make} {car.model}
+        </h3>
+        {car.trim && (
+          <p className="text-[11px] text-white/40 truncate mt-0.5">{car.trim}</p>
+        )}
+
+        <div className="flex items-center gap-3 mt-2.5">
+          <span className="flex items-center gap-1 text-[11px] text-white/45">
+            <Wrench size={9} />
+            {modCount} {modCount === 1 ? "mod" : "mods"}
+          </span>
           {totalSpent > 0 && (
-            <div className="flex items-center gap-1.5 text-xs">
-              <span className="text-[var(--color-text-muted)]">Invested:</span>
-              <span className="font-medium text-[var(--color-accent-bright)]">
-                {formatCurrency(totalSpent)}
-              </span>
-            </div>
+            <span className="text-[11px] font-bold text-[var(--color-accent-bright)]">
+              {formatCurrency(totalSpent)}
+            </span>
           )}
-          <div className="ml-auto text-[10px] text-[var(--color-text-muted)]">
-            {formatRelativeDate(car.created_at)}
-          </div>
         </div>
       </div>
     </Link>

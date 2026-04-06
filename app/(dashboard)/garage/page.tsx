@@ -1,15 +1,17 @@
 import { Car } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CarCard } from "@/components/garage/car-card";
-import { EmptyState } from "@/components/ui/loading";
+import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { AddCarButton } from "@/components/garage/add-car-button";
 import type { Car as CarType } from "@/lib/supabase/types";
 
-export const metadata = { title: "Garage" };
+export const metadata = { title: "Garage — ModVault" };
 
 export default async function GaragePage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: carsRaw } = await supabase
     .from("cars")
@@ -18,8 +20,8 @@ export default async function GaragePage() {
     .order("created_at", { ascending: false });
   const cars = (carsRaw ?? []) as CarType[];
 
-  // Fetch mod counts and total costs per car
-  const carIds = (cars ?? []).map((c) => c.id);
+  // Fetch mod stats per car
+  const carIds = cars.map((c) => c.id);
   type ModStat = { car_id: string; cost: number | null; status: string };
   let modStats: ModStat[] = [];
   if (carIds.length) {
@@ -39,6 +41,11 @@ export default async function GaragePage() {
     });
   }
 
+  // First-time user — show full-screen onboarding wizard
+  if (cars.length === 0) {
+    return <OnboardingFlow />;
+  }
+
   return (
     <div className="px-4 py-6 max-w-lg mx-auto lg:max-w-4xl">
       {/* Header */}
@@ -46,32 +53,35 @@ export default async function GaragePage() {
         <div>
           <h1 className="text-xl font-bold">My Garage</h1>
           <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
-            {cars?.length ?? 0} {(cars?.length ?? 0) === 1 ? "vehicle" : "vehicles"}
+            {cars.length} {cars.length === 1 ? "vehicle" : "vehicles"}
           </p>
         </div>
         <AddCarButton />
       </div>
 
-      {/* Cars grid */}
-      {cars.length === 0 ? (
-        <EmptyState
-          icon={<Car size={32} />}
-          title="Your garage is empty"
-          description="Add your first car to start tracking mods, costs, and your build history."
-          action={<AddCarButton label="Add your first car" />}
-        />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {cars.map((car) => (
-            <CarCard
-              key={car.id}
-              car={car}
-              modCount={statsMap.get(car.id)?.count ?? 0}
-              totalSpent={statsMap.get(car.id)?.total ?? 0}
-            />
-          ))}
-        </div>
-      )}
+      {/* Photo-first card grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {cars.map((car) => (
+          <CarCard
+            key={car.id}
+            car={car}
+            modCount={statsMap.get(car.id)?.count ?? 0}
+            totalSpent={statsMap.get(car.id)?.total ?? 0}
+          />
+        ))}
+
+        {/* Always-visible Add Car tile */}
+        <AddCarTile />
+      </div>
     </div>
+  );
+}
+
+function AddCarTile() {
+  return (
+    <AddCarButton
+      asCard
+      label="Add another car"
+    />
   );
 }
