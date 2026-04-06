@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(export PATH=\"/opt/homebrew/bin:/opt/homebrew/sbin:$PATH\")",
+      "Bash(npm list:*)",
+      "Bash(/opt/homebrew/bin/node -e \"require\\(''''child_process''''\\).execSync\\(''''/opt/homebrew/bin/npm list -g --depth=0 2>&1'''', {stdio:''''pipe''''}\\).toString\\(\\)\")",
+      "Bash(/opt/homebrew/bin/npm list:*)",
+      "Bash(PATH=\"/opt/homebrew/bin:$PATH\" npm list -g --depth=0)",
+      "Bash(PATH=\"/opt/homebrew/bin:$PATH\" vercel --prod --yes)",
+      "Bash(PATH=\"/opt/homebrew/bin:$PATH\" vercel env add ANTHROPIC_API_KEY production 2)",
+      "Bash(1:*)"
+    ]
+  }
+}
