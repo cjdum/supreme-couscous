@@ -373,3 +373,19 @@ create policy "car-covers: owner upload"
     bucket_id = 'car-covers' and
     auth.uid()::text = (storage.foldername(name))[1]
   );
+
+drop policy if exists "car-covers: owner update" on storage.objects;
+create policy "car-covers: owner update"
+  on storage.objects for update
+  using (
+    bucket_id = 'car-covers' and
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+drop policy if exists "car-covers: owner delete" on storage.objects;
+create policy "car-covers: owner delete"
+  on storage.objects for delete
+  using (
+    bucket_id = 'car-covers' and
+    auth.uid()::text = (storage.foldername(name))[1]
+  );

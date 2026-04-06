@@ -1,7 +1,9 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Globe, Lock, ChevronRight, Wrench } from "lucide-react";
+import { Globe, Lock, ChevronRight, Wrench, Camera, Loader2 } from "lucide-react";
 import type { Car } from "@/lib/supabase/types";
 import { formatCurrency, formatRelativeDate } from "@/lib/utils";
 
@@ -32,6 +34,45 @@ function getMakeColor(make: string): string {
 
 export function CarCard({ car, modCount = 0, totalSpent = 0 }: CarCardProps) {
   const makeColor = getMakeColor(car.make);
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const coverUrl = previewUrl ?? car.cover_image_url;
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Optimistic local preview
+    setPreviewUrl(URL.createObjectURL(file));
+    setUploading(true);
+
+    const form = new FormData();
+    form.append("photo", file);
+
+    try {
+      const res = await fetch(`/api/cars/${car.id}/photo`, {
+        method: "POST",
+        body: form,
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        setPreviewUrl(url);
+        router.refresh();
+      } else {
+        // Revert preview on error
+        setPreviewUrl(null);
+      }
+    } catch {
+      setPreviewUrl(null);
+    } finally {
+      setUploading(false);
+      // Reset input so the same file can be re-selected
+      e.target.value = "";
+    }
+  }
 
   return (
     <Link
@@ -46,13 +87,17 @@ export function CarCard({ car, modCount = 0, totalSpent = 0 }: CarCardProps) {
 
       {/* Cover image or placeholder */}
       <div className="relative h-40 bg-[var(--color-bg-elevated)] overflow-hidden">
-        {car.cover_image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={car.cover_image_url}
-            alt={`${car.year} ${car.make} ${car.model}`}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
+        {coverUrl ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={coverUrl}
+              alt={`${car.year} ${car.make} ${car.model}`}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+            {/* Dark overlay so text stays readable */}
+            <div className="absolute inset-0 bg-black/40" />
+          </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <svg
@@ -98,6 +143,40 @@ export function CarCard({ car, modCount = 0, totalSpent = 0 }: CarCardProps) {
             )}
           </div>
         </div>
+
+        {/* Photo upload button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            fileInputRef.current?.click();
+          }}
+          disabled={uploading}
+          className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium text-white transition-opacity"
+          style={{
+            backgroundColor: "rgba(0,0,0,0.6)",
+            backdropFilter: "blur(8px)",
+            opacity: uploading ? 1 : undefined,
+          }}
+          aria-label="Upload car photo"
+        >
+          {uploading ? (
+            <Loader2 size={10} className="animate-spin" />
+          ) : (
+            <Camera size={10} />
+          )}
+          {uploading ? "Uploading…" : coverUrl ? "Change photo" : "Add photo"}
+        </button>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
       </div>
 
       {/* Info */}
