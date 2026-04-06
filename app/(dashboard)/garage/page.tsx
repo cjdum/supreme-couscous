@@ -1,11 +1,13 @@
-import { Car } from "lucide-react";
+import Link from "next/link";
+import { Plus, ChevronRight, Wrench, DollarSign, Zap, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CarCard } from "@/components/garage/car-card";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { AddCarButton } from "@/components/garage/add-car-button";
+import { formatCurrency } from "@/lib/utils";
 import type { Car as CarType } from "@/lib/supabase/types";
 
-export const metadata = { title: "Garage — ModVault" };
+export const metadata = { title: "Garage — MODVAULT" };
 
 export default async function GaragePage() {
   const supabase = await createClient();
@@ -20,7 +22,11 @@ export default async function GaragePage() {
     .order("created_at", { ascending: false });
   const cars = (carsRaw ?? []) as CarType[];
 
-  // Fetch mod stats per car
+  // First-time user — show onboarding wizard
+  if (cars.length === 0) {
+    return <OnboardingFlow />;
+  }
+
   const carIds = cars.map((c) => c.id);
   type ModStat = { car_id: string; cost: number | null; status: string };
   let modStats: ModStat[] = [];
@@ -41,47 +47,176 @@ export default async function GaragePage() {
     });
   }
 
-  // First-time user — show full-screen onboarding wizard
-  if (cars.length === 0) {
-    return <OnboardingFlow />;
-  }
+  // Primary car = most recently updated
+  const primaryCar = cars[0];
+  const primaryStats = statsMap.get(primaryCar.id) ?? { count: 0, total: 0 };
+
+  // Overall stats
+  const totalMods = Array.from(statsMap.values()).reduce((s, v) => s + v.count, 0);
+  const totalSpent = Array.from(statsMap.values()).reduce((s, v) => s + v.total, 0);
 
   return (
-    <div className="px-4 py-6 max-w-lg mx-auto lg:max-w-4xl">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold">My Garage</h1>
-          <p className="text-sm text-[var(--color-text-secondary)] mt-0.5">
-            {cars.length} {cars.length === 1 ? "vehicle" : "vehicles"}
-          </p>
-        </div>
-        <AddCarButton />
-      </div>
-
-      {/* Photo-first card grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {cars.map((car) => (
-          <CarCard
-            key={car.id}
-            car={car}
-            modCount={statsMap.get(car.id)?.count ?? 0}
-            totalSpent={statsMap.get(car.id)?.total ?? 0}
+    <div className="min-h-dvh">
+      {/* ── Hero: Primary Car ── */}
+      <div className="relative w-full" style={{ height: "clamp(280px, 55vw, 440px)" }}>
+        {primaryCar.cover_image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={primaryCar.cover_image_url}
+            alt={`${primaryCar.year} ${primaryCar.make} ${primaryCar.model}`}
+            className="absolute inset-0 w-full h-full object-cover"
           />
-        ))}
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `radial-gradient(ellipse at 30% 50%, rgba(10,132,255,0.22) 0%, transparent 60%),
+                           radial-gradient(ellipse at 80% 20%, rgba(48,209,88,0.08) 0%, transparent 50%),
+                           linear-gradient(160deg, rgba(10,132,255,0.1) 0%, #000 60%)`,
+            }}
+          >
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg viewBox="0 0 200 90" width="200" height="90" fill="none" aria-hidden="true" style={{ opacity: 0.06 }}>
+                <path d="M18 72l16-42h132l16 42H18z" stroke="white" strokeWidth="3" strokeLinejoin="round" />
+                <path d="M34 44l12-22h108l12 22H34z" stroke="white" strokeWidth="2" strokeLinejoin="round" fill="white" fillOpacity="0.03" />
+                <ellipse cx="50" cy="74" rx="10" ry="10" stroke="white" strokeWidth="3" />
+                <ellipse cx="150" cy="74" rx="10" ry="10" stroke="white" strokeWidth="3" />
+              </svg>
+            </div>
+          </div>
+        )}
 
-        {/* Always-visible Add Car tile */}
-        <AddCarTile />
+        {/* Gradient overlays */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
+
+        {/* Car info overlay */}
+        <div className="absolute bottom-0 left-0 right-0 px-5 pb-6">
+          {primaryCar.nickname && (
+            <p className="text-xs font-semibold text-[var(--color-accent-bright)] mb-1 tracking-wide uppercase">
+              {primaryCar.nickname}
+            </p>
+          )}
+          <h1 className="text-3xl font-bold text-white leading-tight mb-0.5">
+            {primaryCar.year} {primaryCar.make} {primaryCar.model}
+          </h1>
+          {primaryCar.trim && (
+            <p className="text-sm text-white/50 mb-3">{primaryCar.trim}</p>
+          )}
+
+          {/* Quick stats row */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {primaryCar.horsepower && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/10">
+                <Zap size={11} className="text-[var(--color-warning)]" />
+                <span className="text-xs font-bold text-white">{primaryCar.horsepower} hp</span>
+              </div>
+            )}
+            {primaryCar.torque && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/10">
+                <TrendingUp size={11} className="text-[var(--color-success)]" />
+                <span className="text-xs font-bold text-white">{primaryCar.torque} lb-ft</span>
+              </div>
+            )}
+            {primaryStats.count > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/10">
+                <Wrench size={11} className="text-[var(--color-accent-bright)]" />
+                <span className="text-xs font-bold text-white">{primaryStats.count} mods</span>
+              </div>
+            )}
+            {primaryStats.total > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-sm border border-white/10">
+                <DollarSign size={11} className="text-[var(--color-accent-bright)]" />
+                <span className="text-xs font-bold text-white">{formatCurrency(primaryStats.total)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Open car detail button */}
+        <Link
+          href={`/garage/${primaryCar.id}`}
+          className="absolute bottom-5 right-5 flex items-center gap-1.5 px-4 py-2 rounded-full bg-white text-black text-xs font-bold hover:bg-white/90 transition-colors"
+        >
+          Open <ChevronRight size={12} />
+        </Link>
       </div>
-    </div>
-  );
-}
 
-function AddCarTile() {
-  return (
-    <AddCarButton
-      asCard
-      label="Add another car"
-    />
+      {/* ── Overall stats ── */}
+      {(totalMods > 0 || totalSpent > 0) && (
+        <div className="mx-4 mt-4 grid grid-cols-3 gap-3">
+          <div className="rounded-[14px] bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3 text-center">
+            <p className="text-xl font-bold">{cars.length}</p>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">Vehicles</p>
+          </div>
+          <div className="rounded-[14px] bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3 text-center">
+            <p className="text-xl font-bold">{totalMods}</p>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">Total Mods</p>
+          </div>
+          <div className="rounded-[14px] bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3 text-center">
+            <p className="text-xl font-bold text-[var(--color-accent-bright)]">
+              {totalSpent > 0 ? formatCurrency(totalSpent) : "—"}
+            </p>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">Invested</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Quick actions ── */}
+      <div className="px-4 mt-4 grid grid-cols-2 gap-3">
+        <Link
+          href={`/garage/${primaryCar.id}`}
+          className="rounded-[16px] bg-[var(--color-accent)] p-4 flex items-center justify-between hover:bg-[var(--color-accent-hover)] transition-colors active:scale-[0.98]"
+        >
+          <div>
+            <p className="text-sm font-bold text-white">Manage Build</p>
+            <p className="text-[11px] text-white/70 mt-0.5">Log mods & track</p>
+          </div>
+          <Wrench size={20} className="text-white/70" />
+        </Link>
+        <Link
+          href={`/visualizer?carId=${primaryCar.id}`}
+          className="rounded-[16px] bg-[var(--color-bg-elevated)] border border-[var(--color-border)] p-4 flex items-center justify-between card-hover"
+        >
+          <div>
+            <p className="text-sm font-bold">AI Render</p>
+            <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Visualize mods</p>
+          </div>
+          <Zap size={20} className="text-[var(--color-accent)]" />
+        </Link>
+      </div>
+
+      {/* ── All vehicles (if more than 1) ── */}
+      {cars.length > 1 && (
+        <div className="px-4 mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold">All Vehicles</h2>
+            <AddCarButton />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {cars.map((car) => (
+              <CarCard
+                key={car.id}
+                car={car}
+                modCount={statsMap.get(car.id)?.count ?? 0}
+                totalSpent={statsMap.get(car.id)?.total ?? 0}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Add car (single car) ── */}
+      {cars.length === 1 && (
+        <div className="px-4 mt-4">
+          <AddCarButton
+            asCard
+            label="Add another vehicle"
+          />
+        </div>
+      )}
+
+      <div className="h-8" />
+    </div>
   );
 }

@@ -10,6 +10,8 @@ export type ModCategory =
 
 export type ModStatus = "installed" | "wishlist";
 
+export type ForumCategory = "general" | "build" | "advice" | "showcase" | "for_sale";
+
 export interface Database {
   public: {
     Tables: {
@@ -55,6 +57,15 @@ export interface Database {
           nickname: string | null;
           cover_image_url: string | null;
           is_public: boolean;
+          horsepower: number | null;
+          torque: number | null;
+          engine_size: string | null;
+          drivetrain: string | null;
+          transmission: string | null;
+          curb_weight: number | null;
+          zero_to_sixty: number | null;
+          top_speed: number | null;
+          specs_ai_guessed: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -70,6 +81,15 @@ export interface Database {
           nickname?: string | null;
           cover_image_url?: string | null;
           is_public?: boolean;
+          horsepower?: number | null;
+          torque?: number | null;
+          engine_size?: string | null;
+          drivetrain?: string | null;
+          transmission?: string | null;
+          curb_weight?: number | null;
+          zero_to_sixty?: number | null;
+          top_speed?: number | null;
+          specs_ai_guessed?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -83,6 +103,15 @@ export interface Database {
           nickname?: string | null;
           cover_image_url?: string | null;
           is_public?: boolean;
+          horsepower?: number | null;
+          torque?: number | null;
+          engine_size?: string | null;
+          drivetrain?: string | null;
+          transmission?: string | null;
+          curb_weight?: number | null;
+          zero_to_sixty?: number | null;
+          top_speed?: number | null;
+          specs_ai_guessed?: boolean;
           updated_at?: string;
         };
       };
@@ -205,6 +234,72 @@ export interface Database {
           content?: string;
         };
       };
+      forum_posts: {
+        Row: {
+          id: string;
+          user_id: string;
+          car_id: string | null;
+          title: string;
+          content: string;
+          category: ForumCategory;
+          likes_count: number;
+          replies_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          car_id?: string | null;
+          title: string;
+          content: string;
+          category?: ForumCategory;
+          likes_count?: number;
+          replies_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          title?: string;
+          content?: string;
+          category?: ForumCategory;
+          likes_count?: number;
+          replies_count?: number;
+          updated_at?: string;
+        };
+      };
+      forum_replies: {
+        Row: {
+          id: string;
+          user_id: string;
+          post_id: string;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          post_id: string;
+          content: string;
+          created_at?: string;
+        };
+        Update: never;
+      };
+      forum_likes: {
+        Row: {
+          id: string;
+          user_id: string;
+          post_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          post_id: string;
+          created_at?: string;
+        };
+        Update: never;
+      };
     };
     Views: Record<string, { Row: Record<string, unknown> }>;
     Functions: Record<string, { Args: Record<string, unknown>; Returns: unknown }>;
@@ -223,3 +318,6 @@ export type ModPhoto = Database["public"]["Tables"]["mod_photos"]["Row"];
 export type Render = Database["public"]["Tables"]["renders"]["Row"];
 export type Like = Database["public"]["Tables"]["likes"]["Row"];
 export type Comment = Database["public"]["Tables"]["comments"]["Row"];
+export type ForumPost = Database["public"]["Tables"]["forum_posts"]["Row"];
+export type ForumReply = Database["public"]["Tables"]["forum_replies"]["Row"];
+export type ForumLike = Database["public"]["Tables"]["forum_likes"]["Row"];

@@ -15,7 +15,6 @@ export default async function DashboardLayout({
 
   if (!user) redirect("/login");
 
-  // Fetch profile for display name
   const { data: profileRaw } = await supabase
     .from("profiles")
     .select("username")
@@ -26,8 +25,9 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-dvh bg-[var(--color-bg)]">
       <TopBar username={profile?.username} />
-      {/* Content offset for top bar and bottom nav */}
-      <main className="pt-14 pb-20 min-h-dvh">{children}</main>
+      <main className="pt-14" style={{ paddingBottom: "max(80px, calc(env(safe-area-inset-bottom) + 68px))" }}>
+        {children}
+      </main>
       <BottomNav />
     </div>
   );
