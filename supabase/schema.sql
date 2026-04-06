@@ -457,3 +457,90 @@ alter table cars add column if not exists curb_weight int check (curb_weight is 
 alter table cars add column if not exists zero_to_sixty numeric(4,2) check (zero_to_sixty is null or (zero_to_sixty > 0 and zero_to_sixty < 60));
 alter table cars add column if not exists top_speed int check (top_speed is null or (top_speed >= 30 and top_speed <= 500));
 alter table cars add column if not exists specs_ai_guessed boolean not null default false;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v2: Forum Voting Triggers + Downvotes
+-- Run this block in Supabase SQL Editor to enable vote counters and downvotes
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Auto-update likes_count when forum_likes changes
+create or replace function update_forum_likes_count()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if TG_OP = 'INSERT' then
+    update forum_posts set likes_count = likes_count + 1 where id = NEW.post_id;
+  elsif TG_OP = 'DELETE' then
+    update forum_posts set likes_count = greatest(0, likes_count - 1) where id = OLD.post_id;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists on_forum_like_change on forum_likes;
+create trigger on_forum_like_change
+  after insert or delete on forum_likes
+  for each row execute function update_forum_likes_count();
+
+-- Auto-update replies_count when forum_replies changes
+create or replace function update_forum_replies_count()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if TG_OP = 'INSERT' then
+    update forum_posts set replies_count = replies_count + 1 where id = NEW.post_id;
+  elsif TG_OP = 'DELETE' then
+    update forum_posts set replies_count = greatest(0, replies_count - 1) where id = OLD.post_id;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists on_forum_reply_change on forum_replies;
+create trigger on_forum_reply_change
+  after insert or delete on forum_replies
+  for each row execute function update_forum_replies_count();
+
+-- Add downvotes tracking to forum_posts
+alter table forum_posts add column if not exists downvotes_count int not null default 0;
+
+-- Forum downvotes table
+create table if not exists forum_downvotes (
+  id         uuid primary key default uuid_generate_v4(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  post_id    uuid not null references forum_posts(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint forum_downvotes_unique unique (user_id, post_id)
+);
+
+create index if not exists forum_downvotes_post_id_idx on forum_downvotes(post_id);
+
+alter table forum_downvotes enable row level security;
+
+drop policy if exists "forum_downvotes: public read" on forum_downvotes;
+create policy "forum_downvotes: public read"
+  on forum_downvotes for select using (true);
+
+drop policy if exists "forum_downvotes: owner write" on forum_downvotes;
+create policy "forum_downvotes: owner write"
+  on forum_downvotes for insert with check (auth.uid() = user_id);
+
+drop policy if exists "forum_downvotes: owner delete" on forum_downvotes;
+create policy "forum_downvotes: owner delete"
+  on forum_downvotes for delete using (auth.uid() = user_id);
+
+-- Auto-update downvotes_count when forum_downvotes changes
+create or replace function update_forum_downvotes_count()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if TG_OP = 'INSERT' then
+    update forum_posts set downvotes_count = downvotes_count + 1 where id = NEW.post_id;
+  elsif TG_OP = 'DELETE' then
+    update forum_posts set downvotes_count = greatest(0, downvotes_count - 1) where id = OLD.post_id;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists on_forum_downvote_change on forum_downvotes;
+create trigger on_forum_downvote_change
+  after insert or delete on forum_downvotes
+  for each row execute function update_forum_downvotes_count();
