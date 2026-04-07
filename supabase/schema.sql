@@ -630,6 +630,54 @@ create policy "purchases: owner all"
 -- applied.
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v6: Cached image descriptors + stock spec baseline + render flag
+--               + wishlist linkage + awards collection
+-- Run this block in Supabase SQL Editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- ── Cache the AI description of each uploaded photo so we never re-analyze.
+alter table car_photos add column if not exists image_descriptor text;
+
+-- ── Locked-in stock spec baseline. Captured the FIRST time the AI calculator
+-- runs and never overwritten so a delta vs stock is always derivable.
+alter table cars add column if not exists stock_horsepower    int;
+alter table cars add column if not exists stock_torque        int;
+alter table cars add column if not exists stock_curb_weight   int;
+alter table cars add column if not exists stock_zero_to_sixty numeric(4,2);
+alter table cars add column if not exists stock_top_speed     int;
+alter table cars add column if not exists stock_engine_size   text;
+alter table cars add column if not exists stock_drivetrain    text;
+alter table cars add column if not exists stock_transmission  text;
+
+-- ── Mark renders so the visualizer never feeds its own outputs back in
+alter table renders add column if not exists is_banner boolean not null default false;
+
+-- ── Privacy + social (Feature 19)
+alter table profiles add column if not exists is_public boolean not null default true;
+
+-- ── Awards collection (Feature 16)
+create table if not exists user_awards (
+  id           uuid primary key default uuid_generate_v4(),
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  award_id     text not null,
+  unlocked_at  timestamptz not null default now(),
+  is_featured  boolean not null default false,
+  constraint user_awards_unique unique (user_id, award_id)
+);
+
+create index if not exists user_awards_user_id_idx on user_awards(user_id);
+
+alter table user_awards enable row level security;
+
+drop policy if exists "user_awards: public read" on user_awards;
+create policy "user_awards: public read" on user_awards for select using (true);
+
+drop policy if exists "user_awards: owner write" on user_awards;
+create policy "user_awards: owner write" on user_awards for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
 create table if not exists chat_conversations (
   id         uuid primary key default uuid_generate_v4(),
   user_id    uuid not null references auth.users(id) on delete cascade,

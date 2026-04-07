@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AddModModal } from "./add-mod-modal";
+import { AwardReveal } from "@/components/awards/award-reveal";
+import { useAwardCheck } from "@/lib/hooks/use-award-check";
 import type { ModStatus } from "@/lib/supabase/types";
 
 interface AddModButtonProps {
@@ -20,6 +22,7 @@ export function AddModButton({
   variant = "primary",
 }: AddModButtonProps) {
   const [open, setOpen] = useState(false);
+  const { unlocked, check, dismiss } = useAwardCheck();
 
   return (
     <>
@@ -32,7 +35,9 @@ export function AddModButton({
         onClose={() => setOpen(false)}
         carId={carId}
         defaultStatus={defaultStatus}
+        onSaved={check}
       />
+      {unlocked.length > 0 && <AwardReveal awardIds={unlocked} onClose={dismiss} />}
     </>
   );
 }

@@ -128,8 +128,15 @@ export default function SettingsPage() {
       const res = await fetch("/api/user/avatar", { method: "POST", body: fd });
       const json = await res.json();
       if (res.ok && profile) {
-        setProfile({ ...profile, avatar_url: json.avatar_url });
+        // The new URL is uniquely timestamped at the path level, but we still
+        // append a query buster so any in-memory <img> caches forget the old
+        // bytes immediately.
+        const fresh = `${json.avatar_url}?v=${Date.now()}`;
+        setProfile({ ...profile, avatar_url: fresh });
         haptic("success");
+        // Force RSC re-fetch so server-rendered pages (forum, /u/[username],
+        // bottom nav header) pick up the new avatar on next navigation.
+        router.refresh();
       } else {
         setSaveError("Couldn't upload avatar. Please try again.");
       }

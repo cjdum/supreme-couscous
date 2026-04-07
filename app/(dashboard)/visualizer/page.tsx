@@ -310,6 +310,42 @@ function VisualizerContent() {
     }
   }
 
+  // Feature 18 — Imagine: fan out to N diverse interpretations in one shot.
+  async function handleImagine() {
+    if (!selectedCarId || !prompt.trim() || loading) return;
+    setLoading(true);
+    setError(null);
+    haptic("medium");
+
+    try {
+      const res = await fetch("/api/ai/imagine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          car_id: selectedCarId,
+          prompt: prompt.trim(),
+          count: 4,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Imagine failed");
+
+      const newRenders = (json.renders ?? []) as Render[];
+      if (newRenders.length === 0) {
+        throw new Error("No renders returned");
+      }
+      setRenders((prev) => [...newRenders, ...prev]);
+      setLatestRender(newRenders[0]);
+      setCoverSet(false);
+      haptic("success");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Imagine failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function setAsCover(render: Render) {
     if (!render.image_url || !selectedCarId) return;
     setSettingCover(true);
@@ -630,27 +666,39 @@ function VisualizerContent() {
                 </div>
               )}
 
-              <button
-                onClick={handleGenerate}
-                disabled={!selectedCarId || !prompt.trim() || loading}
-                className="w-full rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-[0_8px_32px_rgba(59,130,246,0.3)]"
-                style={{ minHeight: "52px" }}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={16} />
-                    Generate Render
-                  </>
-                )}
-              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2.5">
+                <button
+                  onClick={handleGenerate}
+                  disabled={!selectedCarId || !prompt.trim() || loading}
+                  className="rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-[0_8px_32px_rgba(59,130,246,0.3)]"
+                  style={{ minHeight: "52px" }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      Generate Render
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleImagine}
+                  disabled={!selectedCarId || !prompt.trim() || loading}
+                  className="rounded-2xl bg-[var(--color-bg-elevated)] border border-[var(--color-border-bright)] text-white text-sm font-bold flex items-center justify-center gap-2 px-5 hover:bg-[var(--color-bg-hover)] hover:border-[var(--color-accent)] transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  style={{ minHeight: "52px" }}
+                  title="Generate 4 diverse interpretations at once"
+                >
+                  <Wand2 size={16} className="text-[var(--color-accent-bright)]" />
+                  Imagine ×4
+                </button>
+              </div>
               {loading && (
                 <p className="text-[11px] text-center text-[var(--color-text-muted)]">
-                  DALL-E 3 rendering — usually 15-30 seconds
+                  DALL-E 3 rendering — single takes ~20s, Imagine ×4 takes ~45s
                 </p>
               )}
             </div>

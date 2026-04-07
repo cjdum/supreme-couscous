@@ -23,6 +23,7 @@ export interface Database {
           display_name: string | null;
           avatar_url: string | null;
           bio: string | null;
+          is_public: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -33,6 +34,7 @@ export interface Database {
           display_name?: string | null;
           avatar_url?: string | null;
           bio?: string | null;
+          is_public?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -41,6 +43,7 @@ export interface Database {
           display_name?: string | null;
           avatar_url?: string | null;
           bio?: string | null;
+          is_public?: boolean;
           updated_at?: string;
         };
       };
@@ -67,6 +70,14 @@ export interface Database {
           zero_to_sixty: number | null;
           top_speed: number | null;
           specs_ai_guessed: boolean;
+          stock_horsepower: number | null;
+          stock_torque: number | null;
+          stock_curb_weight: number | null;
+          stock_zero_to_sixty: number | null;
+          stock_top_speed: number | null;
+          stock_engine_size: string | null;
+          stock_drivetrain: string | null;
+          stock_transmission: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -92,6 +103,14 @@ export interface Database {
           zero_to_sixty?: number | null;
           top_speed?: number | null;
           specs_ai_guessed?: boolean;
+          stock_horsepower?: number | null;
+          stock_torque?: number | null;
+          stock_curb_weight?: number | null;
+          stock_zero_to_sixty?: number | null;
+          stock_top_speed?: number | null;
+          stock_engine_size?: string | null;
+          stock_drivetrain?: string | null;
+          stock_transmission?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -115,6 +134,14 @@ export interface Database {
           zero_to_sixty?: number | null;
           top_speed?: number | null;
           specs_ai_guessed?: boolean;
+          stock_horsepower?: number | null;
+          stock_torque?: number | null;
+          stock_curb_weight?: number | null;
+          stock_zero_to_sixty?: number | null;
+          stock_top_speed?: number | null;
+          stock_engine_size?: string | null;
+          stock_drivetrain?: string | null;
+          stock_transmission?: string | null;
           updated_at?: string;
         };
       };
@@ -126,6 +153,7 @@ export interface Database {
           url: string;
           position: number;
           is_cover: boolean;
+          image_descriptor: string | null;
           created_at: string;
         };
         Insert: {
@@ -135,11 +163,13 @@ export interface Database {
           url: string;
           position?: number;
           is_cover?: boolean;
+          image_descriptor?: string | null;
           created_at?: string;
         };
         Update: {
           position?: number;
           is_cover?: boolean;
+          image_descriptor?: string | null;
         };
       };
       mods: {
@@ -212,6 +242,7 @@ export interface Database {
           user_prompt: string;
           image_prompt: string;
           image_url: string | null;
+          is_banner: boolean;
           created_at: string;
         };
         Insert: {
@@ -221,10 +252,31 @@ export interface Database {
           user_prompt: string;
           image_prompt: string;
           image_url?: string | null;
+          is_banner?: boolean;
           created_at?: string;
         };
         Update: {
           image_url?: string | null;
+          is_banner?: boolean;
+        };
+      };
+      user_awards: {
+        Row: {
+          id: string;
+          user_id: string;
+          award_id: string;
+          unlocked_at: string;
+          is_featured: boolean;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          award_id: string;
+          unlocked_at?: string;
+          is_featured?: boolean;
+        };
+        Update: {
+          is_featured?: boolean;
         };
       };
       likes: {

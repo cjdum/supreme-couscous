@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { Users, Heart, Globe } from "lucide-react";
+import { Users, Heart, Globe, Trophy } from "lucide-react";
 import Link from "next/link";
 import { formatRelativeDate } from "@/lib/utils";
 import { CommunityFilters } from "@/components/community/community-filters";
@@ -9,6 +9,7 @@ export const metadata = { title: "Community — MODVAULT" };
 interface SearchParams {
   make?: string;
   model?: string;
+  sort?: "recent" | "top";
 }
 
 interface Props {
@@ -16,8 +17,9 @@ interface Props {
 }
 
 export default async function CommunityPage({ searchParams }: Props) {
-  const { make, model } = await searchParams;
+  const { make, model, sort } = await searchParams;
   const supabase = await createClient();
+  const sortMode: "recent" | "top" = sort === "top" ? "top" : "recent";
 
   let query = supabase
     .from("cars")
@@ -29,7 +31,7 @@ export default async function CommunityPage({ searchParams }: Props) {
     )
     .eq("is_public", true)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(sortMode === "top" ? 100 : 50);
 
   if (make) query = query.ilike("make", `%${make}%`);
   if (model) query = query.ilike("model", `%${model}%`);
@@ -73,6 +75,32 @@ export default async function CommunityPage({ searchParams }: Props) {
         <CommunityFilters makes={uniqueMakes} currentMake={make} currentModel={model} />
       </div>
 
+      {/* Sort tabs — Feature 19 top builds */}
+      <div className="flex gap-2 mb-4">
+        <Link
+          href={`/community${make || model ? `?${new URLSearchParams({ ...(make ? { make } : {}), ...(model ? { model } : {}) }).toString()}` : ""}`}
+          className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[11px] font-bold transition-all ${
+            sortMode === "recent"
+              ? "bg-[var(--color-accent)] text-white shadow-[0_4px_16px_rgba(59,130,246,0.25)]"
+              : "bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white"
+          }`}
+        >
+          <Globe size={11} />
+          Recent
+        </Link>
+        <Link
+          href={`/community?${new URLSearchParams({ sort: "top", ...(make ? { make } : {}), ...(model ? { model } : {}) }).toString()}`}
+          className={`inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-[11px] font-bold transition-all ${
+            sortMode === "top"
+              ? "bg-[var(--color-warning)] text-black shadow-[0_4px_16px_rgba(245,158,11,0.30)]"
+              : "bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white"
+          }`}
+        >
+          <Trophy size={11} />
+          Top builds
+        </Link>
+      </div>
+
       {(!builds || builds.length === 0) ? (
         <div className="text-center py-16">
           <Globe size={30} className="mx-auto mb-3 text-[var(--color-text-muted)] opacity-30" />
@@ -85,7 +113,19 @@ export default async function CommunityPage({ searchParams }: Props) {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {(builds as unknown as Build[]).map((build) => {
+          {(() => {
+            const list = builds as unknown as Build[];
+            const sorted =
+              sortMode === "top"
+                ? [...list]
+                    .sort(
+                      (a, b) =>
+                        ((b.likes?.[0]?.count ?? 0) - (a.likes?.[0]?.count ?? 0)) ||
+                        ((b.mods?.[0]?.count ?? 0) - (a.mods?.[0]?.count ?? 0))
+                    )
+                    .slice(0, 25)
+                : list;
+            return sorted.map((build) => {
             const likeCount = (build.likes as { count: number }[])?.[0]?.count ?? 0;
             const modCount = (build.mods as { count: number }[])?.[0]?.count ?? 0;
 
@@ -154,7 +194,8 @@ export default async function CommunityPage({ searchParams }: Props) {
                 </div>
               </Link>
             );
-          })}
+          });
+          })()}
         </div>
       )}
 

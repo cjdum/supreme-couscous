@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { calculateBuildScore, LEVELS, LEVEL_COLORS, BUILD_SCORE_COLOR, COMMUNITY_SCORE_COLOR, VAULT_RATING_COLOR } from "@/lib/build-score";
 import { computeBadges, type Badge, type BadgeInput, BADGE_ICON_PATHS } from "@/lib/badges";
+import { AWARDS, AWARDS_BY_ID, RARITY_STYLES, type AwardDef } from "@/lib/awards";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { ConfettiBurst } from "@/components/ui/confetti";
 import { CarShareCard } from "@/components/garage/car-share-card";
@@ -91,6 +92,7 @@ export default function ProfilePage() {
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const [sharing, setSharing] = useState(false);
   const [primaryCar, setPrimaryCar] = useState<CarType | null>(null);
+  const [unlockedAwards, setUnlockedAwards] = useState<Set<string>>(new Set());
   const [topCategory, setTopCategory] = useState<ModCategory | null>(null);
   const [topMods, setTopMods] = useState<{ name: string; category: ModCategory; cost: number | null }[]>([]);
   const [copied, setCopied] = useState(false);
@@ -128,10 +130,13 @@ export default function ProfilePage() {
         allMods = (mods ?? []) as typeof allMods;
       }
 
-      const [postRes, replyRes] = await Promise.all([
+      const [postRes, replyRes, awardsRes] = await Promise.all([
         supabase.from("forum_posts").select("id", { count: "exact", head: true }).eq("user_id", user.id),
         supabase.from("forum_replies").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+        supabase.from("user_awards").select("award_id").eq("user_id", user.id),
       ]);
+      const awardRows = (awardsRes.data ?? []) as { award_id: string }[];
+      setUnlockedAwards(new Set(awardRows.map((r) => r.award_id)));
 
       const score = calculateBuildScore({
         cars: carList,
@@ -534,6 +539,70 @@ export default function ProfilePage() {
           )}
         </div>
       )}
+
+      {/* Awards collection — Feature 16 */}
+      <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6">
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Awards</p>
+            <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+              <AnimatedCounter value={unlockedAwards.size} duration={1200} /> of {AWARDS.length} unlocked
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+          {AWARDS.map((award) => {
+            const earned = unlockedAwards.has(award.id);
+            const def: AwardDef = AWARDS_BY_ID[award.id];
+            const style = RARITY_STYLES[award.rarity];
+            const path = BADGE_ICON_PATHS[award.icon];
+            return (
+              <div
+                key={award.id}
+                className="rounded-2xl p-3 flex flex-col items-center gap-2 text-center transition-all relative tactile-press"
+                style={
+                  earned
+                    ? {
+                        background: `linear-gradient(180deg, ${style.bg}, rgba(15,17,21,0.6))`,
+                        border: `1px solid ${style.border}`,
+                        boxShadow: style.glow,
+                      }
+                    : {
+                        background: "rgba(255,255,255,0.02)",
+                        border: "1px solid rgba(255,255,255,0.05)",
+                        opacity: 0.45,
+                      }
+                }
+                title={earned ? def.flavor : "Locked"}
+              >
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{
+                    background: earned ? `${style.color}15` : "rgba(255,255,255,0.04)",
+                  }}
+                >
+                  {path && (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={earned ? style.color : "#444"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d={path} />
+                    </svg>
+                  )}
+                </div>
+                <div className="min-w-0 w-full">
+                  <p className={`text-[10px] font-bold leading-tight truncate ${earned ? "text-white" : "text-[var(--color-text-muted)]"}`}>
+                    {earned ? def.name : "???"}
+                  </p>
+                  <p
+                    className="text-[8px] uppercase font-black tracking-wider mt-1"
+                    style={{ color: earned ? style.color : "#444" }}
+                  >
+                    {style.label}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Profile fields */}
       <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden">

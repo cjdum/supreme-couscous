@@ -4,6 +4,7 @@ import { Award, Wrench, Car as CarIcon, ArrowLeft, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { calculateBuildScore, LEVEL_COLORS } from "@/lib/build-score";
 import { formatCurrency } from "@/lib/utils";
+import { LikeButton } from "@/components/social/like-button";
 import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
 
 interface Props {
@@ -68,6 +69,30 @@ export default async function PublicProfilePage({ params }: Props) {
   const levelColor = LEVEL_COLORS[buildScore.level];
 
   const primary = cars.find((c) => c.is_primary) ?? cars[0] ?? null;
+
+  // ── Likes for the primary build (Feature 19) ──
+  const {
+    data: { user: viewer },
+  } = await supabase.auth.getUser();
+  let primaryLikeCount = 0;
+  let primaryLiked = false;
+  if (primary) {
+    const { count } = await supabase
+      .from("likes")
+      .select("id", { count: "exact", head: true })
+      .eq("car_id", primary.id);
+    primaryLikeCount = count ?? 0;
+    if (viewer && viewer.id !== profile.user_id) {
+      const { data: myLike } = await supabase
+        .from("likes")
+        .select("id")
+        .eq("car_id", primary.id)
+        .eq("user_id", viewer.id)
+        .maybeSingle();
+      primaryLiked = Boolean(myLike);
+    }
+  }
+  const isOwnProfile = viewer?.id === profile.user_id;
 
   return (
     <div className="min-h-dvh bg-black gradient-bg">
@@ -141,7 +166,22 @@ export default async function PublicProfilePage({ params }: Props) {
         {/* Primary car spotlight */}
         {primary && (
           <section className="mb-6">
-            <h2 className="text-lg font-bold tracking-tight mb-3">Primary Build</h2>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h2 className="text-lg font-bold tracking-tight">Primary Build</h2>
+              {!isOwnProfile && (
+                <LikeButton
+                  carId={primary.id}
+                  initialLiked={primaryLiked}
+                  initialCount={primaryLikeCount}
+                />
+              )}
+              {isOwnProfile && primaryLikeCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="#ff6b62" stroke="#ff6b62" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></svg>
+                  <span className="tabular font-bold">{primaryLikeCount}</span>
+                </span>
+              )}
+            </div>
             <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden">
               {primary.cover_image_url && (
                 <div className="relative aspect-video">

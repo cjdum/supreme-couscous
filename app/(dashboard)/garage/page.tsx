@@ -155,6 +155,7 @@ export default async function GaragePage() {
           carCount={cars.length}
           totalMods={totalMods}
           totalInvested={totalInvested}
+          breakdown={buildScore.breakdown}
         />
 
         {/* ── Build Timeline (primary car) ── */}
@@ -225,14 +226,11 @@ export default async function GaragePage() {
         {/* ── Other vehicles rail ── */}
         {otherCars.length > 0 && (
           <section className="mt-10">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-bold tracking-tight">Other Vehicles</h2>
-                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                  Drag to reorder. {otherCars.length} {otherCars.length === 1 ? "car" : "cars"}.
-                </p>
-              </div>
-              <AddCarButton />
+            <div className="mb-4">
+              <h2 className="text-lg font-bold tracking-tight">Other Vehicles</h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                Drag to reorder. {otherCars.length} {otherCars.length === 1 ? "car" : "cars"}.
+              </p>
             </div>
             <CarsRail cars={otherCars} stats={statsMap} />
           </section>

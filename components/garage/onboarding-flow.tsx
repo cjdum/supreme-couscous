@@ -110,12 +110,15 @@ export function OnboardingFlow() {
         body: fd,
       });
       if (!res.ok) throw new Error("Upload failed");
-      setStep(3);
-      setTimeout(finish, 1400);
-    } catch {
-      setUploadError("Upload failed — you can add a photo later from your garage.");
+    } catch (err) {
+      // Non-blocking: log it, surface a soft note, but always advance into the
+      // garage. The car already exists; the user can add a photo later.
+      console.warn("[onboarding] photo upload failed, continuing anyway", err);
+      setUploadError("Photo didn't upload — you can add one later from your garage.");
     } finally {
       setUploading(false);
+      setStep(3);
+      setTimeout(finish, 1400);
     }
   }
 

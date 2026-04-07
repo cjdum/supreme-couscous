@@ -103,6 +103,41 @@
     color: #0a0a0a;
   }
 
+  /* ── Light mode rescue: many components hardcode `text-white`, `text-white/70`,
+     etc. These look fine on the dark theme but become invisible on the light
+     theme. Rather than rewriting hundreds of class strings, we override the
+     literal white tokens to use the semantic primary text token instead.  ── */
+  :root[data-theme="light"] .text-white,
+  :root[data-theme="light"] [class*="text-white\\/"] {
+    color: var(--color-text-primary) !important;
+  }
+  :root[data-theme="light"] .bg-black,
+  :root[data-theme="light"] [class*="bg-black\\/"] {
+    background-color: var(--color-bg-card) !important;
+  }
+  :root[data-theme="light"] .border-white,
+  :root[data-theme="light"] [class*="border-white\\/"] {
+    border-color: var(--color-border) !important;
+  }
+  /* Loud gradients used on hero text become unreadable on white — fall back to
+     a solid dark fill in light mode. */
+  :root[data-theme="light"] .text-gradient,
+  :root[data-theme="light"] .text-gradient-blue,
+  :root[data-theme="light"] .text-gradient-fire,
+  :root[data-theme="light"] .text-gradient-gold {
+    -webkit-text-fill-color: var(--color-text-primary);
+    background: none;
+  }
+  /* The animated ambient gradient ::before sits behind everything and is dark
+     by default; the existing light override only handles `.gradient-bg::before`
+     so make sure pages without that class still get a white backdrop. */
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
   :root[data-theme="light"] .gradient-bg::before {
     background: linear-gradient(
       135deg,
@@ -277,6 +312,64 @@
   .card-hover:active {
     transform: translateY(0) scale(0.98);
     transition-duration: 100ms;
+  }
+
+  /* ── Tactile card — Apple-style depth: subtle inner top highlight + bottom shadow.
+     Use on top of bg-card to make the surface feel like a physical thing. ── */
+  .tactile {
+    position: relative;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+      0 1px 0 rgba(0, 0, 0, 0.6),
+      0 12px 32px rgba(0, 0, 0, 0.45),
+      0 2px 6px rgba(0, 0, 0, 0.35);
+  }
+  .tactile-press {
+    transition: transform 120ms ease, box-shadow 200ms ease;
+  }
+  .tactile-press:active {
+    transform: translateY(1px) scale(0.985);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 1px 0 rgba(0, 0, 0, 0.5),
+      0 4px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  /* ── Balatro-style rarity tiers — for awards, mods, renders, anything that
+     should feel "rolled". Layered glow + colored border. ── */
+  .rarity-common {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+  .rarity-uncommon {
+    box-shadow:
+      0 0 0 1px rgba(48, 209, 88, 0.32),
+      0 0 16px rgba(48, 209, 88, 0.12),
+      0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+  .rarity-rare {
+    box-shadow:
+      0 0 0 1px rgba(59, 130, 246, 0.4),
+      0 0 24px rgba(59, 130, 246, 0.18),
+      0 0 60px rgba(59, 130, 246, 0.06),
+      0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+  .rarity-epic {
+    box-shadow:
+      0 0 0 1px rgba(191, 90, 242, 0.45),
+      0 0 28px rgba(191, 90, 242, 0.22),
+      0 0 70px rgba(191, 90, 242, 0.09),
+      0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+  .rarity-legendary {
+    box-shadow:
+      0 0 0 1px rgba(251, 191, 36, 0.55),
+      0 0 32px rgba(251, 191, 36, 0.30),
+      0 0 80px rgba(251, 191, 36, 0.12),
+      0 4px 16px rgba(0, 0, 0, 0.4);
+    animation: glowPulseGold 3s ease-in-out infinite;
   }
 
   /* ── Animations ── */

@@ -126,7 +126,9 @@ function ChatContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const userScrolledUpRef = useRef(false);
 
   // Load persisted conversations
   useEffect(() => {
@@ -212,10 +214,35 @@ function ChatContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-scroll
+  // Auto-scroll — but only if the user hasn't scrolled up. This is the fix
+  // for "can't scroll while AI is responding": previously every streamed token
+  // yanked the viewport back down. Now we track whether the user is near the
+  // bottom and only auto-scroll in that case, so they're free to scroll up
+  // and read prior context while a response streams in.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+      userScrolledUpRef.current = distanceFromBottom > 120;
+    };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (userScrolledUpRef.current) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
+
+  // When the user submits a new message, snap them back to the bottom regardless
+  function snapToBottom() {
+    userScrolledUpRef.current = false;
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+  }
 
   // Auto-grow textarea
   useEffect(() => {
@@ -248,6 +275,7 @@ function ChatContent() {
     if (!text.trim() || streaming) return;
 
     haptic("light");
+    snapToBottom();
     const userMessage: Message = { role: "user", content: text.trim() };
     // Strip any previous quick replies — we only want them on the most recent message
     const cleanedMessages: Message[] = messages.map((m) => ({
@@ -501,7 +529,7 @@ function ChatContent() {
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto overscroll-contain">
           <div className="px-4 sm:px-6 lg:px-8 py-6 max-w-4xl mx-auto w-full space-y-5">
             {showSuggested ? (
               <EmptyChatState

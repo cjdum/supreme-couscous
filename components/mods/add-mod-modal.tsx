@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Select } from "@/components/ui/input";
@@ -18,9 +19,10 @@ interface AddModModalProps {
   onClose: () => void;
   carId: string;
   defaultStatus?: ModStatus;
+  onSaved?: () => void;
 }
 
-export function AddModModal({ open, onClose, carId, defaultStatus = "installed" }: AddModModalProps) {
+export function AddModModal({ open, onClose, carId, defaultStatus = "installed", onSaved }: AddModModalProps) {
   const router = useRouter();
   const [form, setForm] = useState<Partial<ModInput>>({
     status: defaultStatus,
@@ -30,6 +32,49 @@ export function AddModModal({ open, onClose, carId, defaultStatus = "installed" 
   const [errors, setErrors] = useState<Partial<Record<keyof ModInput, string>>>({});
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // ── UX 8: Free-form AI parse ──
+  // Users can dump a one-line description and we'll fill the form for them.
+  const [quickText, setQuickText] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [parseFilled, setParseFilled] = useState(false);
+
+  async function handleQuickParse() {
+    if (!quickText.trim() || parsing) return;
+    setParsing(true);
+    setParseError(null);
+    setParseFilled(false);
+    try {
+      const res = await fetch("/api/ai/parse-mod", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: quickText.trim(), car_id: carId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.mod) {
+        setParseError(json.error ?? "Couldn't parse that — try rewording.");
+        return;
+      }
+      // Merge into form, preserving any field the user already changed.
+      setForm((prev) => ({
+        ...prev,
+        name: prev.name || json.mod.name,
+        category: (prev.category as ModInput["category"]) || json.mod.category,
+        cost: prev.cost ?? json.mod.cost,
+        install_date: prev.install_date ?? json.mod.install_date,
+        shop_name: prev.shop_name ?? json.mod.shop_name,
+        is_diy: prev.is_diy || json.mod.is_diy,
+        notes: prev.notes ?? json.mod.notes,
+        status: prev.status ?? json.mod.status,
+      }));
+      setParseFilled(true);
+    } catch {
+      setParseError("Network error. Please try again.");
+    } finally {
+      setParsing(false);
+    }
+  }
 
   function setField<K extends keyof ModInput>(key: K, value: ModInput[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -75,6 +120,7 @@ export function AddModModal({ open, onClose, carId, defaultStatus = "installed" 
     }
 
     router.refresh();
+    onSaved?.();
     handleClose();
   }
 
@@ -83,6 +129,9 @@ export function AddModModal({ open, onClose, carId, defaultStatus = "installed" 
     setForm({ status: defaultStatus, is_diy: false, category: "engine" });
     setErrors({});
     setServerError(null);
+    setQuickText("");
+    setParseError(null);
+    setParseFilled(false);
   }
 
   return (
@@ -99,6 +148,67 @@ export function AddModModal({ open, onClose, carId, defaultStatus = "installed" 
             {serverError}
           </div>
         )}
+
+        {/* ── Quick add: free-form AI parse ── */}
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-3.5 space-y-2.5">
+          <div className="flex items-center gap-2">
+            <Sparkles size={13} className="text-[var(--color-accent-bright)]" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+              Quick add — describe it in plain English
+            </p>
+          </div>
+          <textarea
+            value={quickText}
+            onChange={(e) => {
+              setQuickText(e.target.value);
+              if (parseError) setParseError(null);
+              if (parseFilled) setParseFilled(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                handleQuickParse();
+              }
+            }}
+            placeholder="Injen cold air intake, $230, installed last week at SpeedZone, +12hp"
+            rows={2}
+            maxLength={1000}
+            className="w-full resize-none text-sm"
+          />
+          {parseError && (
+            <p className="text-xs text-[var(--color-danger)]" role="alert">
+              {parseError}
+            </p>
+          )}
+          {parseFilled && !parseError && (
+            <p className="text-xs text-[var(--color-success)]">
+              Filled below — review and edit before saving.
+            </p>
+          )}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] text-[var(--color-text-muted)]">
+              Only the name is required. ⌘+Enter to parse.
+            </p>
+            <button
+              type="button"
+              onClick={handleQuickParse}
+              disabled={!quickText.trim() || parsing}
+              className="h-8 px-3 rounded-lg bg-[var(--color-accent)] text-white text-xs font-bold flex items-center gap-1.5 hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
+            >
+              {parsing ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" />
+                  Parsing…
+                </>
+              ) : (
+                <>
+                  <Sparkles size={12} />
+                  Auto-fill
+                </>
+              )}
+            </button>
+          </div>
+        </div>
 
         <Autocomplete
           label="Modification name"

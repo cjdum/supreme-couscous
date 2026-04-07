@@ -14,7 +14,7 @@ import { SpendingChart } from "@/components/mods/spending-chart";
 import { CarGallery } from "@/components/garage/car-gallery";
 import { BuildTimeline } from "@/components/garage/build-timeline";
 import { EditCarButton } from "@/components/garage/edit-car-button";
-import type { Car, Mod, ModCategory } from "@/lib/supabase/types";
+import type { Car, Mod, ModCategory, Render } from "@/lib/supabase/types";
 
 interface Props {
   params: Promise<{ carId: string }>;
@@ -56,6 +56,16 @@ export default async function CarDetailPage({ params }: Props) {
     .eq("car_id", carId)
     .order("created_at", { ascending: false });
   const mods = (modsRaw ?? []) as Mod[];
+
+  // Renders for the new "Renders" tab + set-as-banner workflow
+  const { data: rendersRaw } = await supabase
+    .from("renders")
+    .select("*")
+    .eq("car_id", carId)
+    .not("image_url", "is", null)
+    .order("is_banner", { ascending: false })
+    .order("created_at", { ascending: false });
+  const renders = (rendersRaw ?? []) as Render[];
 
   const installed = mods.filter((m) => m.status === "installed");
   const wishlist = mods.filter((m) => m.status === "wishlist");
@@ -281,7 +291,7 @@ export default async function CarDetailPage({ params }: Props) {
       <div className="px-5 sm:px-8 pb-12 mt-6 lg:grid lg:grid-cols-3 lg:gap-6 space-y-6 lg:space-y-0">
         <div className="lg:col-span-2 space-y-6">
           <CarGallery carId={carId} initialCoverUrl={car.cover_image_url} />
-          <CarDetailTabs installed={installed} wishlist={wishlist} carId={carId} />
+          <CarDetailTabs installed={installed} wishlist={wishlist} renders={renders} carId={carId} />
         </div>
 
         <div className="space-y-6">

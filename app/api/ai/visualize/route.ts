@@ -193,23 +193,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Car not found" }, { status: 404 });
   }
 
-  // Grab user-uploaded photos + most recent cover photo as reference.
+  // Grab REAL user-uploaded photos only — never use generated renders as a
+  // reference (they cause visual drift over time as the model copies its own
+  // hallucinations). The car_photos table only contains real uploads; the
+  // renders table is intentionally excluded here.
   const { data: photosRaw } = await supabase
     .from("car_photos")
-    .select("url, is_cover, position")
+    .select("url, is_cover, position, image_descriptor")
     .eq("car_id", car_id)
     .order("is_cover", { ascending: false })
     .order("position", { ascending: true })
     .limit(3);
 
-  const photos = (photosRaw ?? []) as { url: string; is_cover: boolean; position: number }[];
+  const photos = (photosRaw ?? []) as {
+    url: string;
+    is_cover: boolean;
+    position: number;
+    image_descriptor: string | null;
+  }[];
 
-  // Prefer user-uploaded car photos over generated renders for reference.
-  const referenceUrl =
-    photos.find((p) => p.is_cover)?.url ??
-    photos[0]?.url ??
-    car.cover_image_url ??
-    null;
+  // Prefer the cover photo, fall back to first uploaded photo. We deliberately
+  // do NOT fall back to car.cover_image_url because that field can point at a
+  // saved render (when the user explicitly chose "set as banner" on a render).
+  const referencePhoto = photos.find((p) => p.is_cover) ?? photos[0] ?? null;
+  const referenceUrl = referencePhoto?.url ?? null;
+  // Cached descriptor (Perf #20) — if we already analyzed this photo, reuse it
+  // instead of paying for another vision call.
+  const cachedDescriptor = referencePhoto?.image_descriptor ?? null;
 
   // Get installed mods — we lead the DALL-E prompt with the actual build.
   const { data: modsRaw, error: modsErr } = await supabase
@@ -244,15 +254,25 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Step 1: If there's a user photo, describe it with Claude vision so we
-    // can inject the visual traits into DALL-E's prompt.
-    let referenceDescription: string | null = null;
-    if (referenceUrl) {
-      console.log(`[visualize] describing reference photo: ${referenceUrl.slice(0, 80)}`);
+    // Step 1: If there's a user photo, describe it ONCE with Claude vision so
+    // we can inject the visual traits into DALL-E's prompt. The result is
+    // cached on the car_photos row in the `image_descriptor` column so future
+    // generations reuse it for free instead of paying for another vision call.
+    let referenceDescription: string | null = cachedDescriptor;
+    if (referenceUrl && !referenceDescription) {
+      console.log(`[visualize] describing reference photo (no cache): ${referenceUrl.slice(0, 80)}`);
       referenceDescription = await describeReferencePhoto(referenceUrl);
       if (referenceDescription) {
         console.log(`[visualize] reference description: ${referenceDescription.slice(0, 180)}`);
+        // Cache it on car_photos so we never analyze this photo again.
+        await supabase
+          .from("car_photos")
+          .update({ image_descriptor: referenceDescription })
+          .eq("car_id", car_id)
+          .eq("url", referenceUrl);
       }
+    } else if (cachedDescriptor) {
+      console.log(`[visualize] reusing cached descriptor (${cachedDescriptor.length} chars)`);
     }
 
     // Step 2: Use Claude to craft the optimal DALL-E prompt — LEADING with

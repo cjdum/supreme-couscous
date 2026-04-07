@@ -44,7 +44,9 @@ export async function POST(request: Request) {
 
   const { data: carRaw } = await supabase
     .from("cars")
-    .select("make, model, year, trim")
+    .select(
+      "make, model, year, trim, stock_horsepower, stock_torque, stock_engine_size, stock_drivetrain, stock_transmission, stock_curb_weight, stock_zero_to_sixty, stock_top_speed"
+    )
     .eq("id", car_id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -60,6 +62,39 @@ export async function POST(request: Request) {
     .select("name, category, notes")
     .eq("car_id", car_id)
     .eq("status", "installed");
+
+  const car = carRaw as {
+    make: string;
+    model: string;
+    year: number;
+    trim: string | null;
+    stock_horsepower: number | null;
+    stock_torque: number | null;
+    stock_engine_size: string | null;
+    stock_drivetrain: string | null;
+    stock_transmission: string | null;
+    stock_curb_weight: number | null;
+    stock_zero_to_sixty: number | null;
+    stock_top_speed: number | null;
+  };
+
+  const hasLockedStock =
+    car.stock_horsepower !== null &&
+    car.stock_torque !== null &&
+    car.stock_curb_weight !== null;
+
+  const lockedStockBlock = hasLockedStock
+    ? `LOCKED STOCK BASELINE (use these EXACT values, do not alter):
+- horsepower: ${car.stock_horsepower}
+- torque: ${car.stock_torque} lb-ft
+- engine_size: ${car.stock_engine_size ?? "unknown"}
+- drivetrain: ${car.stock_drivetrain ?? "unknown"}
+- transmission: ${car.stock_transmission ?? "unknown"}
+- curb_weight: ${car.stock_curb_weight} lbs
+- zero_to_sixty: ${car.stock_zero_to_sixty} sec
+- top_speed: ${car.stock_top_speed} mph
+`
+    : "";
 
   const mods = (modsRaw ?? []) as { name: string; category: string; notes: string | null }[];
   const modList = mods.length
@@ -80,13 +115,13 @@ export async function POST(request: Request) {
           role: "user",
           content: `You are an expert automotive tuner. Estimate the specs of a user's car — BOTH stock baseline and modified final figures.
 
-Vehicle: ${carRaw.year} ${carRaw.make} ${carRaw.model}${carRaw.trim ? ` ${carRaw.trim}` : ""}
+Vehicle: ${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ""}
 
-Installed mods:
+${lockedStockBlock}Installed mods:
 ${modList}
 
 Instructions:
-1. Look up the STOCK factory specs for this vehicle (HP, torque, 0-60, top speed, weight, drivetrain, engine, transmission).
+1. ${hasLockedStock ? "Use the LOCKED STOCK BASELINE above as the stock object — do NOT change any of those values." : "Look up the STOCK factory specs for this vehicle (HP, torque, 0-60, top speed, weight, drivetrain, engine, transmission)."}
 2. For EACH mod, estimate its effect on HP, torque, curb weight, 0-60, and top speed. Use industry-typical figures:
    - cold air intake: +8 to +15hp, +5 to +12 lb-ft
    - cat-back exhaust: +10 to +20hp, +8 to +15 lb-ft
@@ -196,6 +231,36 @@ Use null (not 0) for stock fields you genuinely don't know. For "modified", alwa
 
     // Save the modified figures to the cars table (keeping existing schema),
     // and return the full payload so the UI can render stock vs modified.
+    // If stock baseline isn't locked yet, lock it now using whatever Claude returned.
+    // From here on, every recalculation will be forced to use these exact values.
+    const stockToPersist = hasLockedStock
+      ? {}
+      : {
+          stock_horsepower: payload.stock.horsepower,
+          stock_torque: payload.stock.torque,
+          stock_engine_size: payload.stock.engine_size,
+          stock_drivetrain: payload.stock.drivetrain,
+          stock_transmission: payload.stock.transmission,
+          stock_curb_weight: payload.stock.curb_weight,
+          stock_zero_to_sixty: payload.stock.zero_to_sixty,
+          stock_top_speed: payload.stock.top_speed,
+        };
+
+    // Always echo the locked stock back in the response so the UI shows the
+    // immutable baseline rather than whatever Claude said this round.
+    const responseStock = hasLockedStock
+      ? {
+          horsepower: car.stock_horsepower,
+          torque: car.stock_torque,
+          engine_size: car.stock_engine_size,
+          drivetrain: car.stock_drivetrain,
+          transmission: car.stock_transmission,
+          curb_weight: car.stock_curb_weight,
+          zero_to_sixty: car.stock_zero_to_sixty,
+          top_speed: car.stock_top_speed,
+        }
+      : payload.stock;
+
     const savable: Record<string, unknown> = {
       horsepower: payload.modified.horsepower,
       torque: payload.modified.torque,
@@ -207,6 +272,7 @@ Use null (not 0) for stock fields you genuinely don't know. For "modified", alwa
       top_speed: payload.modified.top_speed,
       specs_ai_guessed: true,
       updated_at: new Date().toISOString(),
+      ...stockToPersist,
     };
 
     const { error: updateError } = await supabase
@@ -221,7 +287,7 @@ Use null (not 0) for stock fields you genuinely don't know. For "modified", alwa
 
     return NextResponse.json({
       specs: payload.modified,
-      stock: payload.stock,
+      stock: responseStock,
       modified: payload.modified,
       mod_deltas: payload.mod_deltas,
       saved: !updateError,

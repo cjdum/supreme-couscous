@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Sliders, Edit2, Share2, Star, Zap, ImageIcon } from "lucide-react";
+import { ChevronRight, Sliders, Edit2, Share2, Star, Zap, Camera } from "lucide-react";
 import { EditCarModal } from "./edit-car-modal";
 import { CarShareCard } from "./car-share-card";
 import { ModConfiguratorPanel } from "./mod-configurator-panel";
@@ -80,7 +80,8 @@ export function GarageHero({
     };
   }, []);
 
-  const heroImage = latestRenderUrl ?? car.cover_image_url ?? null;
+  // Real cover photo wins. Renders are a *fallback* — never override the user's actual photo.
+  const heroImage = car.cover_image_url ?? latestRenderUrl ?? null;
   const carName = `${car.year} ${car.make} ${car.model}`;
 
   return (
@@ -263,20 +264,29 @@ function EmptyHeroState({ carId }: { carId: string }) {
       />
       <div className="relative z-10 text-center px-6">
         <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center">
-          <ImageIcon size={28} className="text-[var(--color-text-muted)]" />
+          <Camera size={28} className="text-[var(--color-text-muted)]" />
         </div>
-        <h2 className="text-xl sm:text-2xl font-black tracking-tight">No render yet</h2>
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight">Add a real photo</h2>
         <p className="text-sm text-[var(--color-text-muted)] mt-2 max-w-sm mx-auto">
-          Generate your first AI render to make this garage truly cinematic.
+          Upload a shot of your actual car — that&apos;s what makes the garage feel real.
         </p>
-        <Link
-          href={`/visualizer?carId=${carId}`}
-          className="inline-flex items-center gap-2 mt-6 min-h-[44px] px-6 py-3.5 rounded-full bg-[var(--color-accent)] text-white text-sm font-bold hover:brightness-110 transition-all active:scale-95 shadow-[0_8px_32px_rgba(59,130,246,0.35)]"
-        >
-          <Zap size={15} />
-          Generate your first render
-          <ChevronRight size={14} />
-        </Link>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 mt-6">
+          <Link
+            href={`/garage/${carId}#photos`}
+            className="inline-flex items-center gap-2 min-h-[44px] px-6 py-3.5 rounded-full bg-white text-black text-sm font-bold hover:bg-white/90 transition-all active:scale-95 shadow-[0_8px_32px_rgba(255,255,255,0.18)]"
+          >
+            <Camera size={15} />
+            Upload photo
+            <ChevronRight size={14} />
+          </Link>
+          <Link
+            href={`/visualizer?carId=${carId}`}
+            className="inline-flex items-center gap-2 min-h-[44px] px-5 py-3 rounded-full bg-white/5 border border-white/10 text-white/70 text-xs font-bold hover:bg-white/10 transition-all"
+          >
+            <Zap size={13} />
+            Or try an AI render
+          </Link>
+        </div>
       </div>
     </div>
   );
