@@ -89,8 +89,6 @@ For each suggestion return a JSON object with:
 - reason: why this mod fits this specific car and current build stage (2-3 sentences)
 - estimatedCost: realistic cost range as string (e.g. "$500–$1,200")
 - brands: array of 2-3 reputable brand names for this mod
-- amazon_url: "https://www.amazon.com/s?k=" + URL-encoded specific search query for this exact part on this exact car
-- summit_url: "https://www.summitracing.com/search?searchString=" + URL-encoded search query
 - difficulty: "bolt-on" | "moderate" | "advanced" | "professional"
 - hp_gain: estimated HP gain as string (e.g. "+15-25hp") or null if not applicable
 

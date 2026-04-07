@@ -36,7 +36,6 @@ export function GarageHero({
   const [editing, setEditing] = useState(false);
   const [sharing, setSharing] = useState(false);
 
-  // Subtle parallax on scroll
   useEffect(() => {
     function onScroll() {
       setScrollY(window.scrollY);
@@ -45,18 +44,31 @@ export function GarageHero({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const parallaxOffset = Math.min(scrollY * 0.4, 200);
+  // Subtle parallax (capped to avoid huge offsets)
+  const parallaxOffset = Math.min(scrollY * 0.25, 120);
 
   return (
     <>
-      <div className="relative w-full overflow-hidden" style={{ height: "100vh", maxHeight: "780px", minHeight: "520px" }}>
+      <div
+        className="relative w-full overflow-hidden"
+        style={{
+          // Give the photo real breathing room without eating the whole viewport
+          height: "clamp(380px, 58vh, 600px)",
+        }}
+      >
         {car.cover_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={car.cover_image_url}
             alt={`${car.year} ${car.make} ${car.model}`}
             className="absolute inset-0 w-full h-full object-cover animate-cinematic"
-            style={{ transform: `translate3d(0, ${parallaxOffset}px, 0) scale(${1 + scrollY * 0.0003})`, willChange: "transform" }}
+            style={{
+              // Center the photo cleanly — most car shots frame the car centred,
+              // so dead-centre keeps the hood, body and roofline in the frame.
+              objectPosition: "center center",
+              transform: `translate3d(0, ${parallaxOffset}px, 0)`,
+              willChange: "transform",
+            }}
           />
         ) : (
           <div
@@ -76,21 +88,17 @@ export function GarageHero({
           </div>
         )}
 
-        {/* Vignette + bottom gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent" />
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: "radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.6) 100%)",
-          }}
-        />
+        {/* Soft top fade so the top nav/back button has contrast */}
+        <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/70 to-transparent pointer-events-none" />
+
+        {/* Strong bottom gradient behind text — scoped to bottom half only */}
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none" />
 
         {/* Top right: Edit + Share */}
-        <div className="absolute top-20 right-5 flex gap-2 z-10">
+        <div className="absolute top-5 right-5 flex gap-2 z-10">
           <button
             onClick={() => setSharing(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/[0.12] text-xs font-bold text-white hover:bg-white/[0.15] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-black/50 backdrop-blur-xl border border-white/[0.15] text-xs font-bold text-white hover:bg-black/70 transition-colors cursor-pointer"
             aria-label="Share build"
           >
             <Share2 size={12} />
@@ -98,7 +106,7 @@ export function GarageHero({
           </button>
           <button
             onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/[0.12] text-xs font-bold text-white hover:bg-white/[0.15] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-black/50 backdrop-blur-xl border border-white/[0.15] text-xs font-bold text-white hover:bg-black/70 transition-colors cursor-pointer"
             aria-label="Edit car"
           >
             <Edit2 size={11} />
@@ -108,11 +116,12 @@ export function GarageHero({
 
         {/* Primary badge top left */}
         {isPrimary && (
-          <div className="absolute top-20 left-5 z-10">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase glow-gold"
+          <div className="absolute top-5 left-5 z-10">
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase glow-gold"
               style={{
-                backgroundColor: "rgba(251,191,36,0.12)",
-                border: "1px solid rgba(251,191,36,0.30)",
+                backgroundColor: "rgba(251,191,36,0.18)",
+                border: "1px solid rgba(251,191,36,0.40)",
                 color: "#fbbf24",
                 backdropFilter: "blur(12px)",
               }}
@@ -122,52 +131,57 @@ export function GarageHero({
           </div>
         )}
 
-        {/* Bottom: car info */}
-        <div className="absolute bottom-0 left-0 right-0 px-5 sm:px-8 pb-10 z-10">
+        {/* Bottom: car info — smaller, scoped to readable gradient zone */}
+        <div className="absolute bottom-0 left-0 right-0 px-5 sm:px-8 pb-7 z-10">
           <div className="max-w-4xl mx-auto">
             {car.nickname && (
-              <p className="text-xs font-bold text-[#60A5FA] mb-2 tracking-[0.2em] uppercase animate-in">
+              <p className="text-[11px] font-bold text-[#60A5FA] mb-1.5 tracking-[0.2em] uppercase animate-in">
                 {car.nickname}
               </p>
             )}
             <h1
-              className="text-5xl sm:text-7xl lg:text-8xl font-black text-white leading-[0.95] mb-3 tracking-tight display-num animate-slide-up"
-              style={{ textShadow: "0 4px 32px rgba(0,0,0,0.6)" }}
+              className="text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight animate-slide-up"
+              style={{ textShadow: "0 2px 16px rgba(0,0,0,0.8)" }}
             >
-              {car.year} {car.make}
-              <br />
-              <span className="text-gradient">{car.model}</span>
+              {car.year} {car.make} {car.model}
+              {car.trim && (
+                <span className="block text-sm sm:text-base font-medium text-white/55 mt-0.5">
+                  {car.trim}
+                </span>
+              )}
             </h1>
-            {car.trim && (
-              <p className="text-sm sm:text-base text-white/40 mb-6 font-medium animate-in" style={{ animationDelay: "150ms" }}>
-                {car.trim}
-              </p>
-            )}
 
-            {/* Animated stat chips */}
-            <div className="flex items-center gap-2.5 flex-wrap mb-7 animate-in" style={{ animationDelay: "200ms" }}>
+            {/* Stat chips */}
+            <div
+              className="flex items-center gap-2 flex-wrap mt-4 mb-4 animate-in"
+              style={{ animationDelay: "150ms" }}
+            >
               {car.horsepower && (
-                <StatChip icon={<Zap size={12} className="text-[#fbbf24]" />}>
+                <StatChip icon={<Zap size={11} className="text-[#fbbf24]" />}>
                   <AnimatedCounter value={car.horsepower} duration={1600} /> hp
                 </StatChip>
               )}
               {car.torque && (
-                <StatChip icon={<TrendingUp size={12} className="text-[#30d158]" />}>
+                <StatChip icon={<TrendingUp size={11} className="text-[#30d158]" />}>
                   <AnimatedCounter value={car.torque} duration={1600} /> lb-ft
                 </StatChip>
               )}
               {modCount > 0 && (
-                <StatChip icon={<Wrench size={12} className="text-[#60A5FA]" />}>
+                <StatChip icon={<Wrench size={11} className="text-[#60A5FA]" />}>
                   <AnimatedCounter value={modCount} duration={1400} /> mods
                 </StatChip>
               )}
               {totalInvested > 0 && (
                 <StatChip>
-                  <AnimatedCounter value={totalInvested} duration={1800} format={(n) => formatCurrency(Math.round(n))} />
+                  <AnimatedCounter
+                    value={totalInvested}
+                    duration={1800}
+                    format={(n) => formatCurrency(Math.round(n))}
+                  />
                 </StatChip>
               )}
               {buildScore > 0 && (
-                <StatChip icon={<Star size={12} className="text-[#fbbf24]" fill="currentColor" />}>
+                <StatChip icon={<Star size={11} className="text-[#fbbf24]" fill="currentColor" />}>
                   <AnimatedCounter value={buildScore} duration={1500} /> · {buildLevel}
                 </StatChip>
               )}
@@ -175,10 +189,10 @@ export function GarageHero({
 
             <Link
               href={`/garage/${car.id}`}
-              className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-white text-black text-sm font-black hover:bg-white/90 transition-all active:scale-95 shadow-[0_8px_32px_rgba(255,255,255,0.15)] animate-in"
-              style={{ animationDelay: "300ms" }}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-white text-black text-xs font-bold hover:bg-white/90 transition-all active:scale-95 shadow-[0_6px_24px_rgba(255,255,255,0.12)] animate-in"
+              style={{ animationDelay: "250ms" }}
             >
-              Manage Build <ChevronRight size={15} />
+              Manage Build <ChevronRight size={13} />
             </Link>
           </div>
         </div>
@@ -208,9 +222,9 @@ export function GarageHero({
 
 function StatChip({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/[0.10]">
+    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/[0.12]">
       {icon}
-      <span className="text-xs font-bold text-white tabular">{children}</span>
+      <span className="text-[11px] font-bold text-white tabular">{children}</span>
     </div>
   );
 }

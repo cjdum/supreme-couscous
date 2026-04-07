@@ -83,29 +83,30 @@ export default async function CarDetailPage({ params }: Props) {
   return (
     <div className="max-w-6xl mx-auto">
       {/* ── Hero ── */}
-      <div className="relative">
+      <div className="relative overflow-hidden" style={{ height: "clamp(280px, 45vw, 460px)" }}>
         {car.cover_image_url ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={car.cover_image_url}
               alt={`${car.year} ${car.make} ${car.model}`}
-              className="w-full object-cover animate-cinematic"
-              style={{ height: "clamp(280px, 50vw, 500px)" }}
+              className="absolute inset-0 w-full h-full object-cover animate-cinematic"
+              style={{ objectPosition: "center center" }}
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/95" />
           </>
         ) : (
-          <div className="w-full" style={{ height: "clamp(220px, 38vw, 320px)" }}>
-            <div
-              className="w-full h-full"
-              style={{
-                background: `radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.15) 0%, transparent 65%),
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.15) 0%, transparent 65%),
                              linear-gradient(160deg, rgba(59,130,246,0.06) 0%, #000 65%)`,
-              }}
-            />
-          </div>
+            }}
+          />
         )}
+        {/* Top fade for back button */}
+        <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/70 to-transparent pointer-events-none" />
+        {/* Bottom gradient behind text */}
+        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-none" />
 
         {/* Back */}
         <div className="absolute top-4 left-4 lg:top-6 lg:left-6">
@@ -147,15 +148,22 @@ export default async function CarDetailPage({ params }: Props) {
 
         {/* Car title over hero */}
         {car.cover_image_url && (
-          <div className="absolute bottom-0 left-0 right-0 px-5 sm:px-8 pb-6 lg:pb-10">
+          <div className="absolute bottom-0 left-0 right-0 px-5 sm:px-8 pb-7">
             <div className="max-w-6xl mx-auto">
               {car.nickname && (
-                <p className="text-xs font-bold text-[#60A5FA] mb-1.5 tracking-[0.15em] uppercase">{car.nickname}</p>
+                <p className="text-[11px] font-bold text-[#60A5FA] mb-1 tracking-[0.2em] uppercase">{car.nickname}</p>
               )}
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[0.95] tracking-tight display-num">
-                {car.year} {car.make} <span className="text-gradient">{car.model}</span>
+              <h1
+                className="text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight"
+                style={{ textShadow: "0 2px 16px rgba(0,0,0,0.8)" }}
+              >
+                {car.year} {car.make} {car.model}
               </h1>
-              {car.trim && <p className="text-sm sm:text-base text-white/40 mt-2 font-medium">{car.trim}</p>}
+              {car.trim && (
+                <p className="text-sm text-white/55 mt-0.5 font-medium" style={{ textShadow: "0 2px 12px rgba(0,0,0,0.8)" }}>
+                  {car.trim}
+                </p>
+              )}
             </div>
           </div>
         )}

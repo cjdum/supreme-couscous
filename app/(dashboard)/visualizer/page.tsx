@@ -4,33 +4,107 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Sparkles, ImageIcon, Download, Upload, X, Eye,
-  ShoppingCart, ExternalLink, Wand2, Camera, Check, Star, Loader2
+  Wand2, Check, Star, Loader2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Select, Textarea } from "@/components/ui/input";
-import { CategoryBadge } from "@/components/ui/badge";
 import { haptic } from "@/lib/haptics";
-import type { Car, Render, ModCategory } from "@/lib/supabase/types";
+import type { Car, Render } from "@/lib/supabase/types";
 import { formatRelativeDate } from "@/lib/utils";
 
-interface ImageAnalysis {
-  detected_vehicle: string;
-  visible_mods: string[];
-  stock_parts: string[];
-  condition: string;
-  color: string;
-  stance: string;
-  body_style: string;
-  overall_assessment: string;
-  suggestions: {
-    name: string;
-    category: ModCategory;
-    reason: string;
-    estimated_cost: string;
-    priority: string;
-    amazon_url: string;
-    summit_url: string;
-  }[];
+/**
+ * Lightweight markdown renderer for the streaming analyze response.
+ * Supports: # / ## / ### headings, **bold**, *italic*, - bullets, paragraph breaks.
+ * Intentionally minimal — no need to pull in a whole markdown library.
+ */
+function renderMarkdown(text: string): React.ReactNode {
+  if (!text) return null;
+  const lines = text.split("\n");
+  const blocks: React.ReactNode[] = [];
+  let listBuffer: string[] = [];
+
+  function flushList() {
+    if (listBuffer.length === 0) return;
+    blocks.push(
+      <ul key={`ul-${blocks.length}`} className="list-disc pl-5 space-y-1.5 my-2">
+        {listBuffer.map((item, i) => (
+          <li key={i} className="text-xs leading-relaxed text-[var(--color-text-secondary)]">
+            {renderInline(item)}
+          </li>
+        ))}
+      </ul>
+    );
+    listBuffer = [];
+  }
+
+  function renderInline(s: string): React.ReactNode {
+    // **bold** then *italic*
+    const parts: React.ReactNode[] = [];
+    const re = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let idx = 0;
+    while ((m = re.exec(s)) !== null) {
+      if (m.index > last) parts.push(s.slice(last, m.index));
+      const tok = m[0];
+      if (tok.startsWith("**")) {
+        parts.push(
+          <strong key={idx++} className="font-bold text-white">
+            {tok.slice(2, -2)}
+          </strong>
+        );
+      } else {
+        parts.push(
+          <em key={idx++} className="italic">
+            {tok.slice(1, -1)}
+          </em>
+        );
+      }
+      last = m.index + tok.length;
+    }
+    if (last < s.length) parts.push(s.slice(last));
+    return parts;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trimEnd();
+    if (line.startsWith("### ")) {
+      flushList();
+      blocks.push(
+        <h4 key={`h-${i}`} className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mt-4 mb-1.5">
+          {line.slice(4)}
+        </h4>
+      );
+    } else if (line.startsWith("## ")) {
+      flushList();
+      blocks.push(
+        <h3 key={`h-${i}`} className="text-sm font-black mt-5 mb-2 text-white">
+          {line.slice(3)}
+        </h3>
+      );
+    } else if (line.startsWith("# ")) {
+      flushList();
+      blocks.push(
+        <h2 key={`h-${i}`} className="text-base font-black mt-5 mb-2 text-white">
+          {line.slice(2)}
+        </h2>
+      );
+    } else if (/^[-*]\s+/.test(line)) {
+      listBuffer.push(line.replace(/^[-*]\s+/, ""));
+    } else if (line === "") {
+      flushList();
+    } else {
+      flushList();
+      blocks.push(
+        <p key={`p-${i}`} className="text-xs leading-relaxed text-[var(--color-text-secondary)] mb-2">
+          {renderInline(line)}
+        </p>
+      );
+    }
+  }
+  flushList();
+  return blocks;
 }
 
 interface StylePreset {
@@ -67,10 +141,10 @@ function VisualizerContent() {
   const [coverSet, setCoverSet] = useState(false);
 
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [uploadedMediaType, setUploadedMediaType] = useState<string>("image/jpeg");
+  const [uploadedMediaType, setUploadedMediaType] = useState<"image/jpeg" | "image/png" | "image/webp" | "image/gif">("image/jpeg");
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<ImageAnalysis | null>(null);
+  const [analysisText, setAnalysisText] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"render" | "analyze">("render");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -175,11 +249,15 @@ function VisualizerContent() {
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
       const [header, base64] = result.split(",");
-      const mediaType = header.match(/data:([^;]+)/)?.[1] ?? "image/jpeg";
+      const detected = header.match(/data:([^;]+)/)?.[1] ?? "image/jpeg";
+      const safe: "image/jpeg" | "image/png" | "image/webp" | "image/gif" =
+        detected === "image/png" ? "image/png" :
+        detected === "image/webp" ? "image/webp" :
+        detected === "image/gif" ? "image/gif" : "image/jpeg";
       setUploadedImage(base64);
-      setUploadedMediaType(mediaType);
+      setUploadedMediaType(safe);
       setUploadedPreview(result);
-      setAnalysis(null);
+      setAnalysisText("");
       setError(null);
     };
     reader.readAsDataURL(file);
@@ -189,6 +267,8 @@ function VisualizerContent() {
     if (!uploadedImage) return;
     setAnalyzing(true);
     setError(null);
+    setAnalysisText("");
+    haptic("light");
 
     try {
       const res = await fetch("/api/ai/analyze-image", {
@@ -201,9 +281,22 @@ function VisualizerContent() {
         }),
       });
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Analysis failed");
-      setAnalysis(json.analysis as ImageAnalysis);
+      if (!res.ok || !res.body) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error ?? "Analysis failed");
+      }
+
+      // Stream chunks of plain text and progressively update the panel.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let acc = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        acc += decoder.decode(value, { stream: true });
+        setAnalysisText(acc);
+      }
+      haptic("success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -480,6 +573,10 @@ function VisualizerContent() {
                     })),
                   ]}
                 />
+                <p className="mt-2 text-[10px] text-[var(--color-text-muted)] flex items-center gap-1.5">
+                  <Sparkles size={10} className="text-[var(--color-accent-bright)]" />
+                  Your full garage (cars + mods) is sent automatically — no need to explain it.
+                </p>
               </div>
             )}
 
@@ -504,7 +601,7 @@ function VisualizerContent() {
                   onClick={() => {
                     setUploadedPreview(null);
                     setUploadedImage(null);
-                    setAnalysis(null);
+                    setAnalysisText("");
                   }}
                   className="absolute top-3 right-3 w-9 h-9 rounded-xl bg-black/70 flex items-center justify-center hover:bg-black/90 transition-colors cursor-pointer"
                 >
@@ -538,100 +635,34 @@ function VisualizerContent() {
             </button>
           </div>
 
-          {analysis && (
-            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden animate-in lg:max-h-[70vh] lg:overflow-y-auto">
-              <div className="px-6 py-5 border-b border-[var(--color-border)]">
-                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Detected Vehicle</p>
-                <h3 className="text-lg font-black">{analysis.detected_vehicle}</h3>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-2 leading-relaxed">{analysis.overall_assessment}</p>
-              </div>
-
-              <div className="grid grid-cols-3 divide-x divide-[var(--color-border)] border-b border-[var(--color-border)]">
-                {[
-                  { label: "Color", value: analysis.color },
-                  { label: "Condition", value: analysis.condition },
-                  { label: "Stance", value: analysis.stance },
-                ].map((item) => (
-                  <div key={item.label} className="px-4 py-4 text-center">
-                    <p className="text-[10px] text-[var(--color-text-muted)] mb-1 font-bold uppercase tracking-wider">{item.label}</p>
-                    <p className="text-xs font-bold capitalize">{item.value || "—"}</p>
+          {(analyzing || analysisText) && (
+            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden animate-in lg:max-h-[80vh] lg:overflow-y-auto">
+              <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between sticky top-0 bg-[var(--color-bg-card)] z-10">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[var(--color-accent-muted)] flex items-center justify-center">
+                    <Eye size={13} className="text-[var(--color-accent-bright)]" />
                   </div>
-                ))}
-              </div>
-
-              {analysis.visible_mods?.length > 0 && (
-                <div className="px-6 py-4 border-b border-[var(--color-border)]">
-                  <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">Visible Mods</p>
-                  <div className="flex flex-wrap gap-2">
-                    {analysis.visible_mods.map((mod, i) => (
-                      <span key={i} className="tag bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)]">
-                        {mod}
-                      </span>
-                    ))}
-                  </div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                    AI Analysis
+                  </p>
                 </div>
-              )}
-
-              {analysis.suggestions?.length > 0 && (
-                <div className="px-6 py-5">
-                  <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">AI Suggestions</p>
-                  <div className="space-y-3">
-                    {analysis.suggestions.map((s, i) => (
-                      <div key={i} className="rounded-2xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] p-4">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <p className="text-sm font-bold">{s.name}</p>
-                          <span
-                            className="text-[10px] font-bold px-2.5 py-0.5 rounded-full flex-shrink-0 uppercase tracking-wider"
-                            style={{
-                              background:
-                                s.priority === "high"
-                                  ? "rgba(255,69,58,0.1)"
-                                  : s.priority === "medium"
-                                  ? "rgba(255,159,10,0.1)"
-                                  : "rgba(255,255,255,0.05)",
-                              color:
-                                s.priority === "high"
-                                  ? "#ff453a"
-                                  : s.priority === "medium"
-                                  ? "#ff9f0a"
-                                  : "#555",
-                            }}
-                          >
-                            {s.priority}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2.5 mb-2.5">
-                          <CategoryBadge category={s.category} className="text-[10px]" />
-                          <span className="text-[10px] text-[var(--color-text-muted)] font-bold">{s.estimated_cost}</span>
-                        </div>
-                        <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed mb-3">{s.reason}</p>
-                        <div className="flex gap-2 flex-wrap">
-                          {s.amazon_url && (
-                            <a
-                              href={s.amazon_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[rgba(255,153,0,0.08)] border border-[rgba(255,153,0,0.15)] text-[10px] font-bold text-[#FF9900] hover:bg-[rgba(255,153,0,0.15)] transition-colors"
-                            >
-                              <ShoppingCart size={10} /> Amazon <ExternalLink size={8} />
-                            </a>
-                          )}
-                          {s.summit_url && (
-                            <a
-                              href={s.summit_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[10px] font-bold text-[var(--color-text-muted)] hover:border-[var(--color-border-bright)] transition-colors"
-                            >
-                              Summit <ExternalLink size={8} />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                {analyzing && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-[var(--color-accent-bright)] font-bold">
+                    <Loader2 size={11} className="animate-spin" />
+                    Streaming…
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="px-6 py-5">
+                {analysisText ? (
+                  <div className="prose prose-invert max-w-none">{renderMarkdown(analysisText)}</div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+                    <Loader2 size={13} className="animate-spin" />
+                    Looking at your photo with the rest of your garage in mind…
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

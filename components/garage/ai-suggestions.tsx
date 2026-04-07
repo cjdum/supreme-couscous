@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, ChevronDown, ChevronUp, ExternalLink, ShoppingCart, Zap, Wrench } from "lucide-react";
+import Link from "next/link";
+import { Sparkles, ChevronDown, ChevronUp, ShoppingBag, Zap, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CategoryBadge } from "@/components/ui/badge";
 import type { ModCategory } from "@/lib/supabase/types";
@@ -12,8 +13,6 @@ interface Suggestion {
   reason: string;
   estimatedCost: string;
   brands?: string[];
-  amazon_url?: string;
-  summit_url?: string;
   difficulty?: "bolt-on" | "moderate" | "advanced" | "professional";
   hp_gain?: string | null;
 }
@@ -196,42 +195,14 @@ export function AiSuggestions({ carId }: AiSuggestionsProps) {
                         </div>
                       )}
 
-                      {/* Shopping links */}
-                      <div className="flex gap-2 flex-wrap">
-                        {s.amazon_url && (
-                          <a
-                            href={s.amazon_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF9900]/10 border border-[#FF9900]/20 text-[11px] font-medium text-[#FF9900] hover:bg-[#FF9900]/20 transition-colors"
-                          >
-                            <ShoppingCart size={11} />
-                            Amazon
-                            <ExternalLink size={9} />
-                          </a>
-                        )}
-                        {s.summit_url && (
-                          <a
-                            href={s.summit_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[11px] font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-border-bright)] transition-colors"
-                          >
-                            <ShoppingCart size={11} />
-                            Summit Racing
-                            <ExternalLink size={9} />
-                          </a>
-                        )}
-                        <a
-                          href={`https://www.google.com/search?tbm=shop&q=${encodeURIComponent(s.name)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[11px] font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-border-bright)] transition-colors"
-                        >
-                          Google Shopping
-                          <ExternalLink size={9} />
-                        </a>
-                      </div>
+                      {/* Find specific parts via the Claude-powered Parts Advisor */}
+                      <Link
+                        href={`/shop?mod=${encodeURIComponent(s.name)}&category=${s.category}&carId=${carId}`}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--color-accent)] text-white text-[11px] font-bold hover:brightness-110 transition-all cursor-pointer shadow-[0_4px_16px_rgba(59,130,246,0.25)]"
+                      >
+                        <ShoppingBag size={11} />
+                        Find parts for this mod
+                      </Link>
                     </div>
                   )}
                 </div>

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { User, Edit2, Check, X, LogOut, Car, Wrench, TrendingUp, Award, ChevronRight, Target, Share2, Copy, Sparkles } from "lucide-react";
+import { User, Edit2, Check, X, LogOut, Car, Wrench, TrendingUp, Award, ChevronRight, Target, Share2, Copy, Sparkles, Settings as SettingsIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
-import { calculateBuildScore, LEVELS, LEVEL_COLORS } from "@/lib/build-score";
+import { calculateBuildScore, LEVELS, LEVEL_COLORS, BUILD_SCORE_COLOR, COMMUNITY_SCORE_COLOR, VAULT_RATING_COLOR } from "@/lib/build-score";
 import { computeBadges, type Badge, type BadgeInput, BADGE_ICON_PATHS } from "@/lib/badges";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { ConfettiBurst } from "@/components/ui/confetti";
@@ -318,17 +318,19 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Build Score */}
+      {/* VAULT Rating — the combined, prominent card */}
       {buildScore && (
         <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6">
           <div className="flex items-start justify-between mb-5">
             <div>
-              <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Build Score</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: VAULT_RATING_COLOR }}>
+                VAULT Rating
+              </p>
               <div className="flex items-baseline gap-2.5">
-                <span className="text-5xl font-black display-num">
+                <span className="text-6xl font-black display-num" style={{ color: VAULT_RATING_COLOR }}>
                   <AnimatedCounter value={buildScore.score} duration={2000} />
                 </span>
-                <Award size={17} style={{ color: levelColor }} className="mb-1" />
+                <Award size={18} style={{ color: VAULT_RATING_COLOR }} className="mb-1" />
               </div>
             </div>
             <div
@@ -339,7 +341,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="mb-5">
+          <div className="mb-6">
             <div className="flex justify-between mb-2">
               {LEVELS.map((l, i) => (
                 <div
@@ -372,15 +374,101 @@ export default function ProfilePage() {
             )}
           </div>
 
-          {buildScore.breakdown.length > 0 && (
-            <div className="space-y-1.5 pt-4 border-t border-[var(--color-border)]">
-              <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2.5">How you earned it</p>
-              {buildScore.breakdown.map((item, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <span className="text-[11px] text-[var(--color-text-secondary)]">{item.label}</span>
-                  <span className="text-[11px] font-bold text-[var(--color-text-secondary)] tabular">+{item.points}</span>
+          {/* Component scores: Build + Community */}
+          <div className="grid grid-cols-2 gap-3 pt-5 border-t border-[var(--color-border)]">
+            <div
+              className="rounded-2xl p-4 border"
+              style={{
+                background: `${BUILD_SCORE_COLOR}08`,
+                borderColor: `${BUILD_SCORE_COLOR}25`,
+              }}
+            >
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <div className="w-2 h-2 rounded-full" style={{ background: BUILD_SCORE_COLOR }} />
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: BUILD_SCORE_COLOR }}>
+                  Build Score
+                </p>
+              </div>
+              <p className="text-2xl font-black display-num" style={{ color: BUILD_SCORE_COLOR }}>
+                <AnimatedCounter value={buildScore.buildScore.score} duration={1800} />
+              </p>
+              <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                From your mods, specs, and photos
+              </p>
+            </div>
+            <div
+              className="rounded-2xl p-4 border"
+              style={{
+                background: `${COMMUNITY_SCORE_COLOR}08`,
+                borderColor: `${COMMUNITY_SCORE_COLOR}25`,
+              }}
+            >
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <div className="w-2 h-2 rounded-full" style={{ background: COMMUNITY_SCORE_COLOR }} />
+                <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: COMMUNITY_SCORE_COLOR }}>
+                  Community Score
+                </p>
+              </div>
+              <p className="text-2xl font-black display-num" style={{ color: COMMUNITY_SCORE_COLOR }}>
+                <AnimatedCounter value={buildScore.communityScore.score} duration={1800} />
+              </p>
+              <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                From forum activity
+              </p>
+            </div>
+          </div>
+
+          {/* Breakdowns */}
+          {(buildScore.buildScore.breakdown.length > 0 ||
+            buildScore.communityScore.breakdown.length > 0) && (
+            <div className="space-y-3 pt-5 mt-5 border-t border-[var(--color-border)]">
+              {buildScore.buildScore.breakdown.length > 0 && (
+                <div>
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-wider mb-2"
+                    style={{ color: BUILD_SCORE_COLOR }}
+                  >
+                    Build Score breakdown
+                  </p>
+                  <div className="space-y-1">
+                    {buildScore.buildScore.breakdown.map((item, i) => (
+                      <div key={`b-${i}`} className="flex items-center justify-between">
+                        <span className="text-[11px] text-[var(--color-text-secondary)]">{item.label}</span>
+                        <span
+                          className="text-[11px] font-bold tabular"
+                          style={{ color: BUILD_SCORE_COLOR }}
+                        >
+                          +{item.points}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {buildScore.communityScore.breakdown.length > 0 && (
+                <div>
+                  <p
+                    className="text-[10px] font-bold uppercase tracking-wider mb-2"
+                    style={{ color: COMMUNITY_SCORE_COLOR }}
+                  >
+                    Community Score breakdown
+                  </p>
+                  <div className="space-y-1">
+                    {buildScore.communityScore.breakdown.map((item, i) => (
+                      <div key={`c-${i}`} className="flex items-center justify-between">
+                        <span className="text-[11px] text-[var(--color-text-secondary)]">{item.label}</span>
+                        <span
+                          className="text-[11px] font-bold tabular"
+                          style={{ color: COMMUNITY_SCORE_COLOR }}
+                        >
+                          +{item.points}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -528,6 +616,7 @@ export default function ProfilePage() {
       {/* Links */}
       <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden">
         {[
+          { label: "Settings", href: "/settings", icon: <SettingsIcon size={15} /> },
           { label: "My Garage", href: "/garage", icon: <Car size={15} /> },
           { label: "Stats & Analytics", href: "/stats", icon: <TrendingUp size={15} /> },
           { label: "Forum", href: "/forum", icon: <Wrench size={15} /> },

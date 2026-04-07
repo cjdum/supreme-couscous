@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, ChevronUp, Store, User, Trash2, Calendar, BookmarkPlus, Wrench } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, ChevronUp, Store, User, Trash2, Calendar, BookmarkPlus, Wrench, ShoppingBag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Mod, ModStatus } from "@/lib/supabase/types";
 import { CategoryBadge, StatusBadge } from "@/components/ui/badge";
@@ -227,7 +228,15 @@ export function ModCard({ mod, onChange }: ModCardProps) {
               <span className="text-[var(--color-text-primary)]">{mod.is_diy ? "DIY" : mod.shop_name ?? "—"}</span>
             </div>
 
-            <div className="flex justify-end pt-1">
+            <div className="flex justify-between items-center gap-2 pt-1">
+              <Link
+                href={`/shop?mod=${encodeURIComponent(mod.name)}&category=${mod.category}&carId=${mod.car_id}`}
+                className="flex items-center gap-1.5 text-xs font-bold text-[var(--color-accent-bright)] hover:text-white transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ShoppingBag size={12} />
+                Find parts for this mod
+              </Link>
               <button
                 onClick={handleDeleteFromMenu}
                 disabled={deleting}

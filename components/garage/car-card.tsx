@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Globe, Lock, Wrench, Star } from "lucide-react";
 import type { Car } from "@/lib/supabase/types";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { SetPrimaryButton } from "./set-primary-button";
 
 interface CarCardProps {
@@ -39,7 +39,12 @@ export function CarCard({ car, modCount = 0, totalSpent = 0, isPrimary = false, 
   return (
     <Link
       href={`/garage/${car.id}`}
-      className="block relative rounded-2xl overflow-hidden group card-hover border border-[var(--color-border)]"
+      className={cn(
+        "block relative rounded-2xl overflow-hidden group card-hover",
+        isPrimary
+          ? "primary-glow"
+          : "border border-[var(--color-border)]"
+      )}
       style={{ aspectRatio: compact ? "3/4" : "4/3" }}
     >
       {/* Background: photo or brand-tinted gradient */}
@@ -111,10 +116,10 @@ export function CarCard({ car, modCount = 0, totalSpent = 0, isPrimary = false, 
         )}
       </div>
 
-      {/* Top-right: set primary button */}
-      {!isPrimary && !compact && (
-        <div className="absolute top-3 right-3">
-          <SetPrimaryButton carId={car.id} />
+      {/* Top-right: set primary button (always visible on non-primary cars) */}
+      {!isPrimary && (
+        <div className="absolute top-3 right-3 z-10">
+          <SetPrimaryButton carId={car.id} variant="prominent" />
         </div>
       )}
 

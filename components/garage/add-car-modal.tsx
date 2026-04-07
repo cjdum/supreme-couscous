@@ -6,9 +6,11 @@ import { Search, Camera, Upload, X, Check } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
+import { Autocomplete } from "@/components/ui/autocomplete";
 import { createClient } from "@/lib/supabase/client";
 import { carSchema, type CarInput } from "@/lib/validations";
 import { sanitize } from "@/lib/utils";
+import { searchMakes, searchModels } from "@/lib/vehicle-data";
 
 interface AddCarModalProps {
   open: boolean;
@@ -253,21 +255,30 @@ export function AddCarModal({ open, onClose }: AddCarModalProps) {
               )}
 
               <div className="grid grid-cols-2 gap-3">
-                <Input
+                <Autocomplete
                   label="Make"
                   value={form.make ?? ""}
-                  onChange={(e) => setField("make", e.target.value)}
+                  onChange={(v) => {
+                    setField("make", v);
+                    // If the make changed, clear the model so old model isn't tied to new make
+                    if (v !== form.make && form.model) setField("model", "");
+                  }}
+                  suggestions={searchMakes(form.make ?? "", 10)}
                   error={errors.make}
                   placeholder="Porsche"
                   required
+                  maxLength={50}
                 />
-                <Input
+                <Autocomplete
                   label="Model"
                   value={form.model ?? ""}
-                  onChange={(e) => setField("model", e.target.value)}
+                  onChange={(v) => setField("model", v)}
+                  suggestions={searchModels(form.make ?? "", form.model ?? "", 12)}
                   error={errors.model}
-                  placeholder="911 GT3 RS"
+                  placeholder={form.make ? "Start typing..." : "Pick a make first"}
                   required
+                  disabled={!form.make}
+                  maxLength={80}
                 />
               </div>
 
@@ -276,7 +287,7 @@ export function AddCarModal({ open, onClose }: AddCarModalProps) {
                   label="Year"
                   value={String(form.year ?? CURRENT_YEAR)}
                   onChange={(e) => setField("year", parseInt(e.target.value))}
-                  options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
+                  options={YEARS.filter((y) => y >= 1980).map((y) => ({ value: String(y), label: String(y) }))}
                 />
                 <Input
                   label="Trim"

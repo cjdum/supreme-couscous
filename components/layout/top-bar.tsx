@@ -71,8 +71,16 @@ export function TopBar({ username }: TopBarProps) {
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
                 >
+                  <User size={14} />
+                  Profile
+                </Link>
+                <Link
+                  href="/settings"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] transition-colors"
+                >
                   <Settings size={14} />
-                  Profile & Settings
+                  Settings
                 </Link>
                 <div className="border-t border-[var(--color-border)]" />
                 <button

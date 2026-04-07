@@ -91,9 +91,21 @@ export function SidebarNav({ username }: SidebarNavProps) {
           <div className="flex-1 min-w-0">
             <p className="text-xs font-bold text-white truncate">@{username ?? "user"}</p>
             <p className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1">
-              <Settings size={9} /> Profile
+              <User size={9} /> Profile
             </p>
           </div>
+        </Link>
+        <Link
+          href="/settings"
+          className={cn(
+            "w-full mt-1 flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-xs font-bold cursor-pointer",
+            pathname.startsWith("/settings")
+              ? "bg-[var(--color-bg-elevated)] text-white"
+              : "text-[var(--color-text-muted)] hover:text-white hover:bg-[var(--color-bg-elevated)]"
+          )}
+        >
+          <Settings size={14} />
+          Settings
         </Link>
         <button
           onClick={handleSignOut}

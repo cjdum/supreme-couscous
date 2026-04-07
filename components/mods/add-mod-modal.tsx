@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Select } from "@/components/ui/input";
+import { Autocomplete } from "@/components/ui/autocomplete";
 import { createClient } from "@/lib/supabase/client";
 import { modSchema, type ModInput } from "@/lib/validations";
 import { MOD_CATEGORIES, sanitize } from "@/lib/utils";
+import { searchMods } from "@/lib/vehicle-data";
 import type { ModStatus } from "@/lib/supabase/types";
 
 interface AddModModalProps {
@@ -97,13 +99,16 @@ export function AddModModal({ open, onClose, carId, defaultStatus = "installed" 
           </div>
         )}
 
-        <Input
+        <Autocomplete
           label="Modification name"
           value={form.name ?? ""}
-          onChange={(e) => setField("name", e.target.value)}
+          onChange={(v) => setField("name", v)}
+          suggestions={searchMods(form.category ?? "engine", form.name ?? "", 10)}
           error={errors.name}
-          placeholder="Akrapovič Exhaust System"
+          placeholder="Start typing or pick from the list..."
           required
+          hint={`Suggestions based on category: ${form.category ?? "engine"}`}
+          maxLength={120}
         />
 
         <div className="grid grid-cols-2 gap-3">
