@@ -53,6 +53,7 @@ export function CarCard({ car, modCount = 0, totalSpent = 0, isPrimary = false, 
         <img
           src={car.cover_image_url}
           alt={`${car.year} ${car.make} ${car.model}`}
+          loading="lazy"
           className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         />
       ) : (

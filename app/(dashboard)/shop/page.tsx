@@ -1,428 +1,609 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  ShoppingBag, Sparkles, Loader2, Wrench, Copy, Check, ChevronDown,
-  ThumbsUp, ThumbsDown, Hammer
+  ShoppingBag,
+  ExternalLink,
+  Plus,
+  Receipt,
+  Trash2,
+  X,
+  Tag,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Select } from "@/components/ui/input";
-import { Autocomplete } from "@/components/ui/autocomplete";
-import { searchMods } from "@/lib/vehicle-data";
-import { MOD_CATEGORIES } from "@/lib/utils";
+import { Input, Select, Textarea } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
+import { PageContainer } from "@/components/ui/page-container";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
-import type { Car, ModCategory } from "@/lib/supabase/types";
+import type { Car, Mod, Purchase } from "@/lib/supabase/types";
 
-interface PartRecommendation {
-  product: string;
-  brand: string;
-  partNumber: string | null;
-  priceRange: string;
-  fitsBecause: string;
-  difficulty: "Bolt-on" | "Moderate" | "Advanced" | "Professional";
-  pros: string[];
-  cons: string[];
+interface Retailer {
+  key: string;
+  name: string;
+  specialty: string;
+  url: (q: string) => string;
+  /** Only show this retailer for these makes (optional) */
+  makesOnly?: string[];
+  /** Only show for these mod keywords */
+  keywords?: string[];
+  brandColor: string;
 }
 
-interface ApiResponse {
-  recommendations: PartRecommendation[];
-  car: { label: string; specs: string };
-  mode: "general" | "specific";
+const EUROPEAN_MAKES = [
+  "audi",
+  "bmw",
+  "mercedes",
+  "mercedes-benz",
+  "porsche",
+  "volkswagen",
+  "vw",
+  "mini",
+  "volvo",
+  "saab",
+];
+
+const RETAILERS: Retailer[] = [
+  {
+    key: "summit",
+    name: "Summit Racing",
+    specialty: "Performance parts, engine, exhaust, suspension",
+    url: (q) => `https://www.summitracing.com/search?keyword=${encodeURIComponent(q)}`,
+    brandColor: "#EA1D25",
+  },
+  {
+    key: "amazon",
+    name: "Amazon",
+    specialty: "General automotive parts and accessories",
+    url: (q) => `https://www.amazon.com/s?k=${encodeURIComponent(q)}`,
+    brandColor: "#FF9900",
+  },
+  {
+    key: "tirerack",
+    name: "Tire Rack",
+    specialty: "Wheels & tires",
+    keywords: ["wheel", "tire", "rim", "tyres"],
+    url: (q) => `https://www.tirerack.com/wheels/results.jsp?searchTerm=${encodeURIComponent(q)}`,
+    brandColor: "#E6101D",
+  },
+  {
+    key: "ecstuning",
+    name: "ECS Tuning",
+    specialty: "European OEM & performance parts",
+    makesOnly: EUROPEAN_MAKES,
+    url: (q) => `https://www.ecstuning.com/Search/SiteSearch/${encodeURIComponent(q)}/`,
+    brandColor: "#0099CC",
+  },
+  {
+    key: "crutchfield",
+    name: "Crutchfield",
+    specialty: "Car audio, head units, speakers",
+    keywords: ["audio", "speaker", "subwoofer", "stereo", "head unit", "amp", "amplifier"],
+    url: (q) => `https://www.crutchfield.com/g_/MainCategory.aspx?search=${encodeURIComponent(q)}`,
+    brandColor: "#0072CE",
+  },
+];
+
+function buildSearchQuery(car: Car | null, mod: string): string {
+  if (!car) return mod;
+  return `${car.year} ${car.make} ${car.model} ${mod}`.trim();
 }
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  "Bolt-on": "#30d158",
-  Moderate: "#60A5FA",
-  Advanced: "#fbbf24",
-  Professional: "#ff453a",
-};
+function relevantRetailers(car: Car | null, modName: string): Retailer[] {
+  const make = car?.make.toLowerCase() ?? "";
+  const lower = modName.toLowerCase();
+
+  return RETAILERS.filter((r) => {
+    if (r.makesOnly && !r.makesOnly.includes(make)) return false;
+    if (r.keywords && !r.keywords.some((kw) => lower.includes(kw))) return false;
+    return true;
+  });
+}
 
 function ShopContent() {
   const searchParams = useSearchParams();
-  const prefilledMod = searchParams.get("mod");
-  const prefilledCategory = searchParams.get("category") as ModCategory | null;
+  const prefilledMod = searchParams.get("mod") ?? "";
   const prefilledCarId = searchParams.get("carId");
 
   const [cars, setCars] = useState<Car[]>([]);
+  const [mods, setMods] = useState<Mod[]>([]);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [selectedCarId, setSelectedCarId] = useState(prefilledCarId ?? "");
+  const [modSearch, setModSearch] = useState(prefilledMod);
   const [loadingCars, setLoadingCars] = useState(true);
+  const [loadingPurchases, setLoadingPurchases] = useState(true);
+  const [showLogModal, setShowLogModal] = useState(false);
 
-  const [scope, setScope] = useState<"general" | "specific">(
-    prefilledMod ? "specific" : "general"
-  );
-  const [modCategory, setModCategory] = useState<ModCategory>(prefilledCategory ?? "engine");
-  const [modName, setModName] = useState(prefilledMod ?? "");
-
-  const [data, setData] = useState<ApiResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [copiedPart, setCopiedPart] = useState<string | null>(null);
-
+  // Initial load
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
-      const { data: carsData } = await supabase
-        .from("cars")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-      const list = (carsData ?? []) as Car[];
-      setCars(list);
-      // Honour pre-filled car id from query string if it belongs to the user
-      if (prefilledCarId && list.some((c) => c.id === prefilledCarId)) {
+
+      const [carsRes, modsRes, purchasesRes] = await Promise.all([
+        supabase
+          .from("cars")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false }),
+        supabase.from("mods").select("*").eq("user_id", user.id),
+        fetch("/api/purchases").then((r) => r.json()),
+      ]);
+
+      const carList = (carsRes.data ?? []) as Car[];
+      const modList = (modsRes.data ?? []) as Mod[];
+      const purchaseList = (purchasesRes?.purchases ?? []) as Purchase[];
+
+      setCars(carList);
+      setMods(modList);
+      setPurchases(purchaseList);
+
+      if (prefilledCarId && carList.some((c) => c.id === prefilledCarId)) {
         setSelectedCarId(prefilledCarId);
       } else {
-        const primary = list.find((c) => c.is_primary) ?? list[0];
+        const primary = carList.find((c) => c.is_primary) ?? carList[0];
         if (primary) setSelectedCarId(primary.id);
       }
       setLoadingCars(false);
+      setLoadingPurchases(false);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function fetchRecommendations() {
-    if (!selectedCarId) return;
-    if (scope === "specific" && !modName.trim()) {
-      setError("Enter the mod you want to find parts for.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    haptic("light");
+  const selectedCar = cars.find((c) => c.id === selectedCarId) ?? null;
+  const matchingRetailers = useMemo(
+    () => relevantRetailers(selectedCar, modSearch),
+    [selectedCar, modSearch]
+  );
+  const fullQuery = useMemo(
+    () => buildSearchQuery(selectedCar, modSearch),
+    [selectedCar, modSearch]
+  );
 
-    try {
-      const res = await fetch("/api/ai/parts-recommendations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          car_id: selectedCarId,
-          ...(scope === "specific"
-            ? { mod_name: modName.trim(), mod_category: modCategory }
-            : {}),
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to get recommendations");
-      setData(json as ApiResponse);
-      haptic("success");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
+  const totalSpent = purchases.reduce((sum, p) => sum + p.price, 0);
+
+  async function deletePurchase(id: string) {
+    if (!confirm("Delete this purchase?")) return;
+    haptic("medium");
+    setPurchases((prev) => prev.filter((p) => p.id !== id));
+    await fetch(`/api/purchases?id=${id}`, { method: "DELETE" });
   }
 
-  function copyPart(partNumber: string) {
-    navigator.clipboard.writeText(partNumber);
-    setCopiedPart(partNumber);
-    haptic("light");
-    setTimeout(() => setCopiedPart(null), 1500);
+  async function refreshPurchases() {
+    const res = await fetch("/api/purchases");
+    if (res.ok) {
+      const json = await res.json();
+      setPurchases((json?.purchases ?? []) as Purchase[]);
+    }
   }
 
   return (
-    <div className="px-5 sm:px-8 py-6 max-w-3xl mx-auto pb-12">
+    <PageContainer maxWidth="4xl" className="py-6">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-1">
-        <div className="w-11 h-11 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center">
-          <ShoppingBag size={18} className="text-[var(--color-accent-bright)]" />
+      <div className="flex items-start gap-4 mb-8">
+        <div className="w-12 h-12 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center flex-shrink-0">
+          <ShoppingBag size={20} className="text-[var(--color-accent-bright)]" />
         </div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Parts Advisor</h1>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-            Claude recommends specific parts for your car &mdash; with real brand names &amp; part numbers.
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Shop</h1>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">
+            Find real parts at trusted retailers and track every purchase.
           </p>
         </div>
       </div>
 
-      {/* Form card */}
-      <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6 mt-6 space-y-5">
-        {/* Scope toggle */}
-        <div className="flex bg-[var(--color-bg-elevated)] rounded-xl p-1 gap-1 border border-[var(--color-border)]">
-          {(
-            [
-              { v: "general" as const, label: "Next mods for my build" },
-              { v: "specific" as const, label: "Find parts for a mod" },
-            ]
-          ).map((opt) => (
-            <button
-              key={opt.v}
-              onClick={() => {
-                setScope(opt.v);
-                setData(null);
-                setError(null);
-              }}
-              className={`flex-1 h-10 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                scope === opt.v
-                  ? "bg-[var(--color-bg-card)] text-white shadow-sm"
-                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+      {/* Find Parts */}
+      <section className="mb-12">
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-lg font-bold tracking-tight">Find Parts</h2>
+          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[var(--color-accent-muted)] text-[var(--color-accent-bright)]">
+            Direct search
+          </span>
         </div>
 
-        {/* Car picker */}
-        {cars.length > 0 ? (
-          <Select
-            label="Vehicle"
-            value={selectedCarId}
-            onChange={(e) => {
-              setSelectedCarId(e.target.value);
-              setData(null);
-            }}
-            options={cars.map((c) => ({
-              value: c.id,
-              label: `${c.year} ${c.make} ${c.model}${c.nickname ? ` — ${c.nickname}` : ""}`,
-            }))}
-          />
-        ) : (
-          !loadingCars && (
-            <div className="text-center py-6 text-xs text-[var(--color-text-muted)]">
-              Add a car to your garage first to get recommendations.
-            </div>
-          )
-        )}
-
-        {/* Specific mod inputs */}
-        {scope === "specific" && (
-          <div className="space-y-3 animate-in">
+        <div className="rounded-2xl bg-[var(--color-bg-card)] border border-white/10 p-5 sm:p-6 space-y-5">
+          {cars.length > 0 ? (
             <Select
-              label="Category"
-              value={modCategory}
-              onChange={(e) => setModCategory(e.target.value as ModCategory)}
-              options={MOD_CATEGORIES.map((c) => ({ value: c.value, label: c.label }))}
+              label="Vehicle"
+              value={selectedCarId}
+              onChange={(e) => setSelectedCarId(e.target.value)}
+              options={cars.map((c) => ({
+                value: c.id,
+                label: `${c.year} ${c.make} ${c.model}${c.nickname ? ` — ${c.nickname}` : ""}`,
+              }))}
             />
-            <Autocomplete
-              label="What mod are you looking for?"
-              value={modName}
-              onChange={setModName}
-              suggestions={searchMods(modCategory, modName, 10)}
-              placeholder="Coilovers, downpipe, big brake kit…"
-              required
-              hint="Type a mod name or pick from the suggestions"
-              maxLength={120}
+          ) : (
+            !loadingCars && (
+              <div className="text-center py-6 text-xs text-[var(--color-text-muted)]">
+                Add a car to your garage first to get retailer-specific results.
+              </div>
+            )
+          )}
+
+          <Input
+            label="What are you looking for?"
+            value={modSearch}
+            onChange={(e) => setModSearch(e.target.value)}
+            placeholder="Cold air intake, coilovers, big brake kit..."
+          />
+
+          {selectedCar && modSearch.trim() && (
+            <div className="rounded-xl bg-[var(--color-bg-elevated)] border border-white/5 px-4 py-3 flex items-center gap-2 text-[11px]">
+              <Tag size={12} className="text-[var(--color-accent-bright)] flex-shrink-0" />
+              <span className="text-[var(--color-text-muted)]">Searching for</span>
+              <span className="text-white font-bold truncate">{fullQuery}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Retailer cards */}
+        {selectedCar && modSearch.trim() ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-5">
+            {matchingRetailers.length === 0 ? (
+              <div className="col-span-full rounded-2xl border border-dashed border-white/10 py-10 text-center">
+                <p className="text-sm font-bold text-[var(--color-text-secondary)]">
+                  No specialized retailers for this combo
+                </p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
+                  Try a more common mod term, or search Amazon directly.
+                </p>
+              </div>
+            ) : (
+              matchingRetailers.map((r) => (
+                <a
+                  key={r.key}
+                  href={r.url(fullQuery)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group rounded-2xl bg-[var(--color-bg-card)] border border-white/10 p-5 hover:border-white/20 hover:bg-[var(--color-bg-elevated)] transition-all cursor-pointer flex items-center justify-between gap-4"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: r.brandColor }}
+                        aria-hidden="true"
+                      />
+                      <p className="text-sm font-black text-white truncate">{r.name}</p>
+                    </div>
+                    <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed line-clamp-2">
+                      {r.specialty}
+                    </p>
+                    <p className="text-[11px] font-bold text-[var(--color-accent-bright)] mt-2 flex items-center gap-1">
+                      Search on {r.name}
+                      <ExternalLink size={11} />
+                    </p>
+                  </div>
+                </a>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-white/10 py-10 text-center mt-5">
+            <ShoppingBag
+              size={22}
+              className="mx-auto text-[var(--color-text-disabled)] mb-2"
             />
+            <p className="text-sm font-bold text-[var(--color-text-secondary)]">
+              {selectedCar ? "Type a mod above" : "Select a car and type a mod"}
+            </p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
+              We&rsquo;ll generate real search links to the retailers that fit
+            </p>
           </div>
         )}
+      </section>
 
+      {/* My Purchases */}
+      <section>
+        <div className="flex items-center justify-between mb-4 gap-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold tracking-tight">My Purchases</h2>
+            {purchases.length > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-accent-muted)] border border-[rgba(59,130,246,0.2)]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                  Total
+                </span>
+                <span className="text-xs font-black text-[var(--color-accent-bright)] tabular">
+                  {formatCurrency(totalSpent)}
+                </span>
+              </div>
+            )}
+          </div>
+          <Button
+            onClick={() => setShowLogModal(true)}
+            size="sm"
+            className="px-4"
+          >
+            <Plus size={14} />
+            <span className="hidden sm:inline">Log a purchase</span>
+            <span className="sm:hidden">Log</span>
+          </Button>
+        </div>
+
+        {loadingPurchases ? (
+          <div className="space-y-2.5">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-20 skeleton rounded-2xl" />
+            ))}
+          </div>
+        ) : purchases.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-white/10 py-12 text-center">
+            <Receipt
+              size={26}
+              className="mx-auto text-[var(--color-text-disabled)] mb-3"
+            />
+            <p className="text-sm font-bold text-[var(--color-text-secondary)]">
+              No purchases logged yet
+            </p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-1.5 max-w-sm mx-auto">
+              Track every part you buy so you can see exactly what you&rsquo;ve invested in your build.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {purchases.map((p) => {
+              const linkedMod = mods.find((m) => m.id === p.mod_id);
+              return (
+                <div
+                  key={p.id}
+                  className="rounded-2xl bg-[var(--color-bg-card)] border border-white/10 p-4 sm:p-5 flex items-start justify-between gap-4 group"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-white truncate">
+                      {p.item_name}
+                    </p>
+                    <div className="flex items-center gap-3 mt-2 flex-wrap text-[11px]">
+                      <span className="text-[var(--color-text-muted)]">
+                        {formatDate(p.purchased_at)}
+                      </span>
+                      {p.retailer && (
+                        <span className="text-[var(--color-text-secondary)]">
+                          · {p.retailer}
+                        </span>
+                      )}
+                      {linkedMod && (
+                        <span className="px-2 py-0.5 rounded-full bg-[var(--color-accent-muted)] text-[var(--color-accent-bright)] font-bold text-[10px]">
+                          {linkedMod.name}
+                        </span>
+                      )}
+                    </div>
+                    {p.notes && (
+                      <p className="text-[11px] text-[var(--color-text-muted)] mt-2 leading-relaxed line-clamp-2">
+                        {p.notes}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <p className="text-base font-black text-[var(--color-accent-bright)] tabular">
+                      {formatCurrency(p.price)}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => deletePurchase(p.id)}
+                      className="opacity-0 group-hover:opacity-100 text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-all cursor-pointer"
+                      aria-label="Delete purchase"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {showLogModal && (
+        <LogPurchaseModal
+          open={showLogModal}
+          onClose={() => setShowLogModal(false)}
+          cars={cars}
+          mods={mods}
+          defaultCarId={selectedCarId}
+          onLogged={async () => {
+            await refreshPurchases();
+            setShowLogModal(false);
+          }}
+        />
+      )}
+    </PageContainer>
+  );
+}
+
+function LogPurchaseModal({
+  open,
+  onClose,
+  cars,
+  mods,
+  defaultCarId,
+  onLogged,
+}: {
+  open: boolean;
+  onClose: () => void;
+  cars: Car[];
+  mods: Mod[];
+  defaultCarId: string;
+  onLogged: () => void;
+}) {
+  const [form, setForm] = useState({
+    item_name: "",
+    price: "",
+    retailer: "",
+    purchased_at: new Date().toISOString().slice(0, 10),
+    car_id: defaultCarId,
+    mod_id: "",
+    notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Filter mods by chosen car
+  const availableMods = mods.filter((m) => !form.car_id || m.car_id === form.car_id);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!form.item_name.trim()) {
+      setError("Item name is required");
+      return;
+    }
+    const priceNum = parseFloat(form.price);
+    if (Number.isNaN(priceNum) || priceNum < 0) {
+      setError("Enter a valid price");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/purchases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          item_name: form.item_name.trim(),
+          price: priceNum,
+          retailer: form.retailer.trim() || null,
+          purchased_at: form.purchased_at,
+          notes: form.notes.trim() || null,
+          car_id: form.car_id || null,
+          mod_id: form.mod_id || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(typeof json.error === "string" ? json.error : "Failed to log purchase");
+      }
+      haptic("success");
+      onLogged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to log purchase");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Log a purchase" description="Track every dollar going into your build" size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.15)] px-4 py-3 text-xs text-[var(--color-danger)]" role="alert">
+          <div className="rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.2)] px-4 py-3 text-xs text-[var(--color-danger)]" role="alert">
             {error}
           </div>
         )}
 
-        <button
-          onClick={fetchRecommendations}
-          disabled={!selectedCarId || loading || loadingCars}
-          className="w-full h-12 rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-[0_8px_32px_rgba(59,130,246,0.25)]"
-        >
-          {loading ? (
-            <>
-              <Loader2 size={15} className="animate-spin" />
-              Asking Claude…
-            </>
-          ) : (
-            <>
-              <Sparkles size={15} />
-              {data ? "Refresh recommendations" : "Get recommendations"}
-            </>
-          )}
-        </button>
+        <Input
+          label="Item name"
+          value={form.item_name}
+          onChange={(e) => setForm((f) => ({ ...f, item_name: e.target.value }))}
+          required
+          placeholder="KW V3 Coilovers"
+          maxLength={200}
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Price (USD)"
+            type="number"
+            value={form.price}
+            onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+            placeholder="0"
+            min="0"
+            step="0.01"
+            required
+          />
+          <Input
+            label="Date"
+            type="date"
+            value={form.purchased_at}
+            onChange={(e) => setForm((f) => ({ ...f, purchased_at: e.target.value }))}
+          />
+        </div>
+
+        <Input
+          label="Retailer"
+          value={form.retailer}
+          onChange={(e) => setForm((f) => ({ ...f, retailer: e.target.value }))}
+          placeholder="Summit Racing, ECS Tuning..."
+          maxLength={120}
+        />
+
+        {cars.length > 0 && (
+          <Select
+            label="Car"
+            value={form.car_id}
+            onChange={(e) => setForm((f) => ({ ...f, car_id: e.target.value, mod_id: "" }))}
+            options={[
+              { value: "", label: "No car" },
+              ...cars.map((c) => ({
+                value: c.id,
+                label: `${c.year} ${c.make} ${c.model}`,
+              })),
+            ]}
+          />
+        )}
+
+        {form.car_id && availableMods.length > 0 && (
+          <Select
+            label="Linked mod (optional)"
+            value={form.mod_id}
+            onChange={(e) => setForm((f) => ({ ...f, mod_id: e.target.value }))}
+            options={[
+              { value: "", label: "Not linked to a mod" },
+              ...availableMods.map((m) => ({ value: m.id, label: m.name })),
+            ]}
+          />
+        )}
+
+        <Textarea
+          label="Notes (optional)"
+          value={form.notes}
+          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+          placeholder="Order number, install plan, anything you want to remember..."
+          rows={3}
+          maxLength={2000}
+        />
+
+        <div className="flex gap-3 pt-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            className="flex-1"
+            disabled={saving}
+          >
+            <X size={14} />
+            Cancel
+          </Button>
+          <Button type="submit" loading={saving} className="flex-1">
+            <Plus size={14} />
+            Log purchase
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ShopFallback() {
+  return (
+    <PageContainer maxWidth="4xl" className="py-6">
+      <div className="space-y-4">
+        <div className="skeleton h-20 rounded-2xl" />
+        <div className="skeleton h-48 rounded-2xl" />
+        <div className="skeleton h-32 rounded-2xl" />
       </div>
-
-      {/* Results */}
-      {data && (
-        <div className="mt-6 space-y-4 animate-in">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-base font-bold tracking-tight">
-              Recommended for{" "}
-              <span className="text-[var(--color-accent-bright)]">{data.car.label}</span>
-            </h2>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-              {data.recommendations.length} picks
-            </span>
-          </div>
-
-          {data.recommendations.length === 0 ? (
-            <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] py-10 text-center">
-              <Wrench size={22} className="mx-auto text-[var(--color-text-disabled)] mb-2" />
-              <p className="text-sm text-[var(--color-text-muted)]">No recommendations returned. Try refreshing.</p>
-            </div>
-          ) : (
-            data.recommendations.map((rec, i) => (
-              <RecCard
-                key={`${rec.brand}-${rec.product}-${i}`}
-                rec={rec}
-                index={i}
-                copied={copiedPart === rec.partNumber}
-                onCopy={() => rec.partNumber && copyPart(rec.partNumber)}
-              />
-            ))
-          )}
-
-          <p className="text-[10px] text-[var(--color-text-muted)] text-center pt-2">
-            Recommendations are AI-generated guidance, not paid placements.
-            Verify fitment with the manufacturer before buying.
-          </p>
-        </div>
-      )}
-
-      {!data && !loading && cars.length > 0 && (
-        <div className="mt-6 rounded-3xl border border-dashed border-[var(--color-border)] bg-[var(--color-bg-card)] py-12 text-center">
-          <Sparkles size={26} className="mx-auto mb-3 text-[var(--color-text-muted)] opacity-50" />
-          <p className="text-sm font-bold text-[var(--color-text-secondary)]">
-            Pick a vehicle and tap &ldquo;Get recommendations&rdquo;
-          </p>
-          <p className="text-xs text-[var(--color-text-muted)] mt-1.5">
-            Claude reads your build and suggests specific parts that fit
-          </p>
-        </div>
-      )}
-    </div>
+    </PageContainer>
   );
 }
 
 export default function ShopPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="px-5 py-6 max-w-3xl mx-auto">
-          <div className="skeleton h-48 rounded-3xl" />
-        </div>
-      }
-    >
+    <Suspense fallback={<ShopFallback />}>
       <ShopContent />
     </Suspense>
   );
 }
 
-function RecCard({
-  rec,
-  index,
-  copied,
-  onCopy,
-}: {
-  rec: PartRecommendation;
-  index: number;
-  copied: boolean;
-  onCopy: () => void;
-}) {
-  const [expanded, setExpanded] = useState(index === 0);
-  const diffColor = DIFFICULTY_COLORS[rec.difficulty] ?? "#888";
-
-  return (
-    <div
-      className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden card-hover"
-      style={{ animation: `fadeInUp 350ms cubic-bezier(0.16,1,0.3,1) both`, animationDelay: `${index * 60}ms` }}
-    >
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full text-left px-5 py-4 flex items-start gap-4 cursor-pointer"
-      >
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 font-black text-xs"
-          style={{ background: "var(--color-accent-muted)", color: "var(--color-accent-bright)" }}
-        >
-          {index + 1}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <p className="text-sm font-black text-white truncate">{rec.brand}</p>
-            <span className="text-[10px] font-bold text-[var(--color-text-muted)]">·</span>
-            <p className="text-xs text-[var(--color-text-secondary)] truncate flex-1">{rec.product}</p>
-          </div>
-          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            <span className="text-[11px] font-bold tabular text-[var(--color-accent-bright)]">{rec.priceRange}</span>
-            <div
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
-              style={{
-                background: `${diffColor}15`,
-                color: diffColor,
-                border: `1px solid ${diffColor}25`,
-              }}
-            >
-              <Hammer size={8} />
-              {rec.difficulty}
-            </div>
-          </div>
-        </div>
-        <ChevronDown
-          size={15}
-          className={`text-[var(--color-text-muted)] flex-shrink-0 mt-1 transition-transform ${expanded ? "rotate-180" : ""}`}
-        />
-      </button>
-
-      {expanded && (
-        <div className="px-5 pb-5 space-y-4 border-t border-[var(--color-border)] pt-4 animate-in">
-          <p className="text-xs leading-relaxed text-[var(--color-text-secondary)]">{rec.fitsBecause}</p>
-
-          {rec.partNumber && (
-            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)]">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                Part #
-              </p>
-              <p className="text-xs font-mono font-bold text-white flex-1 truncate">
-                {rec.partNumber}
-              </p>
-              <button
-                type="button"
-                onClick={onCopy}
-                className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[10px] font-bold text-[var(--color-text-secondary)] hover:border-[var(--color-border-bright)] hover:text-white cursor-pointer transition-colors"
-              >
-                {copied ? (
-                  <>
-                    <Check size={11} className="text-[var(--color-success)]" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy size={11} />
-                    Copy
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-
-          {(rec.pros?.length > 0 || rec.cons?.length > 0) && (
-            <div className="grid grid-cols-2 gap-3">
-              {rec.pros?.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-success)] mb-1.5 flex items-center gap-1">
-                    <ThumbsUp size={9} /> Pros
-                  </p>
-                  <ul className="space-y-1">
-                    {rec.pros.map((p, i) => (
-                      <li key={i} className="text-[11px] text-[var(--color-text-secondary)] leading-snug">
-                        &middot; {p}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {rec.cons?.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-danger)] mb-1.5 flex items-center gap-1">
-                    <ThumbsDown size={9} /> Cons
-                  </p>
-                  <ul className="space-y-1">
-                    {rec.cons.map((c, i) => (
-                      <li key={i} className="text-[11px] text-[var(--color-text-secondary)] leading-snug">
-                        &middot; {c}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}

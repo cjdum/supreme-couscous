@@ -6,6 +6,7 @@ import { Trash2, Loader2, Globe, Lock } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
+import { Toggle } from "@/components/ui/toggle";
 import { sanitize } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
 import type { Car } from "@/lib/supabase/types";
@@ -113,28 +114,26 @@ export function EditCarModal({ open, onClose, car }: EditCarModalProps) {
           <Input label="Nickname" value={form.nickname} onChange={(e) => setForm((f) => ({ ...f, nickname: e.target.value }))} placeholder="The monster" />
         </div>
 
-        <label className="flex items-center gap-3 cursor-pointer">
-          <button
-            type="button"
-            onClick={() => setForm((f) => ({ ...f, is_public: !f.is_public }))}
-            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-              form.is_public ? "bg-[var(--color-accent)]" : "bg-[var(--color-bg-hover)]"
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                form.is_public ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
+        <div className="flex items-center gap-3">
+          <Toggle
+            checked={form.is_public}
+            onChange={(v) => setForm((f) => ({ ...f, is_public: v }))}
+            ariaLabel="Public build"
+          />
           <div>
             <p className="text-sm font-medium flex items-center gap-1.5">
-              {form.is_public ? <Globe size={12} className="text-[var(--color-success)]" /> : <Lock size={12} className="text-[var(--color-text-muted)]" />}
+              {form.is_public ? (
+                <Globe size={12} className="text-[var(--color-success)]" />
+              ) : (
+                <Lock size={12} className="text-[var(--color-text-muted)]" />
+              )}
               Public build
             </p>
-            <p className="text-[11px] text-[var(--color-text-muted)]">{form.is_public ? "Visible to the community" : "Only you can see this"}</p>
+            <p className="text-[11px] text-[var(--color-text-muted)]">
+              {form.is_public ? "Visible to the community" : "Only you can see this"}
+            </p>
           </div>
-        </label>
+        </div>
 
         <div className="flex gap-3 pt-2">
           <Button variant="secondary" onClick={onClose} className="flex-1" disabled={saving || deleting}>

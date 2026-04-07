@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Wrench, Zap, TrendingUp, Star, Edit2, Share2 } from "lucide-react";
-import { AnimatedCounter } from "@/components/ui/animated-counter";
+import { ChevronRight, Sliders, Edit2, Share2, Star, Zap, ImageIcon } from "lucide-react";
 import { EditCarModal } from "./edit-car-modal";
 import { CarShareCard } from "./car-share-card";
-import { formatCurrency } from "@/lib/utils";
+import { ModConfiguratorPanel } from "./mod-configurator-panel";
 import type { Car, ModCategory } from "@/lib/supabase/types";
 
 interface GarageHeroProps {
@@ -19,106 +18,118 @@ interface GarageHeroProps {
   buildLevel: string;
   topCategory: ModCategory | null;
   topMods: { name: string; category: ModCategory; cost: number | null }[];
+  /** Latest render image (used as the cinematic background when no cover photo is set) */
+  latestRenderUrl?: string | null;
 }
 
+/**
+ * Cinematic, edge-to-edge Forza-style hero for the garage.
+ *
+ * - The car render / cover photo fills the entire viewport (no margins)
+ * - Subtle Ken Burns zoom from 1.0 → 1.08 over 12s, looped with crossfade
+ * - Bottom 40% gradient overlay → #000000
+ * - Car name + year sit on the gradient bottom-left
+ * - "Customize" button bottom-right opens the mod configurator panel
+ * - When no render and no photo: dark placeholder + CTA to /visualizer
+ */
 export function GarageHero({
   car,
-  modCount,
-  totalInvested,
   isPrimary,
   username,
   buildScore,
   buildLevel,
+  modCount,
+  totalInvested,
   topCategory,
   topMods,
+  latestRenderUrl,
 }: GarageHeroProps) {
-  const [scrollY, setScrollY] = useState(0);
   const [editing, setEditing] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [customizing, setCustomizing] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
+  // Trigger mount-in fade. We delay one frame to let the browser paint
+  // the hidden state first so the transition actually runs.
   useEffect(() => {
-    function onScroll() {
-      setScrollY(window.scrollY);
-    }
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const id = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(id);
   }, []);
 
-  // Subtle parallax (capped to avoid huge offsets)
-  const parallaxOffset = Math.min(scrollY * 0.25, 120);
+  const heroImage = latestRenderUrl ?? car.cover_image_url ?? null;
+  const carName = `${car.year} ${car.make} ${car.model}`;
 
   return (
     <>
       <div
         className="relative w-full overflow-hidden"
         style={{
-          // Give the photo real breathing room without eating the whole viewport
-          height: "clamp(380px, 58vh, 600px)",
+          // Edge-to-edge: fill the entire viewport. Account for the
+          // top bar (mobile only — desktop uses sidebar layout).
+          height: "calc(100dvh - 64px)",
+          // On desktop, the layout has no top bar so we can fill more.
+          // The 64px subtraction is the mobile top-bar height.
+          minHeight: "560px",
         }}
       >
-        {car.cover_image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={car.cover_image_url}
-            alt={`${car.year} ${car.make} ${car.model}`}
-            className="absolute inset-0 w-full h-full object-cover animate-cinematic"
-            style={{
-              // Center the photo cleanly — most car shots frame the car centred,
-              // so dead-centre keeps the hood, body and roofline in the frame.
-              objectPosition: "center center",
-              transform: `translate3d(0, ${parallaxOffset}px, 0)`,
-              willChange: "transform",
-            }}
-          />
+        {heroImage ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={heroImage}
+              alt={carName}
+              className="absolute inset-0 w-full h-full object-cover ken-burns"
+              style={{ objectPosition: "center center" }}
+            />
+            {/* Crossfade duplicate for seamless loop */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={heroImage}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover ken-burns ken-burns-delay"
+              style={{ objectPosition: "center center" }}
+            />
+          </>
         ) : (
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `radial-gradient(ellipse at 20% 40%, rgba(59,130,246,0.18) 0%, transparent 55%),
-                         linear-gradient(160deg, rgba(59,130,246,0.06) 0%, #000 50%)`,
-            }}
-          >
-            <div className="absolute inset-0 flex items-center justify-center">
-              <svg viewBox="0 0 200 90" width="240" fill="none" aria-hidden="true" style={{ opacity: 0.04 }}>
-                <path d="M18 72l16-42h132l16 42H18z" stroke="white" strokeWidth="3" strokeLinejoin="round" />
-                <ellipse cx="50" cy="74" rx="10" ry="10" stroke="white" strokeWidth="3" />
-                <ellipse cx="150" cy="74" rx="10" ry="10" stroke="white" strokeWidth="3" />
-              </svg>
-            </div>
-          </div>
+          <EmptyHeroState carId={car.id} />
         )}
 
         {/* Soft top fade so the top nav/back button has contrast */}
-        <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/70 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none z-[2]" />
 
-        {/* Strong bottom gradient behind text — scoped to bottom half only */}
-        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none" />
+        {/* Bottom gradient — covers the bottom 40% of the screen, transparent → black */}
+        <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none z-[2]" />
 
         {/* Top right: Edit + Share */}
-        <div className="absolute top-5 right-5 flex gap-2 z-10">
-          <button
-            onClick={() => setSharing(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-black/50 backdrop-blur-xl border border-white/[0.15] text-xs font-bold text-white hover:bg-black/70 transition-colors cursor-pointer"
-            aria-label="Share build"
-          >
-            <Share2 size={12} />
-            Share
-          </button>
-          <button
-            onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-black/50 backdrop-blur-xl border border-white/[0.15] text-xs font-bold text-white hover:bg-black/70 transition-colors cursor-pointer"
-            aria-label="Edit car"
-          >
-            <Edit2 size={11} />
-            Edit
-          </button>
-        </div>
+        {heroImage && (
+          <div className="absolute top-5 right-5 flex gap-2 z-10">
+            <button
+              type="button"
+              onClick={() => setSharing(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-black/55 backdrop-blur-xl border border-white/15 text-[11px] font-bold text-white hover:bg-black/75 transition-colors cursor-pointer"
+              aria-label="Share build"
+            >
+              <Share2 size={12} />
+              Share
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-black/55 backdrop-blur-xl border border-white/15 text-[11px] font-bold text-white hover:bg-black/75 transition-colors cursor-pointer"
+              aria-label="Edit car"
+            >
+              <Edit2 size={11} />
+              Edit
+            </button>
+          </div>
+        )}
 
         {/* Primary badge top left */}
-        {isPrimary && (
+        {isPrimary && heroImage && (
           <div className="absolute top-5 left-5 z-10">
             <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase glow-gold"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] font-bold tracking-[0.15em] uppercase glow-gold"
               style={{
                 backgroundColor: "rgba(251,191,36,0.18)",
                 border: "1px solid rgba(251,191,36,0.40)",
@@ -131,80 +142,61 @@ export function GarageHero({
           </div>
         )}
 
-        {/* Bottom: car info — smaller, scoped to readable gradient zone */}
-        <div className="absolute bottom-0 left-0 right-0 px-5 sm:px-8 pb-7 z-10">
-          <div className="max-w-4xl mx-auto">
-            {car.nickname && (
-              <p className="text-[11px] font-bold text-[#60A5FA] mb-1.5 tracking-[0.2em] uppercase animate-in">
-                {car.nickname}
-              </p>
-            )}
-            <h1
-              className="text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight animate-slide-up"
-              style={{ textShadow: "0 2px 16px rgba(0,0,0,0.8)" }}
-            >
-              {car.year} {car.make} {car.model}
+        {/* Bottom row: car info (left) + Customize (right) */}
+        {heroImage && (
+          <div
+            className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 lg:px-12 pb-8 sm:pb-10 z-10 flex items-end justify-between gap-4 transition-all duration-700 ease-out"
+            style={{
+              opacity: mounted ? 1 : 0,
+              transform: mounted ? "translateY(0)" : "translateY(20px)",
+            }}
+          >
+            <div className="min-w-0 flex-1 max-w-3xl">
+              {car.nickname && (
+                <p className="text-[11px] sm:text-xs font-bold text-[#60A5FA] mb-2 tracking-[0.25em] uppercase">
+                  {car.nickname}
+                </p>
+              )}
+              <h1
+                className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[0.95] tracking-tight"
+                style={{ textShadow: "0 4px 32px rgba(0,0,0,0.85)" }}
+              >
+                {car.year} {car.make}
+                <br />
+                <span className="text-white/90">{car.model}</span>
+              </h1>
               {car.trim && (
-                <span className="block text-sm sm:text-base font-medium text-white/55 mt-0.5">
+                <p
+                  className="text-sm sm:text-base font-medium text-white/65 mt-2 sm:mt-3"
+                  style={{ textShadow: "0 2px 16px rgba(0,0,0,0.85)" }}
+                >
                   {car.trim}
-                </span>
-              )}
-            </h1>
-
-            {/* Stat chips */}
-            <div
-              className="flex items-center gap-2 flex-wrap mt-4 mb-4 animate-in"
-              style={{ animationDelay: "150ms" }}
-            >
-              {car.horsepower && (
-                <StatChip icon={<Zap size={11} className="text-[#fbbf24]" />}>
-                  <AnimatedCounter value={car.horsepower} duration={1600} /> hp
-                </StatChip>
-              )}
-              {car.torque && (
-                <StatChip icon={<TrendingUp size={11} className="text-[#30d158]" />}>
-                  <AnimatedCounter value={car.torque} duration={1600} /> lb-ft
-                </StatChip>
-              )}
-              {modCount > 0 && (
-                <StatChip icon={<Wrench size={11} className="text-[#60A5FA]" />}>
-                  <AnimatedCounter value={modCount} duration={1400} /> mods
-                </StatChip>
-              )}
-              {totalInvested > 0 && (
-                <StatChip>
-                  <AnimatedCounter
-                    value={totalInvested}
-                    duration={1800}
-                    format={(n) => formatCurrency(Math.round(n))}
-                  />
-                </StatChip>
-              )}
-              {buildScore > 0 && (
-                <StatChip icon={<Star size={11} className="text-[#fbbf24]" fill="currentColor" />}>
-                  <AnimatedCounter value={buildScore} duration={1500} /> · {buildLevel}
-                </StatChip>
+                </p>
               )}
             </div>
 
-            <Link
-              href={`/garage/${car.id}`}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-white text-black text-xs font-bold hover:bg-white/90 transition-all active:scale-95 shadow-[0_6px_24px_rgba(255,255,255,0.12)] animate-in"
-              style={{ animationDelay: "250ms" }}
+            <button
+              type="button"
+              onClick={() => setCustomizing(true)}
+              className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full bg-white text-black text-xs sm:text-sm font-bold hover:bg-white/90 transition-all active:scale-95 shadow-[0_8px_32px_rgba(255,255,255,0.18)] flex-shrink-0 cursor-pointer whitespace-nowrap"
+              aria-label={`Customize ${carName}`}
             >
-              Manage Build <ChevronRight size={13} />
-            </Link>
+              <Sliders size={14} />
+              Customize
+            </button>
           </div>
-        </div>
+        )}
       </div>
 
-      {editing && <EditCarModal open={editing} onClose={() => setEditing(false)} car={car} />}
+      {editing && (
+        <EditCarModal open={editing} onClose={() => setEditing(false)} car={car} />
+      )}
       {sharing && (
         <CarShareCard
           open={sharing}
           onClose={() => setSharing(false)}
           data={{
-            carName: `${car.year} ${car.make} ${car.model}`,
+            carName,
             carImage: car.cover_image_url,
             buildScore,
             buildLevel,
@@ -216,15 +208,89 @@ export function GarageHero({
           }}
         />
       )}
+      {customizing && (
+        <ModConfiguratorPanel
+          open={customizing}
+          onClose={() => setCustomizing(false)}
+          carId={car.id}
+          carName={carName}
+        />
+      )}
+
+      <style jsx>{`
+        .ken-burns {
+          animation: kenBurns 12s ease-in-out infinite alternate;
+          will-change: transform;
+        }
+        .ken-burns-delay {
+          animation-delay: 6s;
+          opacity: 0;
+          animation-name: kenBurnsCrossfade;
+        }
+        @keyframes kenBurns {
+          0% {
+            transform: scale(1);
+          }
+          100% {
+            transform: scale(1.08);
+          }
+        }
+        @keyframes kenBurnsCrossfade {
+          0% {
+            transform: scale(1);
+            opacity: 0;
+          }
+          50% {
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1.08);
+            opacity: 0;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .ken-burns,
+          .ken-burns-delay {
+            animation: none !important;
+            opacity: 1;
+          }
+          .ken-burns-delay {
+            display: none;
+          }
+        }
+      `}</style>
     </>
   );
 }
 
-function StatChip({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
+function EmptyHeroState({ carId }: { carId: string }) {
   return (
-    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.08] backdrop-blur-xl border border-white/[0.12]">
-      {icon}
-      <span className="text-[11px] font-bold text-white tabular">{children}</span>
+    <div className="absolute inset-0 flex flex-col items-center justify-center z-[1]">
+      {/* Subtle radial backdrop */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `radial-gradient(ellipse at 50% 50%, rgba(59,130,246,0.08) 0%, transparent 60%),
+                       linear-gradient(180deg, #050505 0%, #000 100%)`,
+        }}
+      />
+      <div className="relative z-10 text-center px-6">
+        <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center">
+          <ImageIcon size={28} className="text-[var(--color-text-muted)]" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight">No render yet</h2>
+        <p className="text-sm text-[var(--color-text-muted)] mt-2 max-w-sm mx-auto">
+          Generate your first AI render to make this garage truly cinematic.
+        </p>
+        <Link
+          href={`/visualizer?carId=${carId}`}
+          className="inline-flex items-center gap-2 mt-6 px-6 py-3.5 rounded-full bg-[var(--color-accent)] text-white text-sm font-bold hover:brightness-110 transition-all active:scale-95 shadow-[0_8px_32px_rgba(59,130,246,0.35)]"
+        >
+          <Zap size={15} />
+          Generate your first render
+          <ChevronRight size={14} />
+        </Link>
+      </div>
     </div>
   );
 }

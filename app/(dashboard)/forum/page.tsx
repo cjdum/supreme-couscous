@@ -108,6 +108,7 @@ export default function ForumPage() {
   const [newPost, setNewPost] = useState({ title: "", content: "", category: "general", car_id: "" });
   const [submittingPost, setSubmittingPost] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [upvotedPosts, setUpvotedPosts] = useState<Set<string>>(new Set());
   const [downvotedPosts, setDownvotedPosts] = useState<Set<string>>(new Set());
@@ -166,11 +167,16 @@ export default function ForumPage() {
     async (startOffset: number, replace = false) => {
       if (replace) setLoading(true);
       else setLoadingMore(true);
+      setFetchError(null);
       try {
-        const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(startOffset), sort });
+        const params = new URLSearchParams({
+          limit: String(PAGE_SIZE),
+          offset: String(startOffset),
+          sort,
+        });
         if (category !== "all") params.set("category", category);
         const res = await fetch(`/api/forum/posts?${params}`);
-        if (!res.ok) throw new Error("Failed to fetch");
+        if (!res.ok) throw new Error("Couldn't load posts. Please try again.");
         const json = await res.json();
         const newPosts: Post[] = json.posts ?? [];
         if (replace) setPosts(newPosts);
@@ -178,7 +184,7 @@ export default function ForumPage() {
         if (newPosts.length < PAGE_SIZE) setHasMore(false);
         setOffset(startOffset + newPosts.length);
       } catch (err) {
-        console.error(err);
+        setFetchError(err instanceof Error ? err.message : "Failed to load posts");
       } finally {
         setLoading(false);
         setLoadingMore(false);
@@ -214,8 +220,10 @@ export default function ForumPage() {
         const res = await fetch(`/api/forum/posts/${postId}/replies`);
         const json = await res.json();
         setReplies((prev) => ({ ...prev, [postId]: json.replies ?? [] }));
-      } catch (err) {
-        console.error(err);
+      } catch {
+        // Silently fall back to empty replies — the inline list will show
+        // a friendly empty state next to the post.
+        setReplies((prev) => ({ ...prev, [postId]: [] }));
       } finally {
         setLoadingReplies(null);
       }
@@ -241,8 +249,8 @@ export default function ForumPage() {
           prev.map((p) => (p.id === postId ? { ...p, replies_count: p.replies_count + 1 } : p))
         );
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setPostError("Couldn't post your reply. Please try again.");
     } finally {
       setSubmittingReply(null);
     }
@@ -547,6 +555,23 @@ export default function ForumPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Inline error state */}
+      {fetchError && !loading && (
+        <div
+          role="alert"
+          className="rounded-2xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.2)] px-4 py-3 mb-4 flex items-center justify-between gap-3"
+        >
+          <p className="text-xs text-[var(--color-danger)] font-bold">{fetchError}</p>
+          <button
+            type="button"
+            onClick={() => fetchPosts(0, true)}
+            className="text-[11px] font-bold text-white px-4 py-2 rounded-lg bg-[var(--color-danger)] hover:brightness-110 transition-all cursor-pointer flex-shrink-0"
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {/* Posts list */}

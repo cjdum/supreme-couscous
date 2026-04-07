@@ -19,7 +19,7 @@ export function AddCarButton({ label, asCard, fab }: AddCarButtonProps) {
       {fab ? (
         <button
           onClick={() => setOpen(true)}
-          className="fab"
+          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center shadow-[0_8px_32px_rgba(59,130,246,0.4),0_2px_8px_rgba(0,0,0,0.4)] hover:scale-110 hover:shadow-[0_12px_40px_rgba(59,130,246,0.5)] active:scale-95 transition-all cursor-pointer"
           aria-label="Add car"
         >
           <Plus size={24} />

@@ -342,6 +342,40 @@ export interface Database {
         };
         Update: never;
       };
+      purchases: {
+        Row: {
+          id: string;
+          user_id: string;
+          car_id: string | null;
+          mod_id: string | null;
+          item_name: string;
+          price: number;
+          retailer: string | null;
+          purchased_at: string;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          car_id?: string | null;
+          mod_id?: string | null;
+          item_name: string;
+          price: number;
+          retailer?: string | null;
+          purchased_at?: string;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          item_name?: string;
+          price?: number;
+          retailer?: string | null;
+          purchased_at?: string;
+          notes?: string | null;
+          mod_id?: string | null;
+        };
+      };
     };
     Views: Record<string, { Row: Record<string, unknown> }>;
     Functions: Record<string, { Args: Record<string, unknown>; Returns: unknown }>;
@@ -365,3 +399,4 @@ export type ForumPost = Database["public"]["Tables"]["forum_posts"]["Row"];
 export type ForumReply = Database["public"]["Tables"]["forum_replies"]["Row"];
 export type ForumLike = Database["public"]["Tables"]["forum_likes"]["Row"];
 export type ForumDownvote = Database["public"]["Tables"]["forum_downvotes"]["Row"];
+export type Purchase = Database["public"]["Tables"]["purchases"]["Row"];

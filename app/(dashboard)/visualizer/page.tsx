@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Select, Textarea } from "@/components/ui/input";
+import { RenderLightbox } from "@/components/ui/render-lightbox";
 import { haptic } from "@/lib/haptics";
 import type { Car, Render } from "@/lib/supabase/types";
 import { formatRelativeDate } from "@/lib/utils";
@@ -668,44 +669,33 @@ function VisualizerContent() {
         </div>
       )}
 
-      {/* Lightbox */}
-      {expandedRender && (
-        <div
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-5"
-          onClick={() => setExpandedRender(null)}
-        >
-          <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setExpandedRender(null)}
-              className="absolute -top-12 right-0 w-10 h-10 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer"
-            >
-              <X size={16} className="text-white" />
-            </button>
-            {expandedRender.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={expandedRender.image_url} alt={expandedRender.user_prompt} className="w-full rounded-3xl" />
-            )}
-            <div className="mt-4 flex items-start justify-between gap-4">
-              <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed flex-1">{expandedRender.user_prompt}</p>
-              <div className="flex gap-2 flex-shrink-0">
-                <button
-                  onClick={() => setAsCover(expandedRender)}
-                  className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-gold)] hover:border-[var(--color-gold)] transition-all cursor-pointer"
-                >
-                  <Star size={13} /> Set as Cover
-                </button>
-                {expandedRender.image_url && (
-                  <button
-                    onClick={() => handleDownload(expandedRender)}
-                    className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] hover:text-white hover:border-[var(--color-border-bright)] transition-all cursor-pointer"
-                  >
-                    <Download size={13} /> Download
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Reusable fullscreen render lightbox with zoom + pan */}
+      {expandedRender && expandedRender.image_url && (
+        <RenderLightbox
+          src={expandedRender.image_url}
+          alt={expandedRender.user_prompt}
+          open={!!expandedRender}
+          onClose={() => setExpandedRender(null)}
+          caption={expandedRender.user_prompt}
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => setAsCover(expandedRender)}
+                className="flex items-center gap-2 h-10 px-4 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 text-xs font-bold text-white hover:bg-black/80 transition-colors cursor-pointer"
+              >
+                <Star size={13} /> Set as Cover
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownload(expandedRender)}
+                className="flex items-center gap-2 h-10 px-4 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 text-xs font-bold text-white hover:bg-black/80 transition-colors cursor-pointer"
+              >
+                <Download size={13} /> Download
+              </button>
+            </>
+          }
+        />
       )}
 
       <div className="h-8" />

@@ -7,6 +7,7 @@ import { GarageHero } from "@/components/garage/garage-hero";
 import { CarsRail } from "@/components/garage/cars-rail";
 import { BuildTimeline } from "@/components/garage/build-timeline";
 import { GarageStats } from "@/components/garage/garage-stats";
+import { PageContainer } from "@/components/ui/page-container";
 import { calculateBuildScore, LEVEL_COLORS } from "@/lib/build-score";
 import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
 
@@ -76,6 +77,17 @@ export default async function GaragePage() {
   const primaryStats = statsMap.get(primaryCar.id) ?? { count: 0, total: 0 };
   const otherCars = cars.filter((c) => c.id !== primaryCar.id);
 
+  // Latest render for the primary car (used as cinematic background)
+  const { data: renderRaw } = await supabase
+    .from("renders")
+    .select("image_url")
+    .eq("car_id", primaryCar.id)
+    .not("image_url", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const latestRenderUrl = (renderRaw as { image_url: string | null } | null)?.image_url ?? null;
+
   const totalMods = Array.from(statsMap.values()).reduce((s, v) => s + v.count, 0);
   const totalInvested = Array.from(statsMap.values()).reduce((s, v) => s + v.total, 0);
 
@@ -116,8 +128,8 @@ export default async function GaragePage() {
     }));
 
   return (
-    <div className="min-h-dvh">
-      {/* ── Cinematic hero ── */}
+    <div className="min-h-dvh animate-fade">
+      {/* ── Cinematic edge-to-edge hero ── */}
       <GarageHero
         car={primaryCar}
         modCount={primaryStats.count}
@@ -128,114 +140,113 @@ export default async function GaragePage() {
         buildLevel={buildScore.level}
         topCategory={topCategory}
         topMods={topMods}
+        latestRenderUrl={latestRenderUrl}
       />
 
-      {/* ── Stats + Build Score (animated) ── */}
-      <div className="relative -mt-8 z-10">
-        <div className="px-5 sm:px-8 max-w-5xl mx-auto">
-          <GarageStats
-            buildScore={buildScore.score}
-            buildLevel={buildScore.level}
-            levelColor={levelColor}
-            nextLevel={buildScore.nextLevel}
-            nextThreshold={buildScore.nextThreshold ?? null}
-            progress={buildScore.progress}
-            carCount={cars.length}
-            totalMods={totalMods}
-            totalInvested={totalInvested}
-          />
-        </div>
-      </div>
+      {/* ── Stats + Build Score ── */}
+      <PageContainer maxWidth="5xl" className="mt-10">
+        <GarageStats
+          buildScore={buildScore.score}
+          buildLevel={buildScore.level}
+          levelColor={levelColor}
+          nextLevel={buildScore.nextLevel}
+          nextThreshold={buildScore.nextThreshold ?? null}
+          progress={buildScore.progress}
+          carCount={cars.length}
+          totalMods={totalMods}
+          totalInvested={totalInvested}
+        />
 
-      {/* ── Build Timeline (primary car) ── */}
-      {timelineMods.length > 0 && (
-        <section className="mt-10 px-5 sm:px-8 max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold tracking-tight">Build Timeline</h2>
-              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Every mod, in order. Tap to expand.</p>
+        {/* ── Build Timeline (primary car) ── */}
+        {timelineMods.length > 0 && (
+          <section className="mt-10">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight">Build Timeline</h2>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Every mod, in order. Tap to expand.</p>
+              </div>
+              <Link
+                href={`/garage/${primaryCar.id}`}
+                className="text-xs font-semibold text-[var(--color-accent-bright)] hover:text-white transition-colors px-3 py-2"
+              >
+                View all
+              </Link>
             </div>
+            <BuildTimeline mods={timelineMods} />
+          </section>
+        )}
+
+        {/* ── Quick actions ── */}
+        <section className="mt-10">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Link
               href={`/garage/${primaryCar.id}`}
-              className="text-xs font-semibold text-[var(--color-accent-bright)] hover:text-white transition-colors"
+              className="rounded-2xl bg-[var(--color-accent)] p-5 flex items-center justify-between hover:brightness-110 transition-all active:scale-[0.98] shadow-[0_4px_24px_rgba(59,130,246,0.25)] group"
             >
-              View all
+              <div>
+                <p className="text-sm font-bold text-white">Manage Build</p>
+                <p className="text-[11px] text-white/60 mt-0.5">Log mods &amp; track</p>
+              </div>
+              <Wrench size={20} className="text-white/60 group-hover:scale-110 transition-transform" />
+            </Link>
+            <Link
+              href={`/visualizer?carId=${primaryCar.id}`}
+              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+            >
+              <div>
+                <p className="text-sm font-bold">AI Render</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Visualize mods</p>
+              </div>
+              <Zap size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
+            </Link>
+            <Link
+              href="/stats"
+              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+            >
+              <div>
+                <p className="text-sm font-bold">Analytics</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Build insights</p>
+              </div>
+              <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform" />
+            </Link>
+            <Link
+              href="/profile"
+              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+            >
+              <div>
+                <p className="text-sm font-bold">Profile</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Score &amp; badges</p>
+              </div>
+              <Plus size={20} className="text-[var(--color-text-muted)] group-hover:scale-110 transition-transform" />
             </Link>
           </div>
-          <BuildTimeline mods={timelineMods} />
         </section>
-      )}
 
-      {/* ── Quick actions ── */}
-      <section className="mt-10 px-5 sm:px-8 max-w-5xl mx-auto">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Link
-            href={`/garage/${primaryCar.id}`}
-            className="rounded-2xl bg-[var(--color-accent)] p-5 flex items-center justify-between hover:brightness-110 transition-all active:scale-[0.98] shadow-[0_4px_24px_rgba(59,130,246,0.25)] group"
-          >
-            <div>
-              <p className="text-sm font-bold text-white">Manage Build</p>
-              <p className="text-[11px] text-white/60 mt-0.5">Log mods & track</p>
+        {/* ── Other vehicles rail ── */}
+        {otherCars.length > 0 && (
+          <section className="mt-10">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight">Other Vehicles</h2>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                  Drag to reorder. {otherCars.length} {otherCars.length === 1 ? "car" : "cars"}.
+                </p>
+              </div>
+              <AddCarButton />
             </div>
-            <Wrench size={20} className="text-white/60 group-hover:scale-110 transition-transform" />
-          </Link>
-          <Link
-            href={`/visualizer?carId=${primaryCar.id}`}
-            className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-          >
-            <div>
-              <p className="text-sm font-bold">AI Render</p>
-              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Visualize mods</p>
-            </div>
-            <Zap size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
-          </Link>
-          <Link
-            href="/stats"
-            className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-          >
-            <div>
-              <p className="text-sm font-bold">Analytics</p>
-              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Build insights</p>
-            </div>
-            <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform" />
-          </Link>
-          <Link
-            href="/profile"
-            className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-          >
-            <div>
-              <p className="text-sm font-bold">Profile</p>
-              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Score & badges</p>
-            </div>
-            <Plus size={20} className="text-[var(--color-text-muted)] group-hover:scale-110 transition-transform" />
-          </Link>
-        </div>
-      </section>
+            <CarsRail cars={otherCars} stats={statsMap} />
+          </section>
+        )}
 
-      {/* ── Other vehicles rail ── */}
-      {otherCars.length > 0 && (
-        <section className="mt-10 px-5 sm:px-8 max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-bold tracking-tight">Other Vehicles</h2>
-              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Drag to reorder. {otherCars.length} {otherCars.length === 1 ? "car" : "cars"}.</p>
-            </div>
-            <AddCarButton />
-          </div>
-          <CarsRail cars={otherCars} stats={statsMap} />
-        </section>
-      )}
-
-      {/* Single-car CTA */}
-      {cars.length === 1 && (
-        <section className="mt-10 px-5 sm:px-8 max-w-5xl mx-auto">
-          <AddCarButton asCard label="Add another vehicle" />
-        </section>
-      )}
+        {/* Single-car CTA */}
+        {cars.length === 1 && (
+          <section className="mt-10">
+            <AddCarButton asCard label="Add another vehicle" />
+          </section>
+        )}
+      </PageContainer>
 
       <AddCarButton fab />
-
-      <div className="h-12" />
     </div>
   );
 }

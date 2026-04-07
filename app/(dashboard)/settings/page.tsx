@@ -7,6 +7,7 @@ import {
   Sun, Moon, Settings as SettingsIcon, ChevronRight, Car as CarIcon
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { Toggle } from "@/components/ui/toggle";
 import { sanitize } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
 import {
@@ -42,6 +43,7 @@ export default function SettingsPage() {
   const [savingAccount, setSavingAccount] = useState(false);
   const [accountSaved, setAccountSaved] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Preferences (localStorage)
   const [prefs, setPrefs] = useState<Preferences>(() => loadPreferences());
@@ -128,9 +130,11 @@ export default function SettingsPage() {
       if (res.ok && profile) {
         setProfile({ ...profile, avatar_url: json.avatar_url });
         haptic("success");
+      } else {
+        setSaveError("Couldn't upload avatar. Please try again.");
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setSaveError("Couldn't upload avatar. Please try again.");
     } finally {
       setUploadingAvatar(false);
     }
@@ -285,6 +289,23 @@ export default function SettingsPage() {
             />
             <p className="text-[10px] text-[var(--color-text-muted)] mt-1 text-right tabular">{bio.length} / 500</p>
           </div>
+
+          {saveError && (
+            <div
+              role="alert"
+              className="rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.2)] px-4 py-3 text-xs text-[var(--color-danger)] flex items-center justify-between gap-3"
+            >
+              <span>{saveError}</span>
+              <button
+                type="button"
+                onClick={() => setSaveError(null)}
+                className="text-[var(--color-danger)] hover:text-white transition-colors cursor-pointer text-base leading-none"
+                aria-label="Dismiss error"
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           <button
             onClick={saveAccount}
@@ -606,31 +627,3 @@ function ToggleRow({
   );
 }
 
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => !disabled && onChange(!checked)}
-      disabled={disabled}
-      className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 cursor-pointer disabled:opacity-50 ${
-        checked ? "bg-[var(--color-accent)]" : "bg-[var(--color-bg-hover)]"
-      }`}
-      role="switch"
-      aria-checked={checked}
-    >
-      <span
-        className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-          checked ? "translate-x-6" : "translate-x-1"
-        }`}
-      />
-    </button>
-  );
-}

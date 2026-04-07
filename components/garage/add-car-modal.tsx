@@ -6,6 +6,7 @@ import { Search, Camera, Upload, X, Check } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
+import { Toggle } from "@/components/ui/toggle";
 import { Autocomplete } from "@/components/ui/autocomplete";
 import { createClient } from "@/lib/supabase/client";
 import { carSchema, type CarInput } from "@/lib/validations";
@@ -312,24 +313,17 @@ export function AddCarModal({ open, onClose }: AddCarModalProps) {
                 />
               </div>
 
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div
-                  onClick={() => setField("is_public", !form.is_public)}
-                  className={`relative w-10 h-6 rounded-full transition-colors ${
-                    form.is_public ? "bg-[var(--color-accent)]" : "bg-[var(--color-bg-hover)]"
-                  }`}
-                >
-                  <div
-                    className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                      form.is_public ? "translate-x-5" : "translate-x-1"
-                    }`}
-                  />
-                </div>
+              <div className="flex items-center gap-3">
+                <Toggle
+                  checked={form.is_public ?? false}
+                  onChange={(v) => setField("is_public", v)}
+                  ariaLabel="Public build"
+                />
                 <div>
                   <p className="text-sm font-medium">Public build</p>
                   <p className="text-xs text-[var(--color-text-muted)]">Visible to the community</p>
                 </div>
-              </label>
+              </div>
 
               <div className="flex gap-3 pt-1">
                 <Button variant="secondary" onClick={handleClose} className="flex-1">

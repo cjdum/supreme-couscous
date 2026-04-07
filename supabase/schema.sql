@@ -589,3 +589,36 @@ create policy "car_photos: public car read"
 update storage.buckets
   set file_size_limit = 8388608
   where id = 'car-covers';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v4: Purchases table (Shop tracking)
+-- Run this block in Supabase SQL Editor to enable the Shop > My Purchases
+-- feature. The Shop page will silently fall back to an empty list until this
+-- migration is applied.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists purchases (
+  id            uuid primary key default uuid_generate_v4(),
+  user_id       uuid not null references auth.users(id) on delete cascade,
+  car_id        uuid references cars(id) on delete set null,
+  mod_id        uuid references mods(id) on delete set null,
+  item_name     text not null check (char_length(item_name) between 1 and 200),
+  price         numeric(10, 2) not null check (price >= 0),
+  retailer      text check (char_length(retailer) <= 120),
+  purchased_at  date not null default current_date,
+  notes         text check (char_length(notes) <= 2000),
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists purchases_user_id_idx on purchases(user_id);
+create index if not exists purchases_car_id_idx  on purchases(car_id);
+create index if not exists purchases_mod_id_idx  on purchases(mod_id);
+create index if not exists purchases_purchased_at_idx on purchases(user_id, purchased_at desc);
+
+alter table purchases enable row level security;
+
+drop policy if exists "purchases: owner all" on purchases;
+create policy "purchases: owner all"
+  on purchases for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

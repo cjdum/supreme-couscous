@@ -12,8 +12,8 @@
   --color-bg-glass: rgba(15, 15, 15, 0.85);
 
   /* Borders — subtle structure */
-  --color-border: #2a2a2a;
-  --color-border-bright: #3a3a3a;
+  --color-border: rgba(255, 255, 255, 0.10);
+  --color-border-bright: rgba(255, 255, 255, 0.18);
   --color-border-focus: rgba(59, 130, 246, 0.6);
 
   /* Accent — Electric Blue */
@@ -490,9 +490,9 @@
   /* ── Floating action button ── */
   .fab {
     position: fixed;
-    bottom: 100px;
-    right: 20px;
-    z-index: var(--z-fab);
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 50;
     width: 56px;
     height: 56px;
     border-radius: 999px;
