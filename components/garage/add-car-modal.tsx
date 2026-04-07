@@ -124,8 +124,17 @@ export function AddCarModal({ open, onClose }: AddCarModalProps) {
       return;
     }
 
-    setCreatedCarId(data.id);
+    const newCarId = data.id;
+    setCreatedCarId(newCarId);
     setSaving(false);
+
+    // Auto-verify VIN in the background if one was used during lookup
+    if (form.vin && form.vin.trim().length === 17) {
+      fetch(`/api/cars/${newCarId}/verify-vin`, { method: "POST" }).catch(() => {
+        // Silent — VIN verification is best-effort at creation time
+      });
+    }
+
     setStep("photo");
   }
 

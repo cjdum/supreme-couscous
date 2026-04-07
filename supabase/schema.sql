@@ -717,3 +717,21 @@ alter table cars add column if not exists is_sold boolean not null default false
 alter table cars add column if not exists sold_at timestamptz;
 
 create index if not exists cars_is_sold_idx on cars(user_id, is_sold);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v8: Pixel card snapshot stats
+-- Snapshot of the car's data at the moment the pixel card was minted.
+-- These values are frozen forever so the card is a true time-capsule.
+-- ─────────────────────────────────────────────────────────────────────────────
+alter table cars add column if not exists pixel_card_hp          integer;
+alter table cars add column if not exists pixel_card_mod_count   integer;
+alter table cars add column if not exists pixel_card_build_score integer;
+alter table cars add column if not exists pixel_card_rarity      text;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v9: VIN verification
+-- Marks a car as cryptographically linked to its real-world VIN via the NHTSA
+-- decode API. Unlocks BUILDER / LEGEND card rarities.
+-- Run this block in Supabase SQL Editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+alter table cars add column if not exists vin_verified boolean not null default false;

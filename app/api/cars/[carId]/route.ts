@@ -16,6 +16,7 @@ const updateSchema = z.object({
   is_public: z.boolean().optional(),
   cover_image_url: z.string().url().nullable().optional(),
   description: z.string().max(4000).nullable().optional(),
+  vin: z.string().length(17).nullable().optional(),
 });
 
 export async function PATCH(request: Request, { params }: Params) {

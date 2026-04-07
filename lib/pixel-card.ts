@@ -1,70 +1,66 @@
 /**
- * Pixel Card eligibility — shared between server route and client UI so a
- * user is never told they're eligible only to be rejected by the API.
- *
- * Requirements (all four must be true):
- *   1. ≥ 2 photos uploaded
- *   2. description ≥ 80 characters
- *   3. make + model + year all filled in
- *   4. build score ≥ 15
+ * Pixel Card — rarity calculation + shared types.
+ * Eligibility is now checked server-side via /api/cars/[carId]/check-eligibility.
  */
 
-export interface PixelCardEligibilityInput {
-  photoCount: number;
-  description: string | null;
-  make: string | null;
-  model: string | null;
-  year: number | null;
-  buildScore: number;
+// ── Rarity ──────────────────────────────────────────────────────────────────
+
+export type PixelCardRarity = "STOCK" | "ENTHUSIAST" | "BUILDER" | "LEGEND";
+
+export interface RarityInput {
+  vinVerified: boolean;
+  /** Number of installed mods that have a cost logged */
+  modsWithCostCount: number;
+  /** Total installed mod count */
+  totalModCount: number;
+  /** Description character length */
+  descriptionLength: number;
 }
 
-export interface RequirementCheck {
-  id: "photos" | "description" | "core_fields" | "build_score";
+/**
+ * Data-richness rarity:
+ * LEGEND     — VIN verified + 10+ costed mods + detailed description (≥120 chars)
+ * BUILDER    — VIN verified + 5+ installed mods
+ * ENTHUSIAST — No VIN, 5+ mods with costs logged
+ * STOCK      — Everything else
+ */
+export function calculateRarity(input: RarityInput): PixelCardRarity {
+  const { vinVerified, modsWithCostCount, totalModCount, descriptionLength } = input;
+
+  if (vinVerified && modsWithCostCount >= 10 && descriptionLength >= 120) return "LEGEND";
+  if (vinVerified && totalModCount >= 5) return "BUILDER";
+  if (!vinVerified && modsWithCostCount >= 5) return "ENTHUSIAST";
+  return "STOCK";
+}
+
+/** Backwards-compat shim: calculate from build score alone (used for display of old cards) */
+export function calculateRarityFromScore(buildScore: number): PixelCardRarity {
+  if (buildScore > 60) return "LEGEND";
+  if (buildScore > 40) return "BUILDER";
+  if (buildScore > 20) return "ENTHUSIAST";
+  return "STOCK";
+}
+
+export const RARITY_CONFIG: Record<
+  PixelCardRarity,
+  { color: string; label: string; glow: string; borderColor: string }
+> = {
+  STOCK:      { color: "#8888aa", label: "STOCK",      glow: "rgba(136,136,170,0.30)", borderColor: "#5a5a7a" },
+  ENTHUSIAST: { color: "#4a7abf", label: "ENTHUSIAST", glow: "rgba(74,122,191,0.30)",  borderColor: "#4a7abf" },
+  BUILDER:    { color: "#a855f7", label: "BUILDER",    glow: "rgba(123,79,212,0.35)",  borderColor: "#7b4fd4" },
+  LEGEND:     { color: "#f5d76e", label: "LEGEND",     glow: "rgba(245,215,110,0.45)", borderColor: "#f5d76e" },
+};
+
+// ── Client-side eligibility check result (returned by API) ──────────────────
+
+export interface EligibilityCheck {
+  id: "photos" | "description" | "mod_source";
   label: string;
   detail: string;
   met: boolean;
 }
 
-export interface EligibilityResult {
+export interface EligibilityResponse {
   eligible: boolean;
-  requirements: RequirementCheck[];
-}
-
-export const PIXEL_CARD_MIN_PHOTOS = 2;
-export const PIXEL_CARD_MIN_DESCRIPTION = 80;
-export const PIXEL_CARD_MIN_BUILD_SCORE = 15;
-
-export function checkPixelCardEligibility(input: PixelCardEligibilityInput): EligibilityResult {
-  const description = (input.description ?? "").trim();
-  const requirements: RequirementCheck[] = [
-    {
-      id: "photos",
-      label: `Upload ${PIXEL_CARD_MIN_PHOTOS} photos`,
-      detail: `${input.photoCount} of ${PIXEL_CARD_MIN_PHOTOS}`,
-      met: input.photoCount >= PIXEL_CARD_MIN_PHOTOS,
-    },
-    {
-      id: "description",
-      label: `Write a description (${PIXEL_CARD_MIN_DESCRIPTION}+ characters)`,
-      detail: `${description.length} of ${PIXEL_CARD_MIN_DESCRIPTION} characters`,
-      met: description.length >= PIXEL_CARD_MIN_DESCRIPTION,
-    },
-    {
-      id: "core_fields",
-      label: "Make, model, year filled in",
-      detail: input.make && input.model && input.year ? "Done" : "Missing fields",
-      met: Boolean(input.make && input.model && input.year),
-    },
-    {
-      id: "build_score",
-      label: `Reach ${PIXEL_CARD_MIN_BUILD_SCORE} build score`,
-      detail: `${input.buildScore} of ${PIXEL_CARD_MIN_BUILD_SCORE}`,
-      met: input.buildScore >= PIXEL_CARD_MIN_BUILD_SCORE,
-    },
-  ];
-
-  return {
-    eligible: requirements.every((r) => r.met),
-    requirements,
-  };
+  checks: EligibilityCheck[];
 }

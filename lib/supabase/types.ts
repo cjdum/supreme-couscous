@@ -82,6 +82,11 @@ export interface Database {
           pixel_card_url: string | null;
           pixel_card_nickname: string | null;
           pixel_card_generated_at: string | null;
+          pixel_card_hp: number | null;
+          pixel_card_mod_count: number | null;
+          pixel_card_build_score: number | null;
+          pixel_card_rarity: string | null;
+          vin_verified: boolean;
           is_sold: boolean;
           sold_at: string | null;
           created_at: string;
@@ -121,6 +126,11 @@ export interface Database {
           pixel_card_url?: string | null;
           pixel_card_nickname?: string | null;
           pixel_card_generated_at?: string | null;
+          pixel_card_hp?: number | null;
+          pixel_card_mod_count?: number | null;
+          pixel_card_build_score?: number | null;
+          pixel_card_rarity?: string | null;
+          vin_verified?: boolean;
           is_sold?: boolean;
           sold_at?: string | null;
           created_at?: string;
@@ -158,6 +168,11 @@ export interface Database {
           pixel_card_url?: string | null;
           pixel_card_nickname?: string | null;
           pixel_card_generated_at?: string | null;
+          pixel_card_hp?: number | null;
+          pixel_card_mod_count?: number | null;
+          pixel_card_build_score?: number | null;
+          pixel_card_rarity?: string | null;
+          vin_verified?: boolean;
           is_sold?: boolean;
           sold_at?: string | null;
           updated_at?: string;

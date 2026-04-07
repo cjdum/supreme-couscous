@@ -317,15 +317,15 @@ export default async function CarDetailPage({ params }: Props) {
         <div className="space-y-6">
           <PixelCard
             carId={carId}
-            photoCount={photoCount ?? 0}
-            description={car.description}
-            make={car.make}
-            model={car.model}
-            year={car.year}
-            buildScore={buildScoreResult.buildScore.score}
+            carLabel={`${car.year} ${car.make} ${car.model}`}
             pixelCardUrl={car.pixel_card_url}
             pixelCardNickname={car.pixel_card_nickname}
             pixelCardGeneratedAt={car.pixel_card_generated_at}
+            pixelCardHp={car.pixel_card_hp}
+            pixelCardModCount={car.pixel_card_mod_count}
+            pixelCardBuildScore={car.pixel_card_build_score}
+            pixelCardRarity={car.pixel_card_rarity}
+            vinVerified={car.vin_verified}
           />
           <VehicleSpecs car={car} />
 

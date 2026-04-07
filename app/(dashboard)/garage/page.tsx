@@ -9,6 +9,7 @@ import { BuildTimeline } from "@/components/garage/build-timeline";
 import { GarageStats } from "@/components/garage/garage-stats";
 import { PageContainer } from "@/components/ui/page-container";
 import { calculateBuildScore, LEVEL_COLORS } from "@/lib/build-score";
+import { CardCollection } from "@/components/garage/card-collection";
 import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
 
 export const metadata = { title: "Garage — MODVAULT" };
@@ -243,6 +244,9 @@ export default async function GaragePage() {
             <AddCarButton asCard label="Add another vehicle" />
           </section>
         )}
+
+        {/* ── Pixel Card Collection ── */}
+        <CardCollection cars={cars} />
       </PageContainer>
 
       <AddCarButton fab />
