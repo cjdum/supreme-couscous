@@ -93,6 +93,15 @@ export default async function CarDetailPage({ params }: Props) {
               className="absolute inset-0 w-full h-full object-cover animate-cinematic"
               style={{ objectPosition: "center center" }}
             />
+            {/* Vignette to make the car pop */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  "radial-gradient(ellipse at 50% 45%, transparent 0%, transparent 40%, rgba(0,0,0,0.45) 90%, rgba(0,0,0,0.7) 100%)",
+              }}
+            />
           </>
         ) : (
           <div

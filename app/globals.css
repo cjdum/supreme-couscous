@@ -715,8 +715,9 @@
 }
 
 @keyframes cinematicReveal {
-  0% { opacity: 0; transform: scale(1.06); filter: blur(8px); }
-  100% { opacity: 1; transform: scale(1); filter: blur(0); }
+  /* Zero scale — static reveal only. Zoom effects were making users motion sick. */
+  0% { opacity: 0; filter: blur(6px); }
+  100% { opacity: 1; filter: blur(0); }
 }
 
 @keyframes confettiFall {

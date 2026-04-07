@@ -23,14 +23,14 @@ interface GarageHeroProps {
 }
 
 /**
- * Cinematic, edge-to-edge Forza-style hero for the garage.
+ * Cinematic edge-to-edge Forza-style hero for the garage.
  *
- * - The car render / cover photo fills the entire viewport (no margins)
- * - Subtle Ken Burns zoom from 1.0 → 1.08 over 12s, looped with crossfade
- * - Bottom 40% gradient overlay → #000000
- * - Car name + year sit on the gradient bottom-left
- * - "Customize" button bottom-right opens the mod configurator panel
- * - When no render and no photo: dark placeholder + CTA to /visualizer
+ * - Static fullscreen photo/render as the hero background (no zoom — motion sick fix)
+ * - Very subtle parallax: background translates at 0.3× scroll speed
+ * - Deep vignette (dark edges, brighter center) to make the car pop
+ * - Bottom gradient overlay → #000000
+ * - Smooth fade-in on page load (opacity 0 → 1 over 600ms)
+ * - Respects prefers-reduced-motion (disables parallax entirely)
  */
 export function GarageHero({
   car,
@@ -48,12 +48,36 @@ export function GarageHero({
   const [sharing, setSharing] = useState(false);
   const [customizing, setCustomizing] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
 
-  // Trigger mount-in fade. We delay one frame to let the browser paint
-  // the hidden state first so the transition actually runs.
+  // Smooth fade-in on mount
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
     return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Subtle parallax — bail out if user prefers reduced motion
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) return;
+
+    let rafId = 0;
+    let latest = 0;
+    const onScroll = () => {
+      latest = window.scrollY;
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          setScrollY(latest);
+          rafId = 0;
+        });
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   const heroImage = latestRenderUrl ?? car.cover_image_url ?? null;
@@ -64,32 +88,38 @@ export function GarageHero({
       <div
         className="relative w-full overflow-hidden"
         style={{
-          // Edge-to-edge: fill the entire viewport. Account for the
-          // top bar (mobile only — desktop uses sidebar layout).
           height: "calc(100dvh - 64px)",
-          // On desktop, the layout has no top bar so we can fill more.
-          // The 64px subtraction is the mobile top-bar height.
           minHeight: "560px",
         }}
       >
         {heroImage ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={heroImage}
-              alt={carName}
-              className="absolute inset-0 w-full h-full object-cover ken-burns"
-              style={{ objectPosition: "center center" }}
-            />
-            {/* Crossfade duplicate for seamless loop */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={heroImage}
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full object-cover ken-burns ken-burns-delay"
-              style={{ objectPosition: "center center" }}
-            />
+            {/* Static background — 0.3× parallax on scroll (zero zoom, zero Ken Burns) */}
+            <div
+              className="absolute inset-0 will-change-transform"
+              style={{
+                transform: `translate3d(0, ${scrollY * 0.3}px, 0)`,
+                opacity: mounted ? 1 : 0,
+                transition: "opacity 600ms ease-out",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={heroImage}
+                alt={carName}
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ objectPosition: "center center" }}
+              />
+              {/* Deep radial vignette — darker edges, brighter center, makes the car pop */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at 50% 45%, transparent 0%, transparent 35%, rgba(0,0,0,0.55) 85%, rgba(0,0,0,0.85) 100%)",
+                }}
+              />
+            </div>
           </>
         ) : (
           <EmptyHeroState carId={car.id} />
@@ -107,7 +137,7 @@ export function GarageHero({
             <button
               type="button"
               onClick={() => setSharing(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-black/55 backdrop-blur-xl border border-white/15 text-[11px] font-bold text-white hover:bg-black/75 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-full bg-black/55 backdrop-blur-xl border border-white/15 text-[11px] font-bold text-white hover:bg-black/75 transition-colors cursor-pointer"
               aria-label="Share build"
             >
               <Share2 size={12} />
@@ -116,7 +146,7 @@ export function GarageHero({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-black/55 backdrop-blur-xl border border-white/15 text-[11px] font-bold text-white hover:bg-black/75 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-full bg-black/55 backdrop-blur-xl border border-white/15 text-[11px] font-bold text-white hover:bg-black/75 transition-colors cursor-pointer"
               aria-label="Edit car"
             >
               <Edit2 size={11} />
@@ -153,12 +183,12 @@ export function GarageHero({
           >
             <div className="min-w-0 flex-1 max-w-3xl">
               {car.nickname && (
-                <p className="text-[11px] sm:text-xs font-bold text-[#60A5FA] mb-2 tracking-[0.25em] uppercase">
+                <p className="text-[11px] sm:text-xs font-bold text-[#60A5FA] mb-2 tracking-[0.25em] uppercase truncate">
                   {car.nickname}
                 </p>
               )}
               <h1
-                className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[0.95] tracking-tight"
+                className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[0.95] tracking-tight break-words"
                 style={{ textShadow: "0 4px 32px rgba(0,0,0,0.85)" }}
               >
                 {car.year} {car.make}
@@ -167,7 +197,7 @@ export function GarageHero({
               </h1>
               {car.trim && (
                 <p
-                  className="text-sm sm:text-base font-medium text-white/65 mt-2 sm:mt-3"
+                  className="text-sm sm:text-base font-medium text-white/65 mt-2 sm:mt-3 truncate"
                   style={{ textShadow: "0 2px 16px rgba(0,0,0,0.85)" }}
                 >
                   {car.trim}
@@ -178,7 +208,7 @@ export function GarageHero({
             <button
               type="button"
               onClick={() => setCustomizing(true)}
-              className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full bg-white text-black text-xs sm:text-sm font-bold hover:bg-white/90 transition-all active:scale-95 shadow-[0_8px_32px_rgba(255,255,255,0.18)] flex-shrink-0 cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-2 px-5 sm:px-6 min-h-[44px] py-3 sm:py-3.5 rounded-full bg-white text-black text-xs sm:text-sm font-bold hover:bg-white/90 transition-all active:scale-95 shadow-[0_8px_32px_rgba(255,255,255,0.18)] flex-shrink-0 cursor-pointer whitespace-nowrap"
               aria-label={`Customize ${carName}`}
             >
               <Sliders size={14} />
@@ -216,49 +246,6 @@ export function GarageHero({
           carName={carName}
         />
       )}
-
-      <style jsx>{`
-        .ken-burns {
-          animation: kenBurns 12s ease-in-out infinite alternate;
-          will-change: transform;
-        }
-        .ken-burns-delay {
-          animation-delay: 6s;
-          opacity: 0;
-          animation-name: kenBurnsCrossfade;
-        }
-        @keyframes kenBurns {
-          0% {
-            transform: scale(1);
-          }
-          100% {
-            transform: scale(1.08);
-          }
-        }
-        @keyframes kenBurnsCrossfade {
-          0% {
-            transform: scale(1);
-            opacity: 0;
-          }
-          50% {
-            opacity: 1;
-          }
-          100% {
-            transform: scale(1.08);
-            opacity: 0;
-          }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .ken-burns,
-          .ken-burns-delay {
-            animation: none !important;
-            opacity: 1;
-          }
-          .ken-burns-delay {
-            display: none;
-          }
-        }
-      `}</style>
     </>
   );
 }
@@ -284,7 +271,7 @@ function EmptyHeroState({ carId }: { carId: string }) {
         </p>
         <Link
           href={`/visualizer?carId=${carId}`}
-          className="inline-flex items-center gap-2 mt-6 px-6 py-3.5 rounded-full bg-[var(--color-accent)] text-white text-sm font-bold hover:brightness-110 transition-all active:scale-95 shadow-[0_8px_32px_rgba(59,130,246,0.35)]"
+          className="inline-flex items-center gap-2 mt-6 min-h-[44px] px-6 py-3.5 rounded-full bg-[var(--color-accent)] text-white text-sm font-bold hover:brightness-110 transition-all active:scale-95 shadow-[0_8px_32px_rgba(59,130,246,0.35)]"
         >
           <Zap size={15} />
           Generate your first render

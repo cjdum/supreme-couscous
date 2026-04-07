@@ -44,7 +44,7 @@ export function CarDetailTabs({ installed, wishlist, carId }: CarDetailTabsProps
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 h-8 px-3.5 rounded-[9px] text-xs font-medium transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 min-h-[44px] h-10 px-4 rounded-[9px] text-xs font-medium transition-all cursor-pointer ${
                 activeTab === tab.id
                   ? "bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow-sm"
                   : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"

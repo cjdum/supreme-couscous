@@ -4,19 +4,18 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Sparkles, ImageIcon, Download, Upload, X, Eye,
-  Wand2, Check, Star, Loader2
+  Wand2, Check, Star, Loader2, Camera
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Select, Textarea } from "@/components/ui/input";
 import { RenderLightbox } from "@/components/ui/render-lightbox";
 import { haptic } from "@/lib/haptics";
-import type { Car, Render } from "@/lib/supabase/types";
+import type { Car, Render, CarPhoto } from "@/lib/supabase/types";
 import { formatRelativeDate } from "@/lib/utils";
 
 /**
  * Lightweight markdown renderer for the streaming analyze response.
  * Supports: # / ## / ### headings, **bold**, *italic*, - bullets, paragraph breaks.
- * Intentionally minimal — no need to pull in a whole markdown library.
  */
 function renderMarkdown(text: string): React.ReactNode {
   if (!text) return null;
@@ -39,7 +38,6 @@ function renderMarkdown(text: string): React.ReactNode {
   }
 
   function renderInline(s: string): React.ReactNode {
-    // **bold** then *italic*
     const parts: React.ReactNode[] = [];
     const re = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
     let last = 0;
@@ -108,20 +106,72 @@ function renderMarkdown(text: string): React.ReactNode {
   return blocks;
 }
 
-interface StylePreset {
+/**
+ * Scene presets — each pre-fills the prompt with a full scene description.
+ * The API already leads DALL-E with the exact car details, so the user just
+ * needs a scene + optional color/wheel tweaks.
+ */
+interface ScenePreset {
   id: string;
   label: string;
-  emoji: string;
+  icon: string;
   description: string;
-  modifier: string;
+  buildPrompt: () => string;
 }
 
-const STYLE_PRESETS: StylePreset[] = [
-  { id: "studio", label: "Studio Shot", emoji: "🎨", description: "Clean white background", modifier: "Studio photography on a seamless white backdrop, perfect lighting, sharp focus, magazine quality" },
-  { id: "action", label: "Action Shot", emoji: "💨", description: "Motion blur, dynamic", modifier: "Dynamic action shot, mid-corner with motion blur on background, dramatic angle" },
-  { id: "track", label: "Track Day", emoji: "🏁", description: "On the circuit", modifier: "On a race track at apex, kerbs visible, racing environment, cinematic" },
-  { id: "show", label: "Show Car", emoji: "🏆", description: "Concours display", modifier: "Concours show display, polished perfection, dramatic spotlights, automotive showcase event" },
-  { id: "night", label: "Night Scene", emoji: "🌃", description: "Tokyo nights vibe", modifier: "Nighttime urban environment, neon city lights reflecting on paint, atmospheric, JDM photography" },
+const SCENE_PRESETS: ScenePreset[] = [
+  {
+    id: "track",
+    label: "Track Day",
+    icon: "🏁",
+    description: "On a race circuit, aggressive angle",
+    buildPrompt: () =>
+      "On a racing circuit at the apex of a corner, curbs visible under the wheels, tire smoke curling from the rear, aggressive low 3/4 angle from the outside of the turn, track atmosphere, cinematic motorsport photography, overcast dramatic lighting.",
+  },
+  {
+    id: "city-night",
+    label: "City Night",
+    icon: "🌆",
+    description: "Under city lights at night",
+    buildPrompt: () =>
+      "Parked on a wet urban street at night, neon signs and skyscraper lights reflecting on the paint, moody JDM atmosphere, shallow depth of field, cinematic Tokyo/LA nightlife vibe, 3/4 front angle.",
+  },
+  {
+    id: "canyon",
+    label: "Canyon Run",
+    icon: "🏔️",
+    description: "Mountain road, golden hour",
+    buildPrompt: () =>
+      "Carving through a switchback on a mountain canyon road at golden hour, warm sunlight raking across the bodywork, valley vistas in the background, dramatic long lens compression, automotive editorial photography.",
+  },
+  {
+    id: "studio",
+    label: "Studio Shot",
+    icon: "📸",
+    description: "Clean studio background",
+    buildPrompt: () =>
+      "Professional automotive studio shoot on a seamless dark grey backdrop with soft overhead rim lighting, perfect reflections on the paint, magazine cover quality, razor-sharp focus, 3/4 front hero angle.",
+  },
+];
+
+interface DetailPreset {
+  id: "color" | "wheels";
+  label: string;
+  icon: string;
+  description: string;
+}
+
+const DETAIL_PRESETS: DetailPreset[] = [
+  { id: "color", label: "Color Change", icon: "🎨", description: "Respray in a new color" },
+  { id: "wheels", label: "New Wheels", icon: "🔧", description: "Try a different wheel style" },
+];
+
+const WHEEL_STYLES = [
+  { value: "deep-dish", label: "Deep Dish" },
+  { value: "mesh", label: "Multi-spoke Mesh" },
+  { value: "spoke", label: "5-spoke Forged" },
+  { value: "split", label: "Split 5" },
+  { value: "concave", label: "Concave" },
 ];
 
 function VisualizerContent() {
@@ -131,8 +181,8 @@ function VisualizerContent() {
 
   const [cars, setCars] = useState<Car[]>([]);
   const [selectedCarId, setSelectedCarId] = useState(preselectedCarId ?? "");
+  const [carPhotos, setCarPhotos] = useState<CarPhoto[]>([]);
   const [prompt, setPrompt] = useState("");
-  const [activePreset, setActivePreset] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [renders, setRenders] = useState<Render[]>([]);
@@ -140,6 +190,11 @@ function VisualizerContent() {
   const [latestRender, setLatestRender] = useState<Render | null>(null);
   const [settingCover, setSettingCover] = useState(false);
   const [coverSet, setCoverSet] = useState(false);
+
+  // Color / wheels popover
+  const [detailPopover, setDetailPopover] = useState<null | "color" | "wheels">(null);
+  const [colorInput, setColorInput] = useState("");
+  const [wheelStyle, setWheelStyle] = useState<string>("deep-dish");
 
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadedMediaType, setUploadedMediaType] = useState<"image/jpeg" | "image/png" | "image/webp" | "image/gif">("image/jpeg");
@@ -150,6 +205,9 @@ function VisualizerContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [expandedRender, setExpandedRender] = useState<Render | null>(null);
+
+  const selectedCar = cars.find((c) => c.id === selectedCarId) ?? null;
+  const carLabel = selectedCar ? `${selectedCar.year} ${selectedCar.make} ${selectedCar.model}` : "your car";
 
   useEffect(() => {
     const supabase = createClient();
@@ -183,21 +241,58 @@ function VisualizerContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Load photos whenever selected car changes — these are shown as thumbnails
+  // so the user knows which photos are being used as reference for DALL-E.
+  useEffect(() => {
+    if (!selectedCarId) { setCarPhotos([]); return; }
+    const supabase = createClient();
+    supabase
+      .from("car_photos")
+      .select("*")
+      .eq("car_id", selectedCarId)
+      .order("is_cover", { ascending: false })
+      .order("position", { ascending: true })
+      .limit(6)
+      .then(({ data }) => {
+        setCarPhotos((data ?? []) as CarPhoto[]);
+      });
+  }, [selectedCarId]);
+
+  function applyScenePreset(preset: ScenePreset) {
+    setPrompt(preset.buildPrompt());
+    haptic("light");
+  }
+
+  function applyColorChange() {
+    if (!colorInput.trim()) return;
+    setPrompt(
+      `Respray the car in ${colorInput.trim()} — keep every other detail identical (wheels, stance, kit). Clean studio/showroom setting, glossy professional finish, 3/4 front hero angle.`
+    );
+    setDetailPopover(null);
+    setColorInput("");
+    haptic("light");
+  }
+
+  function applyWheelChange() {
+    const style = WHEEL_STYLES.find((w) => w.value === wheelStyle)?.label ?? "deep dish";
+    setPrompt(
+      `Swap the wheels to aftermarket ${style} wheels, staggered fitment, aggressive offset that fills the arches perfectly. Keep the paint, body kit, and stance. Clean 3/4 front angle, natural daylight, photorealistic.`
+    );
+    setDetailPopover(null);
+    haptic("light");
+  }
+
   async function handleGenerate() {
     if (!selectedCarId || !prompt.trim()) return;
     setLoading(true);
     setError(null);
     haptic("light");
 
-    const fullPrompt = activePreset
-      ? `${prompt.trim()}. ${STYLE_PRESETS.find((p) => p.id === activePreset)?.modifier}`
-      : prompt.trim();
-
     try {
       const res = await fetch("/api/ai/visualize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ car_id: selectedCarId, prompt: fullPrompt }),
+        body: JSON.stringify({ car_id: selectedCarId, prompt: prompt.trim() }),
       });
 
       const json = await res.json();
@@ -287,7 +382,6 @@ function VisualizerContent() {
         throw new Error(json.error ?? "Analysis failed");
       }
 
-      // Stream chunks of plain text and progressively update the panel.
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let acc = "";
@@ -319,9 +413,9 @@ function VisualizerContent() {
         <div className="w-11 h-11 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center">
           <Wand2 size={18} className="text-[#60A5FA]" />
         </div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Visualizer</h1>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Describe a mod. See it rendered on your car.</p>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight truncate">Visualizer</h1>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">Describe a scene. See it rendered on your car.</p>
         </div>
       </div>
 
@@ -329,7 +423,7 @@ function VisualizerContent() {
       <div className="flex bg-[var(--color-bg-card)] rounded-2xl p-1.5 my-6 gap-1 border border-[var(--color-border)] max-w-md">
         <button
           onClick={() => setActiveTab("render")}
-          className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-2 min-h-[44px] h-11 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === "render"
               ? "bg-[var(--color-accent)] text-white shadow-sm"
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
@@ -340,7 +434,7 @@ function VisualizerContent() {
         </button>
         <button
           onClick={() => setActiveTab("analyze")}
-          className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-2 min-h-[44px] h-11 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === "analyze"
               ? "bg-[var(--color-accent)] text-white shadow-sm"
               : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
@@ -351,12 +445,12 @@ function VisualizerContent() {
         </button>
       </div>
 
-      {/* Render tab — side by side on desktop */}
+      {/* Render tab */}
       {activeTab === "render" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* LEFT: Form */}
-            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6 space-y-5">
+            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 sm:p-6 space-y-5">
               {cars.length > 0 && (
                 <Select
                   label="Vehicle"
@@ -369,35 +463,165 @@ function VisualizerContent() {
                 />
               )}
 
+              {/* Reference photos — so the user knows the AI sees their car */}
+              {selectedCar && (
+                <div className="rounded-2xl bg-[var(--color-accent-muted)] border border-[rgba(59,130,246,0.25)] p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles size={12} className="text-[#60A5FA]" />
+                    <p className="text-[10px] font-bold text-[#60A5FA] uppercase tracking-wider">
+                      Using your {carLabel} as reference
+                    </p>
+                  </div>
+                  {carPhotos.length > 0 ? (
+                    <>
+                      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                        {carPhotos.map((photo) => (
+                          <div
+                            key={photo.id}
+                            className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border border-[rgba(255,255,255,0.12)]"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={photo.url}
+                              alt="Reference"
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                            {photo.is_cover && (
+                              <div className="absolute top-0.5 left-0.5">
+                                <Star size={9} fill="#fbbf24" stroke="#fbbf24" />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-2.5 leading-relaxed">
+                        AI will match your car&apos;s color, wheels and stance to these photos.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="flex items-start gap-2.5">
+                      <Camera size={13} className="text-[var(--color-text-muted)] mt-0.5 flex-shrink-0" />
+                      <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
+                        No photos uploaded yet. AI will use your car&apos;s year/make/model/color from the garage. Upload real photos in the car detail page for more accurate renders.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Scene presets — one tap fills the prompt with full scene, no retyping */}
               <div>
-                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Style Preset</p>
-                <div className="grid grid-cols-5 gap-2">
-                  {STYLE_PRESETS.map((preset) => (
+                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                  Quick scenes
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {SCENE_PRESETS.map((preset) => (
                     <button
                       key={preset.id}
                       type="button"
-                      onClick={() => setActivePreset(activePreset === preset.id ? null : preset.id)}
-                      className={`px-2 py-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                        activePreset === preset.id
-                          ? "bg-[var(--color-accent-muted)] border-[var(--color-accent)] text-white"
-                          : "bg-[var(--color-bg-elevated)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-bright)] hover:text-white"
-                      }`}
+                      onClick={() => applyScenePreset(preset)}
+                      className="px-2 py-3 rounded-xl border bg-[var(--color-bg-elevated)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-white hover:bg-[var(--color-accent-muted)] text-center transition-all cursor-pointer min-h-[68px]"
                       title={preset.description}
                     >
-                      <div className="text-base mb-0.5">{preset.emoji}</div>
-                      <div className="text-[9px] font-bold uppercase tracking-wider leading-tight">{preset.label}</div>
+                      <div className="text-base mb-0.5">{preset.icon}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider leading-tight">{preset.label}</div>
                     </button>
                   ))}
                 </div>
               </div>
 
+              {/* Detail tweaks — color change, wheels */}
+              <div>
+                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                  Detail tweaks
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {DETAIL_PRESETS.map((preset) => (
+                    <div key={preset.id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setDetailPopover(detailPopover === preset.id ? null : preset.id)}
+                        className={`w-full px-3 py-3 rounded-xl border text-center transition-all cursor-pointer min-h-[68px] ${
+                          detailPopover === preset.id
+                            ? "bg-[var(--color-accent-muted)] border-[var(--color-accent)] text-white"
+                            : "bg-[var(--color-bg-elevated)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-white"
+                        }`}
+                        title={preset.description}
+                      >
+                        <div className="text-base mb-0.5">{preset.icon}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider">{preset.label}</div>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Color popover */}
+                {detailPopover === "color" && (
+                  <div className="mt-2 rounded-2xl bg-[var(--color-bg-elevated)] border border-[var(--color-accent)] p-4">
+                    <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                      What color?
+                    </p>
+                    <input
+                      type="text"
+                      value={colorInput}
+                      onChange={(e) => setColorInput(e.target.value)}
+                      placeholder="e.g. Nardo grey, matte black, pearl white"
+                      className="w-full h-11 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] px-3 text-sm text-white placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
+                      onKeyDown={(e) => e.key === "Enter" && applyColorChange()}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={applyColorChange}
+                      disabled={!colorInput.trim()}
+                      className="mt-2 w-full h-11 rounded-lg bg-[var(--color-accent)] text-white text-xs font-bold disabled:opacity-40 cursor-pointer"
+                    >
+                      Apply color
+                    </button>
+                  </div>
+                )}
+
+                {/* Wheels popover */}
+                {detailPopover === "wheels" && (
+                  <div className="mt-2 rounded-2xl bg-[var(--color-bg-elevated)] border border-[var(--color-accent)] p-4">
+                    <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+                      Wheel style
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {WHEEL_STYLES.map((w) => (
+                        <button
+                          key={w.value}
+                          type="button"
+                          onClick={() => setWheelStyle(w.value)}
+                          className={`h-11 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                            wheelStyle === w.value
+                              ? "bg-[var(--color-accent)] text-white"
+                              : "bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[var(--color-text-secondary)]"
+                          }`}
+                        >
+                          {w.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={applyWheelChange}
+                      className="mt-2 w-full h-11 rounded-lg bg-[var(--color-accent)] text-white text-xs font-bold cursor-pointer"
+                    >
+                      Apply wheels
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <Textarea
-                label="Describe your desired look"
+                label="Prompt"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Wide body kit, Vossen wheels, matte chalk wrap, lowered on KW coilovers, carbon fiber splitter and rear wing..."
+                placeholder="Describe what you want to see, or tap a scene button above."
                 rows={5}
-                hint="Be specific. Brand names work great."
+                hint="Your car's year/make/model/color and installed mods are always sent with the prompt — you don't need to repeat them."
               />
 
               {error && (
@@ -409,8 +633,8 @@ function VisualizerContent() {
               <button
                 onClick={handleGenerate}
                 disabled={!selectedCarId || !prompt.trim() || loading}
-                className="w-full h-13 rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-[0_8px_32px_rgba(59,130,246,0.3)]"
-                style={{ height: "52px" }}
+                className="w-full rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-[0_8px_32px_rgba(59,130,246,0.3)]"
+                style={{ minHeight: "52px" }}
               >
                 {loading ? (
                   <>
@@ -432,19 +656,19 @@ function VisualizerContent() {
             </div>
 
             {/* RIGHT: Preview */}
-            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6 flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 sm:p-6 flex flex-col">
+              <div className="flex items-center justify-between mb-4 gap-2">
+                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider truncate">
                   {loading ? "Rendering..." : latestRender ? "Latest Render" : "Preview"}
                 </p>
                 {latestRender?.image_url && (
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-1.5 flex-shrink-0">
                     <button
                       onClick={() => handleDownload(latestRender)}
-                      className="w-8 h-8 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] flex items-center justify-center hover:border-[var(--color-border-bright)] cursor-pointer"
+                      className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] flex items-center justify-center hover:border-[var(--color-border-bright)] cursor-pointer"
                       aria-label="Download"
                     >
-                      <Download size={13} className="text-[var(--color-text-secondary)]" />
+                      <Download size={14} className="text-[var(--color-text-secondary)]" />
                     </button>
                   </div>
                 )}
@@ -469,11 +693,11 @@ function VisualizerContent() {
                         className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     </button>
-                    <p className="text-[11px] text-[var(--color-text-secondary)] mt-3 line-clamp-2">{latestRender.user_prompt}</p>
+                    <p className="text-[11px] text-[var(--color-text-secondary)] mt-3 line-clamp-2 break-words">{latestRender.user_prompt}</p>
                     <button
                       onClick={() => setAsCover(latestRender)}
                       disabled={settingCover || coverSet}
-                      className="w-full mt-3 h-10 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-bold flex items-center justify-center gap-2 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] transition-colors disabled:opacity-50 cursor-pointer"
+                      className="w-full mt-3 min-h-[44px] h-11 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-bold flex items-center justify-center gap-2 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       {settingCover ? (
                         <Loader2 size={13} className="animate-spin" />
@@ -492,7 +716,7 @@ function VisualizerContent() {
                   <div className="text-center">
                     <ImageIcon size={32} className="mx-auto text-[var(--color-text-disabled)] mb-3" />
                     <p className="text-sm font-bold text-[var(--color-text-secondary)]">No render yet</p>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1.5">Describe your build to begin</p>
+                    <p className="text-xs text-[var(--color-text-muted)] mt-1.5">Tap a scene to begin</p>
                   </div>
                 )}
               </div>
@@ -544,7 +768,7 @@ function VisualizerContent() {
                     )}
                     <div className="flex items-start justify-between gap-3 p-4">
                       <div className="min-w-0">
-                        <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed line-clamp-2">{render.user_prompt}</p>
+                        <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed line-clamp-2 break-words">{render.user_prompt}</p>
                         <p className="text-[10px] text-[var(--color-text-muted)] mt-1">{formatRelativeDate(render.created_at)}</p>
                       </div>
                     </div>
@@ -604,7 +828,7 @@ function VisualizerContent() {
                     setUploadedImage(null);
                     setAnalysisText("");
                   }}
-                  className="absolute top-3 right-3 w-9 h-9 rounded-xl bg-black/70 flex items-center justify-center hover:bg-black/90 transition-colors cursor-pointer"
+                  className="absolute top-3 right-3 min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl bg-black/70 flex items-center justify-center hover:bg-black/90 transition-colors cursor-pointer"
                 >
                   <X size={15} className="text-white" />
                 </button>
@@ -622,7 +846,7 @@ function VisualizerContent() {
             <button
               onClick={handleAnalyze}
               disabled={!uploadedImage || analyzing}
-              className="w-full mt-5 h-12 rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              className="w-full mt-5 min-h-[48px] h-12 rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
             >
               {analyzing ? (
                 <>
@@ -682,14 +906,14 @@ function VisualizerContent() {
               <button
                 type="button"
                 onClick={() => setAsCover(expandedRender)}
-                className="flex items-center gap-2 h-10 px-4 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 text-xs font-bold text-white hover:bg-black/80 transition-colors cursor-pointer"
+                className="flex items-center gap-2 min-h-[44px] h-11 px-4 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 text-xs font-bold text-white hover:bg-black/80 transition-colors cursor-pointer"
               >
                 <Star size={13} /> Set as Cover
               </button>
               <button
                 type="button"
                 onClick={() => handleDownload(expandedRender)}
-                className="flex items-center gap-2 h-10 px-4 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 text-xs font-bold text-white hover:bg-black/80 transition-colors cursor-pointer"
+                className="flex items-center gap-2 min-h-[44px] h-11 px-4 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 text-xs font-bold text-white hover:bg-black/80 transition-colors cursor-pointer"
               >
                 <Download size={13} /> Download
               </button>

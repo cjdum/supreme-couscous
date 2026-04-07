@@ -72,6 +72,55 @@ async function persistRenderToStorage(
   return { publicUrl, storagePath: path };
 }
 
+/**
+ * Download a reference image and use Claude's vision to describe its visual
+ * characteristics (color nuance, stance, wheels visible, body condition),
+ * so we can inject those details into the DALL-E prompt. DALL-E 3 can't take
+ * image refs directly, so we launder the details through Claude.
+ */
+async function describeReferencePhoto(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "image/jpeg";
+    const mediaType =
+      contentType.includes("png") ? "image/png" :
+      contentType.includes("webp") ? "image/webp" :
+      contentType.includes("gif") ? "image/gif" :
+      "image/jpeg";
+    const buf = Buffer.from(await res.arrayBuffer());
+    // Keep the description call cheap — skip huge files.
+    if (buf.length > 4 * 1024 * 1024) return null;
+    const b64 = buf.toString("base64");
+
+    const msg = await anthropic.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 260,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: mediaType, data: b64 },
+            },
+            {
+              type: "text",
+              text: `Describe this car photo in 3-4 concise sentences for an AI image generator. Focus ONLY on visual traits that should be preserved in a new render: exact paint color and finish (gloss/matte/pearl), wheel style/size/finish, stance and ride height, body kit presence, lighting characteristics, and notable exterior details. Do NOT describe the background. Output plain text, no preamble.`,
+            },
+          ],
+        },
+      ],
+    });
+
+    const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : "";
+    return text || null;
+  } catch (err) {
+    console.warn("[visualize] reference photo description failed:", err);
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
   const {
@@ -113,10 +162,10 @@ export async function POST(request: Request) {
 
   console.log(`[visualize] user=${user.id} car=${car_id} prompt=${sanitizedPrompt.slice(0, 120)}`);
 
-  // Verify car belongs to user
+  // Fetch full car details — everything we need to describe the car accurately.
   const { data: carRaw, error: carErr } = await supabase
     .from("cars")
-    .select("make, model, year, trim, color, horsepower, drivetrain")
+    .select("id, make, model, year, trim, color, nickname, horsepower, drivetrain, cover_image_url")
     .eq("id", car_id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -127,13 +176,16 @@ export async function POST(request: Request) {
   }
 
   const car = carRaw as {
+    id: string;
     make: string;
     model: string;
     year: number;
     trim: string | null;
     color: string | null;
+    nickname: string | null;
     horsepower: number | null;
     drivetrain: string | null;
+    cover_image_url: string | null;
   } | null;
 
   if (!car) {
@@ -141,29 +193,45 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Car not found" }, { status: 404 });
   }
 
-  // Get existing installed mods for prompt context
+  // Grab user-uploaded photos + most recent cover photo as reference.
+  const { data: photosRaw } = await supabase
+    .from("car_photos")
+    .select("url, is_cover, position")
+    .eq("car_id", car_id)
+    .order("is_cover", { ascending: false })
+    .order("position", { ascending: true })
+    .limit(3);
+
+  const photos = (photosRaw ?? []) as { url: string; is_cover: boolean; position: number }[];
+
+  // Prefer user-uploaded car photos over generated renders for reference.
+  const referenceUrl =
+    photos.find((p) => p.is_cover)?.url ??
+    photos[0]?.url ??
+    car.cover_image_url ??
+    null;
+
+  // Get installed mods — we lead the DALL-E prompt with the actual build.
   const { data: modsRaw, error: modsErr } = await supabase
     .from("mods")
-    .select("name, category")
+    .select("name, category, notes")
     .eq("car_id", car_id)
     .eq("status", "installed")
-    .limit(20);
+    .limit(25);
 
   if (modsErr) {
     console.warn("[visualize] mods lookup error (non-fatal):", modsErr.message);
   }
 
-  const mods = (modsRaw ?? []) as { name: string; category: string }[];
+  const mods = (modsRaw ?? []) as { name: string; category: string; notes: string | null }[];
   const modList = mods.length
-    ? mods.map((m) => `${m.name} (${m.category})`).join(", ")
-    : "stock configuration";
+    ? mods.map((m) => `• ${m.name} (${m.category})${m.notes ? ` — ${m.notes.slice(0, 80)}` : ""}`).join("\n")
+    : "• Stock / factory configuration";
 
   const carLabel = `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ""}`;
   const colorLabel = car.color ?? "factory color";
 
   const openai = getOpenAI();
-
-  // ── No OpenAI key? Return a clear error.
   if (!openai) {
     console.error("[visualize] OPENAI_API_KEY is missing or empty. Set it in .env.local to enable DALL-E.");
     return NextResponse.json(
@@ -176,45 +244,64 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Step 1: Use Claude to craft the optimal DALL-E prompt
+    // Step 1: If there's a user photo, describe it with Claude vision so we
+    // can inject the visual traits into DALL-E's prompt.
+    let referenceDescription: string | null = null;
+    if (referenceUrl) {
+      console.log(`[visualize] describing reference photo: ${referenceUrl.slice(0, 80)}`);
+      referenceDescription = await describeReferencePhoto(referenceUrl);
+      if (referenceDescription) {
+        console.log(`[visualize] reference description: ${referenceDescription.slice(0, 180)}`);
+      }
+    }
+
+    // Step 2: Use Claude to craft the optimal DALL-E prompt — LEADING with
+    // the specific car (year/make/model/trim/color) so DALL-E doesn't invent a
+    // random sports car. Previously DALL-E was producing Koenigseggs when the
+    // user had a 911.
     console.log("[visualize] generating DALL-E prompt with Claude...");
     const promptMessage = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 400,
+      max_tokens: 500,
       messages: [
         {
           role: "user",
-          content: `You are an expert at writing DALL-E 3 image generation prompts for automotive photography.
+          content: `You write DALL-E 3 prompts for automotive photography. The goal is a PHOTOREALISTIC render that is clearly and specifically the user's exact car — not a generic sports car.
 
-Generate a single DALL-E 3 prompt for this car build visualization:
+═══ USER'S CAR (must be recognizable in the output) ═══
+Vehicle: ${carLabel}
+Factory color: ${colorLabel}
+${car.horsepower ? `Power: ${car.horsepower}hp\n` : ""}${car.drivetrain ? `Drivetrain: ${car.drivetrain}\n` : ""}
+═══ INSTALLED MODS ═══
+${modList}
 
-Car: ${carLabel} in ${colorLabel}
-Existing mods: ${modList}
-Requested look: ${sanitizedPrompt}
+${referenceDescription ? `═══ REAL REFERENCE PHOTO OF THIS EXACT CAR ═══\n${referenceDescription}\n` : ""}
+═══ USER'S REQUESTED LOOK / SCENE ═══
+${sanitizedPrompt}
 
-Requirements for the prompt:
-- Photorealistic automotive photography style
-- Studio lighting or dramatic outdoor setting
-- Describe the car's specific modifications visually
-- Include stance, wheel style, body kit details from the user's request
-- Mention specific colors and finishes
-- Professional car photography composition (3/4 angle or side profile)
-- High detail, high contrast
-- NO text, NO watermarks, NO people
+═══ PROMPT REQUIREMENTS ═══
+Your DALL-E prompt MUST:
+1. LEAD with "A photorealistic photograph of a ${carLabel}" — never use a generic "sports car" phrase.
+2. Explicitly state the make, model, year, trim${car.trim ? "" : " (if known)"}, and color. The car must be identifiable as this exact model from the render.
+3. Preserve the body silhouette and signature styling cues of the ${car.make} ${car.model} — headlight shape, grille, greenhouse, rear taillight pattern.
+4. Integrate the installed mods visually (wheels, kit, stance, exhaust, wrap, etc.).
+${referenceDescription ? "5. Match the reference photo's paint color/finish, wheel style, and stance — these are real traits of this specific car.\n" : ""}6. Include the user's requested scene/lighting/setting.
+7. Professional 3/4 or side-profile automotive photography, natural lighting, sharp focus, high detail.
+8. NO text, NO watermarks, NO people, NO badging invention, NO generic supercar substitution.
 
-Output ONLY the DALL-E prompt — no explanation, no quotes.`,
+Output ONLY the final DALL-E prompt (one paragraph, 80-160 words). No explanation, no quotes, no preamble.`,
         },
       ],
     });
 
     const dallePrompt =
       promptMessage.content[0].type === "text"
-        ? promptMessage.content[0].text.trim()
-        : `Professional automotive photography of a modified ${carLabel}, ${sanitizedPrompt}, dramatic lighting, high detail`;
+        ? promptMessage.content[0].text.trim().replace(/^"|"$/g, "")
+        : `A photorealistic photograph of a ${carLabel} in ${colorLabel}, ${sanitizedPrompt}, dramatic lighting, high detail, 3/4 angle`;
 
-    console.log(`[visualize] dalle prompt: ${dallePrompt.slice(0, 200)}...`);
+    console.log(`[visualize] dalle prompt (${dallePrompt.length} chars): ${dallePrompt.slice(0, 240)}...`);
 
-    // Step 2: Generate image with DALL-E 3 — request base64 so we don't have
+    // Step 3: Generate image with DALL-E 3 — request base64 so we don't have
     // to round-trip through OpenAI's expiring CDN URL.
     console.log("[visualize] calling DALL-E 3...");
     const imageResponse = await openai.images.generate({
@@ -243,13 +330,13 @@ Output ONLY the DALL-E prompt — no explanation, no quotes.`,
       `[visualize] DALL-E success (b64=${dalleB64 ? `${dalleB64.length}b` : "no"} url=${dalleUrl ? "yes" : "no"}). Persisting to storage...`
     );
 
-    // Step 3: Persist to Supabase Storage so the render survives forever.
+    // Step 4: Persist to Supabase Storage so the render survives forever.
     const { publicUrl } = await persistRenderToStorage(supabase, user.id, {
       b64: dalleB64,
       url: dalleUrl,
     });
 
-    // Step 4: Save row pointing at the permanent storage URL.
+    // Step 5: Save row pointing at the permanent storage URL.
     const { data: render, error: dbError } = await supabase
       .from("renders")
       .insert({

@@ -622,3 +622,28 @@ create policy "purchases: owner all"
   on purchases for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v5: Chat conversations
+-- Run this block in Supabase SQL Editor to enable persistent server-side chat
+-- history. The chat page will use localStorage if this migration is not yet
+-- applied.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists chat_conversations (
+  id         uuid primary key default uuid_generate_v4(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  title      text not null default 'New conversation',
+  messages   jsonb not null default '[]',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists chat_conversations_user_id_idx on chat_conversations(user_id);
+alter table chat_conversations enable row level security;
+
+drop policy if exists "chat_conversations: owner all" on chat_conversations;
+create policy "chat_conversations: owner all"
+  on chat_conversations for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
