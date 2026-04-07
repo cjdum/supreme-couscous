@@ -20,9 +20,13 @@ export default async function GaragePage() {
     .from("cars")
     .select("*")
     .eq("user_id", user!.id)
-    .order("is_primary", { ascending: false })
     .order("created_at", { ascending: false });
-  const cars = (carsRaw ?? []) as CarType[];
+  // Sort in memory: primary car first (safe if is_primary column doesn't exist yet)
+  const cars = ((carsRaw ?? []) as CarType[]).sort((a, b) => {
+    if (a.is_primary && !b.is_primary) return -1;
+    if (!a.is_primary && b.is_primary) return 1;
+    return 0;
+  });
 
   if (cars.length === 0) {
     return <OnboardingFlow />;

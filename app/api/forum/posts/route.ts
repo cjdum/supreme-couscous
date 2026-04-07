@@ -16,14 +16,13 @@ type RawPost = {
   category: string;
   likes_count: number;
   replies_count: number;
-  downvotes_count: number | null;
   created_at: string;
   car_id: string | null;
   user_id: string;
 };
 
 const BASE_SELECT =
-  "id, title, content, category, likes_count, replies_count, downvotes_count, created_at, car_id, user_id";
+  "id, title, content, category, likes_count, replies_count, created_at, car_id, user_id";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -110,7 +109,7 @@ export async function GET(request: Request) {
   // Step 4: merge
   const merged = posts.map((post) => ({
     ...post,
-    downvotes_count: post.downvotes_count ?? 0,
+    downvotes_count: 0,
     profiles: profileMap.get(post.user_id) ?? { username: "unknown", display_name: null, avatar_url: null },
     cars: post.car_id ? carMap.get(post.car_id) ?? null : null,
   }));

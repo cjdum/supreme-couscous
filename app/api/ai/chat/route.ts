@@ -96,10 +96,10 @@ async function fetchFullUserContext(supabase: Awaited<ReturnType<typeof createCl
       "horsepower, torque, engine_size, drivetrain, transmission, curb_weight, zero_to_sixty, top_speed, specs_ai_guessed"
     )
     .eq("user_id", userId)
-    .order("is_primary", { ascending: false })
     .order("created_at", { ascending: false });
 
-  const cars = (carsRaw ?? []) as unknown as Array<Omit<CarWithMods, "mods"> & { created_at?: string }>;
+  const rawCars = (carsRaw ?? []) as unknown as Array<Omit<CarWithMods, "mods"> & { created_at?: string }>;
+  const cars = rawCars.sort((a, b) => (a.is_primary ? -1 : b.is_primary ? 1 : 0));
 
   // All mods
   let allMods: Array<{

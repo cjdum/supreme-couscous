@@ -107,11 +107,15 @@ export default function ForumPage() {
         .eq("user_id", user.id);
       setUpvotedPosts(new Set((upvotes ?? []).map((u) => u.post_id)));
 
-      const { data: downvotes } = await supabase
-        .from("forum_downvotes")
-        .select("post_id")
-        .eq("user_id", user.id);
-      setDownvotedPosts(new Set((downvotes ?? []).map((d) => d.post_id)));
+      try {
+        const { data: downvotes } = await supabase
+          .from("forum_downvotes")
+          .select("post_id")
+          .eq("user_id", user.id);
+        setDownvotedPosts(new Set((downvotes ?? []).map((d) => d.post_id)));
+      } catch {
+        // forum_downvotes table may not exist yet
+      }
     });
   }, []);
 
@@ -224,8 +228,7 @@ export default function ForumPage() {
     } else {
       // If downvoted, remove downvote first
       if (isDownvoted) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId);
+        try { await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId); } catch { /* table may not exist */ }
         setDownvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
         setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p));
       }
@@ -244,7 +247,7 @@ export default function ForumPage() {
 
     if (isDownvoted) {
       // Remove downvote
-      await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId);
+      try { await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId); } catch { /* table may not exist */ }
       setDownvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p));
     } else {
@@ -255,7 +258,7 @@ export default function ForumPage() {
         setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
       }
       // Add downvote
-      await supabase.from("forum_downvotes").insert({ post_id: postId, user_id: currentUserId });
+      try { await supabase.from("forum_downvotes").insert({ post_id: postId, user_id: currentUserId }); } catch { /* table may not exist */ }
       setDownvotedPosts((prev) => new Set(prev).add(postId));
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: (p.downvotes_count ?? 0) + 1 } : p));
     }

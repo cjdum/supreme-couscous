@@ -40,7 +40,6 @@ export async function GET() {
       "specs_ai_guessed, created_at"
     )
     .eq("user_id", user.id)
-    .order("is_primary", { ascending: false })
     .order("created_at", { ascending: false });
 
   const cars = (carsRaw ?? []) as unknown as Array<{
