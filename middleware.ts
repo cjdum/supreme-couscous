@@ -4,7 +4,23 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth/callback"];
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
+
+  // If Supabase redirected auth params to the wrong page (e.g. homepage),
+  // catch them and forward to /auth/callback so verification actually works.
+  if (pathname !== "/auth/callback") {
+    const code = searchParams.get("code");
+    const tokenHash = searchParams.get("token_hash");
+    if (code || tokenHash) {
+      const callbackUrl = new URL("/auth/callback", request.url);
+      // Forward all search params to the callback
+      searchParams.forEach((value, key) => callbackUrl.searchParams.set(key, value));
+      if (!callbackUrl.searchParams.has("next")) {
+        callbackUrl.searchParams.set("next", "/garage");
+      }
+      return NextResponse.redirect(callbackUrl);
+    }
+  }
 
   // Allow public paths and static assets
   if (
