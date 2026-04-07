@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { User, Edit2, Check, X, LogOut, Car, Wrench, TrendingUp, Award, ChevronRight, Target, Share2, Copy, Sparkles, Settings as SettingsIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -92,6 +93,7 @@ export default function ProfilePage() {
   const [confettiTrigger, setConfettiTrigger] = useState<number | null>(null);
   const [sharing, setSharing] = useState(false);
   const [primaryCar, setPrimaryCar] = useState<CarType | null>(null);
+  const [pastBuilds, setPastBuilds] = useState<CarType[]>([]);
   const [unlockedAwards, setUnlockedAwards] = useState<Set<string>>(new Set());
   const [topCategory, setTopCategory] = useState<ModCategory | null>(null);
   const [topMods, setTopMods] = useState<{ name: string; category: ModCategory; cost: number | null }[]>([]);
@@ -115,7 +117,16 @@ export default function ProfilePage() {
         .select("*")
         .eq("user_id", user.id);
 
-      const carList = (carsRaw ?? []) as CarType[];
+      const fullList = (carsRaw ?? []) as CarType[];
+      const carList = fullList.filter((c) => !c.is_sold);
+      const sold = fullList
+        .filter((c) => c.is_sold)
+        .sort((a, b) => {
+          const ad = a.sold_at ? new Date(a.sold_at).getTime() : 0;
+          const bd = b.sold_at ? new Date(b.sold_at).getTime() : 0;
+          return bd - ad;
+        });
+      setPastBuilds(sold);
       const carIds = carList.map((c) => c.id);
       const primary = carList.find((c) => c.is_primary) ?? carList[0] ?? null;
       setPrimaryCar(primary);
@@ -603,6 +614,84 @@ export default function ProfilePage() {
           })}
         </div>
       </div>
+
+      {/* Past Builds — sold cars */}
+      {pastBuilds.length > 0 && (
+        <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden">
+          <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">Past Builds</p>
+              <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                {pastBuilds.length} retired {pastBuilds.length === 1 ? "car" : "cars"}
+              </p>
+            </div>
+          </div>
+          <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {pastBuilds.map((c) => (
+              <Link
+                key={c.id}
+                href={`/garage/${c.id}`}
+                className="group relative rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] overflow-hidden card-hover"
+              >
+                <div className="relative" style={{ aspectRatio: "16/9" }}>
+                  {c.pixel_card_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.pixel_card_url}
+                      alt={c.pixel_card_nickname ?? `${c.year} ${c.make} ${c.model}`}
+                      className="w-full h-full object-contain p-2"
+                      style={{ background: "#0a0c10", imageRendering: "pixelated" }}
+                    />
+                  ) : c.cover_image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.cover_image_url}
+                      alt={`${c.year} ${c.make} ${c.model}`}
+                      className="w-full h-full object-cover grayscale opacity-70 transition-all group-hover:grayscale-0 group-hover:opacity-100"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-black" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                  <div
+                    className="absolute top-2 right-2 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-[0.15em]"
+                    style={{
+                      background: "rgba(0,0,0,0.75)",
+                      color: "#fbbf24",
+                      border: "1px solid rgba(251,191,36,0.4)",
+                      backdropFilter: "blur(8px)",
+                    }}
+                  >
+                    Sold
+                  </div>
+                </div>
+                <div className="px-3.5 py-3">
+                  {c.pixel_card_nickname && (
+                    <p
+                      className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#fbbf24] mb-0.5"
+                      style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}
+                    >
+                      {c.pixel_card_nickname}
+                    </p>
+                  )}
+                  <p className="text-xs font-bold text-white leading-snug">
+                    {c.year} {c.make} {c.model}
+                  </p>
+                  {c.sold_at && (
+                    <p className="text-[10px] text-[var(--color-text-muted)] mt-1 tabular">
+                      Sold{" "}
+                      {new Date(c.sold_at).toLocaleDateString(undefined, {
+                        year: "numeric",
+                        month: "short",
+                      })}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Profile fields */}
       <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden">

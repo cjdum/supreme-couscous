@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Loader2, Globe, Lock } from "lucide-react";
+import { Tag, Loader2, Globe, Lock } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
 import { sanitize } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
+import { PIXEL_CARD_MIN_DESCRIPTION } from "@/lib/pixel-card";
 import type { Car } from "@/lib/supabase/types";
 
 interface EditCarModalProps {
@@ -29,12 +30,15 @@ export function EditCarModal({ open, onClose, car }: EditCarModalProps) {
     trim: car.trim ?? "",
     color: car.color ?? "",
     nickname: car.nickname ?? "",
+    description: car.description ?? "",
     is_public: car.is_public,
   });
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [selling, setSelling] = useState(false);
+  const [confirmSell, setConfirmSell] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const descLen = form.description.trim().length;
 
   async function handleSave() {
     setSaving(true);
@@ -47,6 +51,7 @@ export function EditCarModal({ open, onClose, car }: EditCarModalProps) {
       trim: form.trim ? sanitize(form.trim) : null,
       color: form.color ? sanitize(form.color) : null,
       nickname: form.nickname ? sanitize(form.nickname) : null,
+      description: form.description ? form.description.trim() : null,
       is_public: form.is_public,
     };
 
@@ -70,23 +75,26 @@ export function EditCarModal({ open, onClose, car }: EditCarModalProps) {
     }
   }
 
-  async function handleDelete() {
-    setDeleting(true);
+  async function handleSell() {
+    setSelling(true);
     setError(null);
     try {
-      const res = await fetch(`/api/cars/${car.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
+      const res = await fetch(`/api/cars/${car.id}/sell`, { method: "POST" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(typeof json.error === "string" ? json.error : "Failed to sell");
+      }
       haptic("heavy");
       router.push("/garage");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete");
-      setDeleting(false);
+      setError(err instanceof Error ? err.message : "Failed to sell");
+      setSelling(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit car" description="Update details, visibility, or remove the vehicle">
+    <Modal open={open} onClose={onClose} title="Edit car" description="Update details, visibility, or retire the vehicle">
       <div className="space-y-4">
         {error && (
           <div className="rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.2)] px-4 py-3 text-xs text-[var(--color-danger)]" role="alert">
@@ -114,6 +122,36 @@ export function EditCarModal({ open, onClose, car }: EditCarModalProps) {
           <Input label="Nickname" value={form.nickname} onChange={(e) => setForm((f) => ({ ...f, nickname: e.target.value }))} placeholder="The monster" />
         </div>
 
+        <div>
+          <label className="block text-[11px] font-bold text-[var(--color-text-secondary)] mb-1.5">
+            Description
+          </label>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            rows={4}
+            maxLength={4000}
+            placeholder="Tell the story of this build — why this car, where it's headed, what makes it yours."
+            className="w-full rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] px-3.5 py-2.5 text-xs text-white placeholder:text-[var(--color-text-disabled)] focus:outline-none focus:border-[var(--color-accent)] transition resize-y"
+          />
+          <div className="flex items-center justify-between mt-1.5">
+            <p className="text-[10px] text-[var(--color-text-muted)]">
+              {descLen >= PIXEL_CARD_MIN_DESCRIPTION
+                ? "Long enough to unlock the pixel card"
+                : `${PIXEL_CARD_MIN_DESCRIPTION - descLen} more characters to unlock pixel card`}
+            </p>
+            <p
+              className={`text-[10px] tabular font-bold ${
+                descLen >= PIXEL_CARD_MIN_DESCRIPTION
+                  ? "text-[#30d158]"
+                  : "text-[var(--color-text-muted)]"
+              }`}
+            >
+              {descLen}/{PIXEL_CARD_MIN_DESCRIPTION}
+            </p>
+          </div>
+        </div>
+
         <div className="flex items-center gap-3">
           <Toggle
             checked={form.is_public}
@@ -136,50 +174,53 @@ export function EditCarModal({ open, onClose, car }: EditCarModalProps) {
         </div>
 
         <div className="flex gap-3 pt-2">
-          <Button variant="secondary" onClick={onClose} className="flex-1" disabled={saving || deleting}>
+          <Button variant="secondary" onClick={onClose} className="flex-1" disabled={saving || selling}>
             Cancel
           </Button>
-          <Button onClick={handleSave} loading={saving} className="flex-1" disabled={deleting}>
+          <Button onClick={handleSave} loading={saving} className="flex-1" disabled={selling}>
             Save changes
           </Button>
         </div>
 
-        {/* Danger zone */}
-        <div className="pt-4 mt-2 border-t border-[var(--color-border)]">
-          {!confirmDelete ? (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.18)] text-xs font-bold text-[var(--color-danger)] hover:bg-[rgba(255,69,58,0.16)] transition-colors cursor-pointer"
-            >
-              <Trash2 size={13} />
-              Delete car
-            </button>
-          ) : (
-            <div className="rounded-xl border border-[rgba(255,69,58,0.25)] bg-[var(--color-danger-muted)] p-4">
-              <p className="text-xs font-bold text-[var(--color-danger)] mb-1">Delete this car permanently?</p>
-              <p className="text-[11px] text-[var(--color-text-secondary)] mb-3">
-                All mods, photos, and renders for this car will be deleted. This cannot be undone.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  disabled={deleting}
-                  className="flex-1 h-9 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-secondary)] hover:border-[var(--color-border-bright)] cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="flex-1 h-9 rounded-lg bg-[var(--color-danger)] text-white text-xs font-bold hover:brightness-110 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                  Yes, delete
-                </button>
+        {/* Sell flow — replaces hard delete */}
+        {!car.is_sold && (
+          <div className="pt-4 mt-2 border-t border-[var(--color-border)]">
+            {!confirmSell ? (
+              <button
+                onClick={() => setConfirmSell(true)}
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-bold text-[var(--color-text-secondary)] hover:text-white hover:border-[var(--color-border-bright)] transition-colors cursor-pointer"
+              >
+                <Tag size={13} />
+                Sell this car
+              </button>
+            ) : (
+              <div className="rounded-xl border border-[var(--color-border-bright)] bg-[var(--color-bg-elevated)] p-4">
+                <p className="text-xs font-bold text-white mb-1">Mark this car as sold?</p>
+                <p className="text-[11px] text-[var(--color-text-secondary)] mb-3">
+                  It will move out of your active garage and into &ldquo;Past Builds&rdquo; on
+                  your profile. Mods, photos, and the pixel card stay with it forever.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setConfirmSell(false)}
+                    disabled={selling}
+                    className="flex-1 h-9 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-secondary)] hover:border-[var(--color-border-bright)] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSell}
+                    disabled={selling}
+                    className="flex-1 h-9 rounded-lg bg-white text-black text-xs font-bold hover:brightness-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    {selling ? <Loader2 size={13} className="animate-spin" /> : <Tag size={13} />}
+                    Yes, sell it
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </Modal>
   );

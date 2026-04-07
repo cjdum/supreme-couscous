@@ -10,6 +10,8 @@ import { formatCurrency, formatDate, MOD_CATEGORIES } from "@/lib/utils";
 import { CarDetailTabs } from "@/components/garage/car-detail-tabs";
 import { AiSuggestions } from "@/components/garage/ai-suggestions";
 import { VehicleSpecs } from "@/components/garage/vehicle-specs";
+import { PixelCard } from "@/components/garage/pixel-card";
+import { calculateBuildScore } from "@/lib/build-score";
 import { SpendingChart } from "@/components/mods/spending-chart";
 import { CarGallery } from "@/components/garage/car-gallery";
 import { BuildTimeline } from "@/components/garage/build-timeline";
@@ -67,8 +69,26 @@ export default async function CarDetailPage({ params }: Props) {
     .order("created_at", { ascending: false });
   const renders = (rendersRaw ?? []) as Render[];
 
+  const { count: photoCount } = await supabase
+    .from("car_photos")
+    .select("id", { count: "exact", head: true })
+    .eq("car_id", carId);
+
   const installed = mods.filter((m) => m.status === "installed");
   const wishlist = mods.filter((m) => m.status === "wishlist");
+
+  const buildScoreResult = calculateBuildScore({
+    cars: [
+      {
+        cover_image_url: car.cover_image_url,
+        horsepower: car.horsepower,
+        engine_size: car.engine_size,
+        specs_ai_guessed: car.specs_ai_guessed,
+        is_primary: true,
+      },
+    ],
+    mods,
+  });
   const totalInvested = installed.reduce((sum, m) => sum + (m.cost ?? 0), 0);
 
   const categoryTotals = installed.reduce<Record<string, number>>((acc, m) => {
@@ -295,6 +315,18 @@ export default async function CarDetailPage({ params }: Props) {
         </div>
 
         <div className="space-y-6">
+          <PixelCard
+            carId={carId}
+            photoCount={photoCount ?? 0}
+            description={car.description}
+            make={car.make}
+            model={car.model}
+            year={car.year}
+            buildScore={buildScoreResult.buildScore.score}
+            pixelCardUrl={car.pixel_card_url}
+            pixelCardNickname={car.pixel_card_nickname}
+            pixelCardGeneratedAt={car.pixel_card_generated_at}
+          />
           <VehicleSpecs car={car} />
 
           <div className="rounded-2xl border border-[rgba(59,130,246,0.2)] bg-[var(--color-bg-card)] overflow-hidden glow-pulse">

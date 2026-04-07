@@ -695,3 +695,25 @@ create policy "chat_conversations: owner all"
   on chat_conversations for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v7: Pixel cards + sell flow
+-- Each car can earn ONE permanent pixel-art trading card with an
+-- AI-generated nickname. Generation is one-shot and irreversible. Cars are
+-- never hard-deleted from the UI anymore — they're sold and archived to a
+-- "Past Builds" section. Run this block in Supabase SQL Editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- ── Owner-written description (required, ≥80 chars, before pixel card unlocks)
+alter table cars add column if not exists description text;
+
+-- ── Permanent pixel card (Feature: Pixel Card system)
+alter table cars add column if not exists pixel_card_url text;
+alter table cars add column if not exists pixel_card_nickname text;
+alter table cars add column if not exists pixel_card_generated_at timestamptz;
+
+-- ── Sold / archived state (replaces hard delete)
+alter table cars add column if not exists is_sold boolean not null default false;
+alter table cars add column if not exists sold_at timestamptz;
+
+create index if not exists cars_is_sold_idx on cars(user_id, is_sold);

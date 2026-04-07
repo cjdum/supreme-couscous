@@ -30,6 +30,7 @@ export default async function GaragePage() {
     .from("cars")
     .select("*")
     .eq("user_id", user!.id)
+    .eq("is_sold", false)
     .order("created_at", { ascending: false });
   const cars = ((carsRaw ?? []) as CarType[]).sort((a, b) => {
     if (a.is_primary && !b.is_primary) return -1;

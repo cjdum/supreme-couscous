@@ -78,6 +78,12 @@ export interface Database {
           stock_engine_size: string | null;
           stock_drivetrain: string | null;
           stock_transmission: string | null;
+          description: string | null;
+          pixel_card_url: string | null;
+          pixel_card_nickname: string | null;
+          pixel_card_generated_at: string | null;
+          is_sold: boolean;
+          sold_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -111,6 +117,12 @@ export interface Database {
           stock_engine_size?: string | null;
           stock_drivetrain?: string | null;
           stock_transmission?: string | null;
+          description?: string | null;
+          pixel_card_url?: string | null;
+          pixel_card_nickname?: string | null;
+          pixel_card_generated_at?: string | null;
+          is_sold?: boolean;
+          sold_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -142,6 +154,12 @@ export interface Database {
           stock_engine_size?: string | null;
           stock_drivetrain?: string | null;
           stock_transmission?: string | null;
+          description?: string | null;
+          pixel_card_url?: string | null;
+          pixel_card_nickname?: string | null;
+          pixel_card_generated_at?: string | null;
+          is_sold?: boolean;
+          sold_at?: string | null;
           updated_at?: string;
         };
       };
