@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Car, Sparkles, Users, MessageSquare, Zap } from "lucide-react";
+import { Car, Sparkles, BarChart2, MessageSquare, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/garage", icon: Car, label: "Garage" },
-  { href: "/visualizer", icon: Zap, label: "Visualize" },
-  { href: "/chat", icon: MessageSquare, label: "AI Chat" },
+  { href: "/visualizer", icon: Zap, label: "Render" },
+  { href: "/chat", icon: MessageSquare, label: "AI" },
   { href: "/forum", icon: Sparkles, label: "Forum" },
-  { href: "/community", icon: Users, label: "Community" },
+  { href: "/stats", icon: BarChart2, label: "Stats" },
 ];
 
 export function BottomNav() {
@@ -18,7 +18,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 glass border-t border-[var(--color-border)]"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 glass border-t border-[var(--color-border)]"
       style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}
       aria-label="Main navigation"
     >
@@ -42,14 +42,10 @@ export function BottomNav() {
               {active && (
                 <span className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-[3px] rounded-full bg-[var(--color-accent)]" />
               )}
-              <Icon
-                size={22}
-                strokeWidth={active ? 2.5 : 1.75}
-                aria-hidden="true"
-              />
+              <Icon size={22} strokeWidth={active ? 2.5 : 1.75} aria-hidden="true" />
               <span
                 className={cn(
-                  "text-[10px] font-semibold leading-none",
+                  "text-[10px] font-bold leading-none",
                   active ? "text-[var(--color-accent)]" : "text-[var(--color-text-muted)]"
                 )}
               >

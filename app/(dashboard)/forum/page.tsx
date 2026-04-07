@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   MessageSquare, Plus, ChevronDown, ChevronUp, Send, Car,
-  Flame, Lightbulb, Eye, Tag, TrendingUp, Clock, BarChart2,
-  ArrowUp, ArrowDown, X
+  Flame, Lightbulb, Eye, Tag, Clock, BarChart2,
+  ArrowUp, ArrowDown, X, Loader2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatRelativeDate } from "@/lib/utils";
+import { haptic } from "@/lib/haptics";
+import { RichComposer, renderMarkdown } from "@/components/forum/rich-composer";
 
 interface Post {
   id: string;
@@ -21,6 +23,7 @@ interface Post {
   car_id: string | null;
   user_id: string;
   profiles: { username: string; display_name: string | null; avatar_url: string | null };
+  primary_car?: { make: string; model: string; year: number } | null;
   cars?: { make: string; model: string; year: number; cover_image_url: string | null } | null;
 }
 
@@ -56,22 +59,44 @@ const FLAIR_STYLES: Record<string, { bg: string; color: string }> = {
   for_sale: { bg: "rgba(168,85,247,0.12)", color: "#c084fc" },
 };
 
+const PAGE_SIZE = 15;
+
 function scorePost(post: Post): number {
   return post.likes_count - (post.downvotes_count ?? 0);
+}
+
+function voteGlowClass(score: number): string {
+  if (score >= 25) return "vote-glow-hot";
+  if (score >= 8) return "vote-glow-mid";
+  if (score >= 3) return "vote-glow-low";
+  return "";
 }
 
 function AvatarInitial({ username }: { username: string }) {
   const initial = username[0]?.toUpperCase() ?? "?";
   return (
-    <div className="w-8 h-8 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
-      <span className="text-[10px] font-bold text-[var(--color-text-secondary)]">{initial}</span>
+    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[var(--color-bg-elevated)] to-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
+      <span className="text-[11px] font-bold text-[var(--color-text-secondary)]">{initial}</span>
     </div>
+  );
+}
+
+function CarBadge({ car }: { car: { make: string; model: string; year: number } }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[10px] font-semibold text-[var(--color-text-secondary)]">
+      <Car size={9} className="text-[var(--color-accent-bright)]" />
+      {car.year} {car.make} {car.model}
+    </span>
   );
 }
 
 export default function ForumPage() {
   const [posts, setPosts] = useState<Post[]>([]);
+  const [hotPosts, setHotPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [offset, setOffset] = useState(0);
   const [category, setCategory] = useState("all");
   const [sort, setSort] = useState<SortMode>("hot");
   const [expandedPost, setExpandedPost] = useState<string | null>(null);
@@ -88,6 +113,9 @@ export default function ForumPage() {
   const [downvotedPosts, setDownvotedPosts] = useState<Set<string>>(new Set());
   const [userCars, setUserCars] = useState<{ id: string; make: string; model: string; year: number }[]>([]);
 
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Initial user data
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -113,32 +141,66 @@ export default function ForumPage() {
           .select("post_id")
           .eq("user_id", user.id);
         setDownvotedPosts(new Set((downvotes ?? []).map((d) => d.post_id)));
-      } catch {
-        // forum_downvotes table may not exist yet
-      }
+      } catch { /* table may not exist */ }
     });
   }, []);
 
+  // Fetch hot posts (always — used for top section)
   useEffect(() => {
-    fetchPosts();
+    fetch("/api/forum/posts?sort=top&limit=3")
+      .then((r) => r.json())
+      .then((j) => setHotPosts((j.posts ?? []).slice(0, 3)))
+      .catch(() => {});
+  }, []);
+
+  // Fetch initial posts when category/sort changes
+  useEffect(() => {
+    setPosts([]);
+    setOffset(0);
+    setHasMore(true);
+    fetchPosts(0, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, sort]);
 
-  async function fetchPosts() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ limit: "30", sort });
-      if (category !== "all") params.set("category", category);
-      const res = await fetch(`/api/forum/posts?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      const json = await res.json();
-      setPosts(json.posts ?? []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const fetchPosts = useCallback(
+    async (startOffset: number, replace = false) => {
+      if (replace) setLoading(true);
+      else setLoadingMore(true);
+      try {
+        const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(startOffset), sort });
+        if (category !== "all") params.set("category", category);
+        const res = await fetch(`/api/forum/posts?${params}`);
+        if (!res.ok) throw new Error("Failed to fetch");
+        const json = await res.json();
+        const newPosts: Post[] = json.posts ?? [];
+        if (replace) setPosts(newPosts);
+        else setPosts((prev) => [...prev, ...newPosts]);
+        if (newPosts.length < PAGE_SIZE) setHasMore(false);
+        setOffset(startOffset + newPosts.length);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [category, sort]
+  );
+
+  // Infinite scroll observer
+  useEffect(() => {
+    if (!sentinelRef.current || !hasMore || loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loadingMore && hasMore) {
+          fetchPosts(offset);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [fetchPosts, offset, hasMore, loading, loadingMore]);
 
   async function togglePost(postId: string) {
     if (expandedPost === postId) {
@@ -164,6 +226,7 @@ export default function ForumPage() {
     const content = replyText[postId]?.trim();
     if (!content || submittingReply) return;
     setSubmittingReply(postId);
+    haptic("light");
     try {
       const res = await fetch(`/api/forum/posts/${postId}/replies`, {
         method: "POST",
@@ -175,7 +238,7 @@ export default function ForumPage() {
         setReplies((prev) => ({ ...prev, [postId]: [...(prev[postId] ?? []), json.reply] }));
         setReplyText((prev) => ({ ...prev, [postId]: "" }));
         setPosts((prev) =>
-          prev.map((p) => p.id === postId ? { ...p, replies_count: p.replies_count + 1 } : p)
+          prev.map((p) => (p.id === postId ? { ...p, replies_count: p.replies_count + 1 } : p))
         );
       }
     } catch (err) {
@@ -188,7 +251,7 @@ export default function ForumPage() {
   async function submitPost() {
     if (!newPost.title.trim() || !newPost.content.trim() || submittingPost) return;
     if (!currentUserId) {
-      setPostError("You must be signed in to post. Please sign in first.");
+      setPostError("You must be signed in to post.");
       return;
     }
     setSubmittingPost(true);
@@ -206,10 +269,11 @@ export default function ForumPage() {
       });
       const json = await res.json();
       if (res.ok) {
+        haptic("success");
         setShowNewPost(false);
         setNewPost({ title: "", content: "", category: "general", car_id: "" });
         setPostError(null);
-        fetchPosts();
+        fetchPosts(0, true);
       } else {
         const msg = typeof json.error === "string" ? json.error : "Failed to post";
         setPostError(msg === "Unauthorized" ? "You must be signed in to post." : msg);
@@ -223,56 +287,90 @@ export default function ForumPage() {
 
   async function handleUpvote(postId: string) {
     if (!currentUserId) return;
+    haptic("light");
     const supabase = createClient();
     const isUpvoted = upvotedPosts.has(postId);
     const isDownvoted = downvotedPosts.has(postId);
 
     if (isUpvoted) {
       await supabase.from("forum_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
-      setUpvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
+      setUpvotedPosts((prev) => {
+        const s = new Set(prev);
+        s.delete(postId);
+        return s;
+      });
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p)));
     } else {
       if (isDownvoted) {
-        try { await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId); } catch { /* table may not exist */ }
-        setDownvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
-        setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p));
+        try {
+          await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId);
+        } catch { /* table may not exist */ }
+        setDownvotedPosts((prev) => {
+          const s = new Set(prev);
+          s.delete(postId);
+          return s;
+        });
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p
+          )
+        );
       }
       await supabase.from("forum_likes").insert({ post_id: postId, user_id: currentUserId });
       setUpvotedPosts((prev) => new Set(prev).add(postId));
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p));
+      setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p)));
     }
   }
 
   async function handleDownvote(postId: string) {
     if (!currentUserId) return;
+    haptic("light");
     const supabase = createClient();
     const isUpvoted = upvotedPosts.has(postId);
     const isDownvoted = downvotedPosts.has(postId);
 
     if (isDownvoted) {
-      try { await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId); } catch { /* table may not exist */ }
-      setDownvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p));
+      try {
+        await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId);
+      } catch { /* table may not exist */ }
+      setDownvotedPosts((prev) => {
+        const s = new Set(prev);
+        s.delete(postId);
+        return s;
+      });
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p
+        )
+      );
     } else {
       if (isUpvoted) {
         await supabase.from("forum_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
-        setUpvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
-        setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
+        setUpvotedPosts((prev) => {
+          const s = new Set(prev);
+          s.delete(postId);
+          return s;
+        });
+        setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p)));
       }
-      try { await supabase.from("forum_downvotes").insert({ post_id: postId, user_id: currentUserId }); } catch { /* table may not exist */ }
+      try {
+        await supabase.from("forum_downvotes").insert({ post_id: postId, user_id: currentUserId });
+      } catch { /* table may not exist */ }
       setDownvotedPosts((prev) => new Set(prev).add(postId));
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: (p.downvotes_count ?? 0) + 1 } : p));
+      setPosts((prev) =>
+        prev.map((p) => (p.id === postId ? { ...p, downvotes_count: (p.downvotes_count ?? 0) + 1 } : p))
+      );
     }
   }
 
   const flair = (cat: string) => FLAIR_STYLES[cat] ?? FLAIR_STYLES.general;
 
   return (
-    <div className="px-5 py-6 max-w-2xl mx-auto">
+    <div className="px-5 sm:px-8 py-6 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Forum</h1>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">Forum</h1>
           <p className="text-xs text-[var(--color-text-muted)] mt-1">Community discussion</p>
         </div>
         <button
@@ -284,15 +382,52 @@ export default function ForumPage() {
         </button>
       </div>
 
+      {/* Hot right now section */}
+      {hotPosts.length > 0 && (
+        <section className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <Flame size={14} className="text-[#ff9f0a]" />
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Hot Right Now</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {hotPosts.map((post) => {
+              const fl = flair(post.category);
+              return (
+                <button
+                  key={post.id}
+                  type="button"
+                  onClick={() => {
+                    document.getElementById(`post-${post.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    setExpandedPost(post.id);
+                    if (!replies[post.id]) togglePost(post.id);
+                  }}
+                  className="text-left rounded-2xl bg-[var(--color-bg-card)] border border-[rgba(255,159,10,0.2)] p-4 hover:border-[rgba(255,159,10,0.4)] transition-all card-hover relative overflow-hidden sweep"
+                >
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Flame size={10} className="text-[#ff9f0a]" />
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#ff9f0a]">Trending</span>
+                  </div>
+                  <p className="text-sm font-bold leading-snug line-clamp-2 mb-2">{post.title}</p>
+                  <div className="flex items-center gap-2 text-[10px] text-[var(--color-text-muted)]">
+                    <span style={{ background: fl.bg, color: fl.color }} className="flair">{post.category.replace("_", " ")}</span>
+                    <span>·</span>
+                    <span className="font-semibold">{scorePost(post)} pts</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Sort + Category */}
-      <div className="space-y-3 mb-6">
-        {/* Sort tabs — pill style */}
+      <div className="space-y-3 mb-5">
         <div className="flex bg-[var(--color-bg-card)] rounded-2xl p-1.5 gap-1 border border-[var(--color-border)]">
           {SORT_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => setSort(opt.value)}
-              className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 sort === opt.value
                   ? "bg-[var(--color-bg-elevated)] text-white shadow-sm"
                   : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
@@ -304,13 +439,12 @@ export default function ForumPage() {
           ))}
         </div>
 
-        {/* Category pills */}
         <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-0.5">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.value}
               onClick={() => setCategory(cat.value)}
-              className={`flex items-center gap-1.5 h-8 px-4 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${
+              className={`flex items-center gap-1.5 h-8 px-4 rounded-full text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${
                 category === cat.value
                   ? "bg-[var(--color-accent)] text-white shadow-[0_2px_12px_rgba(59,130,246,0.25)]"
                   : "bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-bright)] hover:text-[var(--color-text-secondary)]"
@@ -327,10 +461,13 @@ export default function ForumPage() {
       {showNewPost && (
         <>
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md" onClick={() => { setShowNewPost(false); setPostError(null); }} />
-          <div className="fixed inset-x-5 top-1/2 -translate-y-1/2 z-50 max-w-lg mx-auto rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.6)] animate-scale-in">
+          <div className="fixed inset-x-5 top-1/2 -translate-y-1/2 z-50 max-w-xl mx-auto rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.6)] animate-scale-in max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold">New Post</h2>
-              <button onClick={() => { setShowNewPost(false); setPostError(null); }} className="w-8 h-8 rounded-xl bg-[var(--color-bg-elevated)] flex items-center justify-center cursor-pointer hover:bg-[var(--color-bg-hover)] transition-colors">
+              <button
+                onClick={() => { setShowNewPost(false); setPostError(null); }}
+                className="w-8 h-8 rounded-xl bg-[var(--color-bg-elevated)] flex items-center justify-center cursor-pointer hover:bg-[var(--color-bg-hover)] transition-colors"
+              >
                 <X size={14} className="text-[var(--color-text-muted)]" />
               </button>
             </div>
@@ -345,7 +482,7 @@ export default function ForumPage() {
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Category</p>
+                  <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Category</p>
                   <select
                     value={newPost.category}
                     onChange={(e) => setNewPost((p) => ({ ...p, category: e.target.value }))}
@@ -358,7 +495,7 @@ export default function ForumPage() {
                 </div>
                 {userCars.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Tag Your Car</p>
+                    <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Tag Your Car</p>
                     <select
                       value={newPost.car_id}
                       onChange={(e) => setNewPost((p) => ({ ...p, car_id: e.target.value }))}
@@ -373,7 +510,7 @@ export default function ForumPage() {
                 )}
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Title</p>
+                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Title</p>
                 <input
                   type="text"
                   value={newPost.title}
@@ -384,14 +521,12 @@ export default function ForumPage() {
                 />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Details</p>
-                <textarea
+                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Body</p>
+                <RichComposer
                   value={newPost.content}
-                  onChange={(e) => setNewPost((p) => ({ ...p, content: e.target.value }))}
-                  placeholder="Describe your build, ask a question, share details..."
-                  rows={4}
-                  className="w-full rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-sm px-4 py-3 outline-none focus:border-[var(--color-accent)] text-white placeholder-[var(--color-text-muted)] resize-none"
-                  maxLength={5000}
+                  onChange={(v) => setNewPost((p) => ({ ...p, content: v }))}
+                  placeholder="Describe your build, ask a question, share details... use **bold**, *italic*, lists, and images."
+                  rows={6}
                 />
               </div>
               <div className="flex gap-2.5 pt-1">
@@ -427,9 +562,7 @@ export default function ForumPage() {
             <MessageSquare size={24} className="text-[var(--color-text-disabled)]" />
           </div>
           <p className="text-lg font-bold text-[var(--color-text-secondary)]">No posts yet</p>
-          <p className="text-sm text-[var(--color-text-muted)] mt-1.5 max-w-xs mx-auto">
-            Be the legend who starts it.
-          </p>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1.5 max-w-xs mx-auto">Be the legend who starts it.</p>
           <button
             onClick={() => setShowNewPost(true)}
             className="mt-6 h-10 px-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold hover:brightness-110 transition-all cursor-pointer shadow-[0_4px_20px_rgba(59,130,246,0.25)]"
@@ -438,7 +571,7 @@ export default function ForumPage() {
           </button>
         </div>
       ) : (
-        <div className="space-y-3 stagger-children">
+        <div className="space-y-3">
           {posts.map((post) => {
             const isExpanded = expandedPost === post.id;
             const postReplies = replies[post.id] ?? [];
@@ -446,14 +579,16 @@ export default function ForumPage() {
             const isDownvoted = downvotedPosts.has(post.id);
             const score = scorePost(post);
             const fl = flair(post.category);
+            const glow = voteGlowClass(score);
 
             return (
               <div
+                id={`post-${post.id}`}
                 key={post.id}
-                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden"
+                className={`rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden transition-all ${glow}`}
               >
                 <div className="p-5">
-                  <div className="flex gap-3.5">
+                  <div className="flex gap-4">
                     {/* Vote column */}
                     <div className="flex flex-col items-center gap-1 flex-shrink-0 pt-0.5">
                       <button
@@ -461,13 +596,17 @@ export default function ForumPage() {
                         className={`vote-btn up ${isUpvoted ? "active" : ""}`}
                         aria-label="Upvote"
                       >
-                        <ArrowUp size={15} />
+                        <ArrowUp size={16} />
                       </button>
                       <span
-                        className={`text-xs font-bold tabular-nums min-w-[20px] text-center ${
-                          isUpvoted ? "text-[#60A5FA]" :
-                          isDownvoted ? "text-[var(--color-danger)]" :
-                          "text-[var(--color-text-muted)]"
+                        className={`text-sm font-black tabular min-w-[24px] text-center ${
+                          isUpvoted
+                            ? "text-[#60A5FA]"
+                            : isDownvoted
+                            ? "text-[var(--color-danger)]"
+                            : score >= 8
+                            ? "text-[#ff9f0a]"
+                            : "text-[var(--color-text-secondary)]"
                         }`}
                       >
                         {score}
@@ -477,22 +616,24 @@ export default function ForumPage() {
                         className={`vote-btn down ${isDownvoted ? "active" : ""}`}
                         aria-label="Downvote"
                       >
-                        <ArrowDown size={15} />
+                        <ArrowDown size={16} />
                       </button>
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       {/* Meta row */}
-                      <div className="flex items-center gap-2.5 flex-wrap mb-2">
+                      <div className="flex items-center gap-2.5 flex-wrap mb-2.5">
                         <AvatarInitial username={post.profiles.username} />
-                        <span className="text-[11px] font-semibold text-[var(--color-text-secondary)]">
-                          @{post.profiles.username}
-                        </span>
-                        <span
-                          className="flair"
-                          style={{ background: fl.bg, color: fl.color }}
-                        >
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-[12px] font-bold text-white">
+                            @{post.profiles.username}
+                          </span>
+                          {post.primary_car && (
+                            <CarBadge car={post.primary_car} />
+                          )}
+                        </div>
+                        <span className="flair" style={{ background: fl.bg, color: fl.color }}>
                           {post.category.replace("_", " ")}
                         </span>
                         <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
@@ -501,18 +642,23 @@ export default function ForumPage() {
                       </div>
 
                       {/* Title */}
-                      <h3 className="text-[15px] font-bold leading-snug mb-1.5">{post.title}</h3>
+                      <h3 className="text-base font-bold leading-snug mb-2 text-white">{post.title}</h3>
 
-                      {/* Content preview */}
-                      <p className={`text-[13px] text-[var(--color-text-secondary)] leading-relaxed ${isExpanded ? "" : "line-clamp-2"}`}>
-                        {post.content}
-                      </p>
+                      {/* Content preview / full */}
+                      {isExpanded ? (
+                        <div className="text-[13px] text-[var(--color-text-secondary)] leading-relaxed prose-sm">
+                          {renderMarkdown(post.content)}
+                        </div>
+                      ) : (
+                        <p className="text-[13px] text-[var(--color-text-secondary)] leading-relaxed line-clamp-2">
+                          {post.content.replace(/[*_`#![\]()]/g, "")}
+                        </p>
+                      )}
 
-                      {/* Car tag */}
                       {post.cars && (
-                        <div className="flex items-center gap-2 mt-2.5">
-                          <Car size={10} className="text-[var(--color-text-muted)]" />
-                          <span className="text-[10px] text-[var(--color-text-muted)] font-medium">
+                        <div className="flex items-center gap-2 mt-3">
+                          <Car size={11} className="text-[var(--color-accent-bright)]" />
+                          <span className="text-[11px] text-[var(--color-text-secondary)] font-semibold">
                             {post.cars.year} {post.cars.make} {post.cars.model}
                           </span>
                         </div>
@@ -522,19 +668,18 @@ export default function ForumPage() {
                       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--color-border)]">
                         <button
                           onClick={() => togglePost(post.id)}
-                          className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer font-medium"
+                          className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer font-semibold"
                         >
                           <MessageSquare size={13} />
                           {post.replies_count} {post.replies_count === 1 ? "reply" : "replies"}
                         </button>
-                        <div className="ml-auto">
-                          <button
-                            onClick={() => togglePost(post.id)}
-                            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer p-1"
-                          >
-                            {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => togglePost(post.id)}
+                          className="ml-auto text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer p-1"
+                          aria-label={isExpanded ? "Collapse" : "Expand"}
+                        >
+                          {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -546,22 +691,31 @@ export default function ForumPage() {
                     {loadingReplies === post.id ? (
                       <div className="py-4 flex justify-center gap-1.5">
                         {[0, 1, 2].map((i) => (
-                          <div key={i} className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)]"
-                            style={{ animation: `typing-dot 1.2s ease ${i * 0.15}s infinite` }} />
+                          <div
+                            key={i}
+                            className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)]"
+                            style={{ animation: `typing-dot 1.2s ease ${i * 0.15}s infinite` }}
+                          />
                         ))}
                       </div>
                     ) : postReplies.length === 0 ? (
-                      <p className="text-center text-xs text-[var(--color-text-muted)] py-3">No replies yet — be the first!</p>
+                      <p className="text-center text-xs text-[var(--color-text-muted)] py-3">
+                        No replies yet — be the first!
+                      </p>
                     ) : (
                       postReplies.map((r) => (
                         <div key={r.id} className="flex gap-3">
                           <AvatarInitial username={r.profiles.username} />
                           <div className="flex-1 bg-[var(--color-bg-elevated)] rounded-2xl px-4 py-3 border border-[var(--color-border)]">
                             <div className="flex items-center gap-2.5 mb-1.5">
-                              <span className="text-[11px] font-semibold text-[var(--color-text-secondary)]">@{r.profiles.username}</span>
-                              <span className="text-[10px] text-[var(--color-text-muted)]">{formatRelativeDate(r.created_at)}</span>
+                              <span className="text-[11px] font-bold text-white">@{r.profiles.username}</span>
+                              <span className="text-[10px] text-[var(--color-text-muted)]">
+                                {formatRelativeDate(r.created_at)}
+                              </span>
                             </div>
-                            <p className="text-[13px] text-[var(--color-text-secondary)] leading-relaxed">{r.content}</p>
+                            <p className="text-[13px] text-[var(--color-text-secondary)] leading-relaxed whitespace-pre-wrap">
+                              {r.content}
+                            </p>
                           </div>
                         </div>
                       ))
@@ -595,6 +749,23 @@ export default function ForumPage() {
               </div>
             );
           })}
+
+          {/* Infinite scroll sentinel */}
+          {hasMore && (
+            <div ref={sentinelRef} className="py-8 flex items-center justify-center">
+              {loadingMore ? (
+                <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+                  <Loader2 size={14} className="animate-spin" />
+                  Loading more...
+                </div>
+              ) : (
+                <div className="h-1" />
+              )}
+            </div>
+          )}
+          {!hasMore && posts.length > PAGE_SIZE && (
+            <p className="py-8 text-center text-xs text-[var(--color-text-muted)]">You&apos;re all caught up.</p>
+          )}
         </div>
       )}
 

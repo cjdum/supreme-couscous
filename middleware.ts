@@ -20,6 +20,7 @@ export async function middleware(request: NextRequest) {
   // Allow public paths and static assets
   if (
     PUBLIC_PATHS.some((p) => pathname === p) ||
+    pathname.startsWith("/u/") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/") ||
     pathname.includes(".")

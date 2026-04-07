@@ -93,6 +93,17 @@ export async function GET(request: Request) {
     (profilesRaw ?? []).map((p) => [p.user_id, p])
   );
 
+  // Step 2b: fetch each user's primary car (for the username car badge)
+  const { data: primaryCarsRaw } = await supabase
+    .from("cars")
+    .select("user_id, make, model, year")
+    .in("user_id", userIds)
+    .eq("is_primary", true);
+  const primaryCarMap = new Map<string, { make: string; model: string; year: number }>();
+  for (const car of primaryCarsRaw ?? []) {
+    primaryCarMap.set(car.user_id, { make: car.make, model: car.model, year: car.year });
+  }
+
   // Step 3: fetch cars for posts that have car_id
   const carIds = [...new Set(posts.map((p) => p.car_id).filter(Boolean))] as string[];
   const carMap = new Map<string, { make: string; model: string; year: number; cover_image_url: string | null }>();
@@ -111,6 +122,7 @@ export async function GET(request: Request) {
     ...post,
     downvotes_count: 0,
     profiles: profileMap.get(post.user_id) ?? { username: "unknown", display_name: null, avatar_url: null },
+    primary_car: primaryCarMap.get(post.user_id) ?? null,
     cars: post.car_id ? carMap.get(post.car_id) ?? null : null,
   }));
 

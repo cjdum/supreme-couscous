@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/top-bar";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { GlobalEnhancers } from "@/components/layout/global-enhancers";
 
 export default async function DashboardLayout({
   children,
@@ -24,10 +26,11 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-dvh bg-[var(--color-bg)] gradient-bg">
+      <GlobalEnhancers />
       <TopBar username={profile?.username} />
+      <SidebarNav username={profile?.username} />
       <main
-        className="pt-16 animate-fade"
-        style={{ paddingBottom: "max(88px, calc(env(safe-area-inset-bottom) + 76px))" }}
+        className="pt-16 lg:pt-0 lg:pl-64 animate-fade pb-[max(88px,calc(env(safe-area-inset-bottom)+76px))] lg:pb-8"
       >
         {children}
       </main>

@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { ChevronRight, Wrench, Zap, TrendingUp, Award, Star, Plus } from "lucide-react";
+import { Wrench, Zap, Award, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { CarCard } from "@/components/garage/car-card";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { AddCarButton } from "@/components/garage/add-car-button";
-import { formatCurrency } from "@/lib/utils";
+import { GarageHero } from "@/components/garage/garage-hero";
+import { CarsRail } from "@/components/garage/cars-rail";
+import { BuildTimeline } from "@/components/garage/build-timeline";
+import { GarageStats } from "@/components/garage/garage-stats";
 import { calculateBuildScore, LEVEL_COLORS } from "@/lib/build-score";
-import type { Car as CarType } from "@/lib/supabase/types";
+import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
 
 export const metadata = { title: "Garage — MODVAULT" };
 
@@ -15,6 +17,13 @@ export default async function GaragePage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const { data: profileRaw } = await supabase
+    .from("profiles")
+    .select("username")
+    .eq("user_id", user!.id)
+    .maybeSingle();
+  const username = (profileRaw as { username: string } | null)?.username ?? "you";
 
   const { data: carsRaw } = await supabase
     .from("cars")
@@ -32,12 +41,24 @@ export default async function GaragePage() {
   }
 
   const carIds = cars.map((c) => c.id);
-  type ModStat = { car_id: string; cost: number | null; status: string; install_date: string | null; notes: string | null };
+  type ModStat = {
+    id: string;
+    car_id: string;
+    name: string;
+    category: ModCategory;
+    cost: number | null;
+    status: string;
+    install_date: string | null;
+    created_at: string;
+    notes: string | null;
+    shop_name: string | null;
+    is_diy: boolean;
+  };
   let modStats: ModStat[] = [];
   if (carIds.length) {
     const { data } = await supabase
       .from("mods")
-      .select("car_id, cost, status, install_date, notes")
+      .select("id, car_id, name, category, cost, status, install_date, created_at, notes, shop_name, is_diy")
       .in("car_id", carIds);
     modStats = (data ?? []) as ModStat[];
   }
@@ -64,230 +85,157 @@ export default async function GaragePage() {
   });
   const levelColor = LEVEL_COLORS[buildScore.level];
 
+  // Top category for primary car
+  const primaryMods = modStats.filter((m) => m.car_id === primaryCar.id && m.status === "installed");
+  const categoryTotals = primaryMods.reduce<Record<string, number>>((acc, m) => {
+    acc[m.category] = (acc[m.category] ?? 0) + (m.cost ?? 0);
+    return acc;
+  }, {});
+  const topCategoryEntry = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
+  const topCategory = (topCategoryEntry?.[0] as ModCategory | undefined) ?? null;
+
+  // Top 3 mods by cost for share card
+  const topMods = [...primaryMods]
+    .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0))
+    .slice(0, 3)
+    .map((m) => ({ name: m.name, category: m.category, cost: m.cost }));
+
+  // Build timeline mods (primary car only)
+  const timelineMods = modStats
+    .filter((m) => m.car_id === primaryCar.id && m.status === "installed")
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      category: m.category,
+      cost: m.cost,
+      install_date: m.install_date,
+      created_at: m.created_at,
+      shop_name: m.shop_name,
+      is_diy: m.is_diy,
+      notes: m.notes,
+    }));
+
   return (
     <div className="min-h-dvh">
-      {/* ── Hero: Primary Car — Full viewport ── */}
-      <div className="relative w-full" style={{ height: "100vh", maxHeight: "680px", minHeight: "400px" }}>
-        {primaryCar.cover_image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={primaryCar.cover_image_url}
-            alt={`${primaryCar.year} ${primaryCar.make} ${primaryCar.model}`}
-            className="absolute inset-0 w-full h-full object-cover"
+      {/* ── Cinematic hero ── */}
+      <GarageHero
+        car={primaryCar}
+        modCount={primaryStats.count}
+        totalInvested={primaryStats.total}
+        isPrimary={!!cars.find((c) => c.is_primary)}
+        username={username}
+        buildScore={buildScore.score}
+        buildLevel={buildScore.level}
+        topCategory={topCategory}
+        topMods={topMods}
+      />
+
+      {/* ── Stats + Build Score (animated) ── */}
+      <div className="relative -mt-8 z-10">
+        <div className="px-5 sm:px-8 max-w-5xl mx-auto">
+          <GarageStats
+            buildScore={buildScore.score}
+            buildLevel={buildScore.level}
+            levelColor={levelColor}
+            nextLevel={buildScore.nextLevel}
+            nextThreshold={buildScore.nextThreshold ?? null}
+            progress={buildScore.progress}
+            carCount={cars.length}
+            totalMods={totalMods}
+            totalInvested={totalInvested}
           />
-        ) : (
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `radial-gradient(ellipse at 20% 40%, rgba(59,130,246,0.15) 0%, transparent 55%),
-                           radial-gradient(ellipse at 80% 20%, rgba(48,209,88,0.04) 0%, transparent 50%),
-                           linear-gradient(160deg, rgba(59,130,246,0.06) 0%, #000 50%)`,
-            }}
-          >
-            <div className="absolute inset-0 flex items-center justify-center">
-              <svg viewBox="0 0 200 90" width="220" height="100" fill="none" aria-hidden="true" style={{ opacity: 0.03 }}>
-                <path d="M18 72l16-42h132l16 42H18z" stroke="white" strokeWidth="3" strokeLinejoin="round" />
-                <path d="M34 44l12-22h108l12 22H34z" stroke="white" strokeWidth="2" strokeLinejoin="round" fill="white" fillOpacity="0.03" />
-                <ellipse cx="50" cy="74" rx="10" ry="10" stroke="white" strokeWidth="3" />
-                <ellipse cx="150" cy="74" rx="10" ry="10" stroke="white" strokeWidth="3" />
-              </svg>
-            </div>
-          </div>
-        )}
-
-        {/* Dark gradient overlays for depth */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-transparent" />
-
-        {/* Primary label */}
-        {cars.find((c) => c.is_primary) && (
-          <div className="absolute top-20 left-5">
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
-              style={{
-                backgroundColor: "rgba(251,191,36,0.10)",
-                border: "1px solid rgba(251,191,36,0.20)",
-                color: "#fbbf24",
-                backdropFilter: "blur(12px)",
-              }}
-            >
-              <Star size={9} fill="currentColor" /> Primary Build
-            </div>
-          </div>
-        )}
-
-        {/* Car info overlay — bottom */}
-        <div className="absolute bottom-0 left-0 right-0 px-5 pb-8">
-          <div className="max-w-2xl">
-            {primaryCar.nickname && (
-              <p className="text-xs font-bold text-[#60A5FA] mb-2 tracking-[0.15em] uppercase animate-in">
-                {primaryCar.nickname}
-              </p>
-            )}
-            <h1 className="text-4xl sm:text-5xl font-bold text-white leading-[1.1] mb-2 tracking-tight">
-              {primaryCar.year} {primaryCar.make}<br />
-              <span className="text-gradient">{primaryCar.model}</span>
-            </h1>
-            {primaryCar.trim && (
-              <p className="text-sm text-white/35 mb-5 font-medium">{primaryCar.trim}</p>
-            )}
-
-            {/* Floating stat chips */}
-            <div className="flex items-center gap-2.5 flex-wrap mb-6">
-              {primaryCar.horsepower && (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.06] backdrop-blur-xl border border-white/[0.08]">
-                  <Zap size={11} className="text-[#fbbf24]" />
-                  <span className="text-xs font-bold text-white">{primaryCar.horsepower} hp</span>
-                </div>
-              )}
-              {primaryCar.torque && (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.06] backdrop-blur-xl border border-white/[0.08]">
-                  <TrendingUp size={11} className="text-[#30d158]" />
-                  <span className="text-xs font-bold text-white">{primaryCar.torque} lb-ft</span>
-                </div>
-              )}
-              {primaryStats.count > 0 && (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.06] backdrop-blur-xl border border-white/[0.08]">
-                  <Wrench size={11} className="text-[#60A5FA]" />
-                  <span className="text-xs font-bold text-white">{primaryStats.count} mods</span>
-                </div>
-              )}
-              {primaryStats.total > 0 && (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/[0.06] backdrop-blur-xl border border-white/[0.08]">
-                  <span className="text-xs font-bold text-white">{formatCurrency(primaryStats.total)}</span>
-                </div>
-              )}
-            </div>
-
-            <Link
-              href={`/garage/${primaryCar.id}`}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black text-sm font-bold hover:bg-white/90 transition-all active:scale-95 shadow-[0_4px_24px_rgba(255,255,255,0.1)]"
-            >
-              Manage Build <ChevronRight size={14} />
-            </Link>
-          </div>
         </div>
       </div>
 
-      <div className="px-5 -mt-4 relative z-10 space-y-4 max-w-2xl mx-auto stagger-children">
-        {/* Build Score + Stats row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Build Score card */}
-          <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2.5">
-                <Award size={16} style={{ color: levelColor }} />
-                <p className="text-xs font-semibold text-[var(--color-text-secondary)]">Build Score</p>
-              </div>
-              <Link href="/profile" className="text-[10px] font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors">
-                Details
-              </Link>
+      {/* ── Build Timeline (primary car) ── */}
+      {timelineMods.length > 0 && (
+        <section className="mt-10 px-5 sm:px-8 max-w-5xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold tracking-tight">Build Timeline</h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Every mod, in order. Tap to expand.</p>
             </div>
-            <div className="flex items-end gap-3 mb-3">
-              <span className="text-4xl font-bold tabular-nums">{buildScore.score}</span>
-              <span
-                className="text-[10px] font-bold px-3 py-1 rounded-full mb-1.5"
-                style={{ background: `${levelColor}15`, color: levelColor, border: `1px solid ${levelColor}20` }}
-              >
-                {buildScore.level}
-              </span>
-            </div>
-            {buildScore.nextLevel && (
-              <div>
-                <div className="score-bar mb-2">
-                  <div
-                    className="score-bar-fill"
-                    style={{
-                      width: `${buildScore.progress}%`,
-                      background: `linear-gradient(90deg, ${levelColor}, ${levelColor}99)`,
-                    }}
-                  />
-                </div>
-                <p className="text-[10px] text-[var(--color-text-muted)]">
-                  {buildScore.nextThreshold! - buildScore.score} pts to {buildScore.nextLevel}
-                </p>
-              </div>
-            )}
+            <Link
+              href={`/garage/${primaryCar.id}`}
+              className="text-xs font-semibold text-[var(--color-accent-bright)] hover:text-white transition-colors"
+            >
+              View all
+            </Link>
           </div>
+          <BuildTimeline mods={timelineMods} />
+        </section>
+      )}
 
-          {/* Stats grid */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-4 text-center flex flex-col justify-center">
-              <p className="text-2xl font-bold">{cars.length}</p>
-              <p className="text-[10px] text-[var(--color-text-muted)] mt-1 font-medium">Vehicles</p>
-            </div>
-            <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-4 text-center flex flex-col justify-center">
-              <p className="text-2xl font-bold">{totalMods}</p>
-              <p className="text-[10px] text-[var(--color-text-muted)] mt-1 font-medium">Mods</p>
-            </div>
-            <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-4 text-center flex flex-col justify-center">
-              <p className="text-2xl font-bold text-[#60A5FA]">
-                {totalInvested > 0 ? formatCurrency(totalInvested) : "—"}
-              </p>
-              <p className="text-[10px] text-[var(--color-text-muted)] mt-1 font-medium">Invested</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick actions */}
-        <div className="grid grid-cols-2 gap-3">
+      {/* ── Quick actions ── */}
+      <section className="mt-10 px-5 sm:px-8 max-w-5xl mx-auto">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Link
             href={`/garage/${primaryCar.id}`}
-            className="rounded-2xl bg-[var(--color-accent)] p-5 flex items-center justify-between hover:brightness-110 transition-all active:scale-[0.98] shadow-[0_4px_24px_rgba(59,130,246,0.25)]"
+            className="rounded-2xl bg-[var(--color-accent)] p-5 flex items-center justify-between hover:brightness-110 transition-all active:scale-[0.98] shadow-[0_4px_24px_rgba(59,130,246,0.25)] group"
           >
             <div>
               <p className="text-sm font-bold text-white">Manage Build</p>
               <p className="text-[11px] text-white/60 mt-0.5">Log mods & track</p>
             </div>
-            <Wrench size={20} className="text-white/60" />
+            <Wrench size={20} className="text-white/60 group-hover:scale-110 transition-transform" />
           </Link>
           <Link
             href={`/visualizer?carId=${primaryCar.id}`}
-            className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover"
+            className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
           >
             <div>
               <p className="text-sm font-bold">AI Render</p>
               <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Visualize mods</p>
             </div>
-            <Zap size={20} className="text-[var(--color-accent)]" />
+            <Zap size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
+          </Link>
+          <Link
+            href="/stats"
+            className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+          >
+            <div>
+              <p className="text-sm font-bold">Analytics</p>
+              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Build insights</p>
+            </div>
+            <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform" />
+          </Link>
+          <Link
+            href="/profile"
+            className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+          >
+            <div>
+              <p className="text-sm font-bold">Profile</p>
+              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Score & badges</p>
+            </div>
+            <Plus size={20} className="text-[var(--color-text-muted)] group-hover:scale-110 transition-transform" />
           </Link>
         </div>
+      </section>
 
-        {/* Other vehicles — horizontal scroll strip */}
-        {otherCars.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-[var(--color-text-secondary)]">Other Vehicles</h2>
-              <AddCarButton />
+      {/* ── Other vehicles rail ── */}
+      {otherCars.length > 0 && (
+        <section className="mt-10 px-5 sm:px-8 max-w-5xl mx-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold tracking-tight">Other Vehicles</h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Drag to reorder. {otherCars.length} {otherCars.length === 1 ? "car" : "cars"}.</p>
             </div>
-            <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2 -mx-5 px-5">
-              {otherCars.map((car) => (
-                <div key={car.id} className="flex-shrink-0" style={{ width: "180px" }}>
-                  <CarCard
-                    car={car}
-                    modCount={statsMap.get(car.id)?.count ?? 0}
-                    totalSpent={statsMap.get(car.id)?.total ?? 0}
-                    isPrimary={false}
-                    compact
-                  />
-                </div>
-              ))}
-            </div>
+            <AddCarButton />
           </div>
-        )}
-
-        {/* Single-car: add another */}
-        {cars.length === 1 && (
-          <AddCarButton asCard label="Add another vehicle" />
-        )}
-      </div>
-
-      {/* Floating Add Car button */}
-      {cars.length > 0 && (
-        <AddCarButton fab />
+          <CarsRail cars={otherCars} stats={statsMap} />
+        </section>
       )}
 
-      <div className="h-8" />
+      {/* Single-car CTA */}
+      {cars.length === 1 && (
+        <section className="mt-10 px-5 sm:px-8 max-w-5xl mx-auto">
+          <AddCarButton asCard label="Add another vehicle" />
+        </section>
+      )}
+
+      <AddCarButton fab />
+
+      <div className="h-12" />
     </div>
   );
 }

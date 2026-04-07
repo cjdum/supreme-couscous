@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Globe, Lock, DollarSign, Wrench, Zap, MessageSquare,
-  TrendingUp, Calendar, Star, BookmarkCheck, Sparkles
+  TrendingUp, Calendar, Star, BookmarkCheck
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CategoryBadge } from "@/components/ui/badge";
@@ -12,6 +12,8 @@ import { AiSuggestions } from "@/components/garage/ai-suggestions";
 import { VehicleSpecs } from "@/components/garage/vehicle-specs";
 import { SpendingChart } from "@/components/mods/spending-chart";
 import { CarGallery } from "@/components/garage/car-gallery";
+import { BuildTimeline } from "@/components/garage/build-timeline";
+import { EditCarButton } from "@/components/garage/edit-car-button";
 import type { Car, Mod, ModCategory } from "@/lib/supabase/types";
 
 interface Props {
@@ -59,32 +61,28 @@ export default async function CarDetailPage({ params }: Props) {
   const wishlist = mods.filter((m) => m.status === "wishlist");
   const totalInvested = installed.reduce((sum, m) => sum + (m.cost ?? 0), 0);
 
-  const categoryTotals = installed.reduce<Record<string, number>>(
-    (acc, m) => {
-      acc[m.category] = (acc[m.category] ?? 0) + (m.cost ?? 0);
-      return acc;
-    },
-    {}
-  );
+  const categoryTotals = installed.reduce<Record<string, number>>((acc, m) => {
+    acc[m.category] = (acc[m.category] ?? 0) + (m.cost ?? 0);
+    return acc;
+  }, {});
   const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
 
   const mostExpensive = [...installed].sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0))[0] ?? null;
-  const newest = [...installed].sort((a, b) =>
-    new Date(b.install_date ?? b.created_at).getTime() - new Date(a.install_date ?? a.created_at).getTime()
-  )[0] ?? null;
+  const newest =
+    [...installed].sort(
+      (a, b) => new Date(b.install_date ?? b.created_at).getTime() - new Date(a.install_date ?? a.created_at).getTime()
+    )[0] ?? null;
   const nextPlanned = wishlist[0] ?? null;
 
-  const chartData = MOD_CATEGORIES
-    .map((cat) => ({
-      name: cat.label,
-      value: categoryTotals[cat.value] ?? 0,
-      color: cat.color,
-    }))
-    .filter((d) => d.value > 0);
+  const chartData = MOD_CATEGORIES.map((cat) => ({
+    name: cat.label,
+    value: categoryTotals[cat.value] ?? 0,
+    color: cat.color,
+  })).filter((d) => d.value > 0);
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* ── Full-width hero image ── */}
+    <div className="max-w-6xl mx-auto">
+      {/* ── Hero ── */}
       <div className="relative">
         {car.cover_image_url ? (
           <>
@@ -92,16 +90,13 @@ export default async function CarDetailPage({ params }: Props) {
             <img
               src={car.cover_image_url}
               alt={`${car.year} ${car.make} ${car.model}`}
-              className="w-full object-cover"
-              style={{ height: "clamp(260px, 50vw, 420px)" }}
+              className="w-full object-cover animate-cinematic"
+              style={{ height: "clamp(280px, 50vw, 500px)" }}
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/90" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/95" />
           </>
         ) : (
-          <div
-            className="w-full"
-            style={{ height: "clamp(200px, 38vw, 300px)" }}
-          >
+          <div className="w-full" style={{ height: "clamp(220px, 38vw, 320px)" }}>
             <div
               className="w-full h-full"
               style={{
@@ -113,54 +108,66 @@ export default async function CarDetailPage({ params }: Props) {
         )}
 
         {/* Back */}
-        <div className="absolute top-4 left-4">
+        <div className="absolute top-4 left-4 lg:top-6 lg:left-6">
           <Link
             href="/garage"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/75 hover:text-white transition-colors bg-black/50 backdrop-blur-xl px-3.5 py-2 rounded-xl border border-white/[0.08]"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-white/75 hover:text-white transition-colors bg-black/50 backdrop-blur-xl px-3.5 py-2 rounded-xl border border-white/[0.10]"
           >
             <ArrowLeft size={12} />
             Garage
           </Link>
         </div>
 
-        {/* Public badge */}
-        <div className="absolute top-4 right-4">
+        {/* Top right: Edit + Public badge */}
+        <div className="absolute top-4 right-4 lg:top-6 lg:right-6 flex items-center gap-2">
+          {car.is_primary && (
+            <div
+              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider"
+              style={{
+                backgroundColor: "rgba(251,191,36,0.12)",
+                border: "1px solid rgba(251,191,36,0.30)",
+                color: "#fbbf24",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <Star size={9} fill="currentColor" /> Primary
+            </div>
+          )}
           <div
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-semibold backdrop-blur-xl border border-white/[0.08]"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold backdrop-blur-xl border border-white/[0.10]"
             style={{
               backgroundColor: "rgba(0,0,0,0.5)",
-              color: car.is_public ? "#30d158" : "#555",
+              color: car.is_public ? "#30d158" : "#888",
             }}
           >
             {car.is_public ? <><Globe size={10} /> Public</> : <><Lock size={10} /> Private</>}
           </div>
+          <EditCarButton car={car} />
         </div>
 
         {/* Car title over hero */}
         {car.cover_image_url && (
-          <div className="absolute bottom-0 left-0 right-0 px-5 pb-6">
-            {car.nickname && (
-              <p className="text-xs font-bold text-[#60A5FA] mb-1 tracking-[0.15em] uppercase">
-                {car.nickname}
-              </p>
-            )}
-            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight tracking-tight">
-              {car.year} {car.make} {car.model}
-            </h1>
-            {car.trim && <p className="text-sm text-white/35 mt-1 font-medium">{car.trim}</p>}
+          <div className="absolute bottom-0 left-0 right-0 px-5 sm:px-8 pb-6 lg:pb-10">
+            <div className="max-w-6xl mx-auto">
+              {car.nickname && (
+                <p className="text-xs font-bold text-[#60A5FA] mb-1.5 tracking-[0.15em] uppercase">{car.nickname}</p>
+              )}
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[0.95] tracking-tight display-num">
+                {car.year} {car.make} <span className="text-gradient">{car.model}</span>
+              </h1>
+              {car.trim && <p className="text-sm sm:text-base text-white/40 mt-2 font-medium">{car.trim}</p>}
+            </div>
           </div>
         )}
       </div>
 
       {/* Car title without photo */}
       {!car.cover_image_url && (
-        <div className="px-5 pt-5 pb-2">
+        <div className="px-5 sm:px-8 pt-6 pb-2">
           {car.nickname && (
-            <p className="text-xs font-bold text-[#60A5FA] mb-1 tracking-[0.15em] uppercase">
-              {car.nickname}
-            </p>
+            <p className="text-xs font-bold text-[#60A5FA] mb-1 tracking-[0.15em] uppercase">{car.nickname}</p>
           )}
-          <h1 className="text-2xl font-bold leading-tight tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-black leading-tight tracking-tight">
             {car.year} {car.make} {car.model}
           </h1>
           {car.trim && <p className="text-sm text-[var(--color-text-muted)] mt-1">{car.trim}</p>}
@@ -168,33 +175,33 @@ export default async function CarDetailPage({ params }: Props) {
       )}
 
       {/* ── Stats bar ── */}
-      <div className="mx-5 mt-5 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
+      <div className="mx-5 sm:mx-8 mt-5 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
         <div className="grid grid-cols-3 divide-x divide-[var(--color-border)]">
-          <div className="flex flex-col items-center py-5 gap-1.5">
+          <div className="flex flex-col items-center py-5 lg:py-6 gap-1.5">
             <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
               <Wrench size={11} />
-              <span className="text-[9px] font-semibold uppercase tracking-wider">Installed</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider">Installed</span>
             </div>
-            <p className="text-2xl font-bold">{installed.length}</p>
+            <p className="text-2xl lg:text-3xl font-black tabular">{installed.length}</p>
           </div>
-          <div className="flex flex-col items-center py-5 gap-1.5">
+          <div className="flex flex-col items-center py-5 lg:py-6 gap-1.5">
             <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
               <DollarSign size={11} />
-              <span className="text-[9px] font-semibold uppercase tracking-wider">Invested</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider">Invested</span>
             </div>
-            <p className="text-2xl font-bold text-[#60A5FA]">
+            <p className="text-2xl lg:text-3xl font-black text-[#60A5FA] tabular">
               {totalInvested > 0 ? formatCurrency(totalInvested) : "—"}
             </p>
           </div>
-          <div className="flex flex-col items-center py-5 gap-1.5">
+          <div className="flex flex-col items-center py-5 lg:py-6 gap-1.5">
             <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
               <TrendingUp size={11} />
-              <span className="text-[9px] font-semibold uppercase tracking-wider">Top spend</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider">Top spend</span>
             </div>
             {topCategory ? (
               <div className="flex flex-col items-center gap-1 mt-0.5">
                 <CategoryBadge category={topCategory[0] as ModCategory} className="text-[9px]" />
-                <p className="text-[9px] text-[var(--color-text-muted)]">{formatCurrency(topCategory[1])}</p>
+                <p className="text-[9px] text-[var(--color-text-muted)] font-bold tabular">{formatCurrency(topCategory[1])}</p>
               </div>
             ) : (
               <p className="text-2xl font-bold text-[var(--color-text-disabled)]">—</p>
@@ -205,100 +212,119 @@ export default async function CarDetailPage({ params }: Props) {
 
       {/* ── Summary cards ── */}
       {(mostExpensive || newest || nextPlanned) && (
-        <div className="mx-5 mt-4 grid grid-cols-3 gap-2.5 stagger-children">
-          <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3.5">
-            <div className="flex items-center gap-1.5 mb-2.5">
-              <Star size={10} className="text-[#fbbf24]" />
-              <p className="text-[9px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Biggest</p>
-            </div>
-            {mostExpensive ? (
-              <>
-                <p className="text-xs font-bold leading-snug line-clamp-2 mb-1">{mostExpensive.name}</p>
-                <p className="text-[10px] font-semibold text-[#fbbf24]">
-                  {mostExpensive.cost ? formatCurrency(mostExpensive.cost) : "—"}
-                </p>
-              </>
-            ) : (
-              <p className="text-[10px] text-[var(--color-text-disabled)]">—</p>
-            )}
-          </div>
+        <div className="mx-5 sm:mx-8 mt-4 grid grid-cols-3 gap-2.5 lg:gap-3 stagger-children">
+          <SummaryCard
+            icon={<Star size={11} className="text-[#fbbf24]" />}
+            label="Biggest"
+            mod={mostExpensive}
+            valueColor="#fbbf24"
+            valueText={mostExpensive?.cost ? formatCurrency(mostExpensive.cost) : "—"}
+          />
+          <SummaryCard
+            icon={<Calendar size={11} className="text-[#30d158]" />}
+            label="Latest"
+            mod={newest}
+            valueColor="var(--color-text-muted)"
+            valueText={newest?.install_date ? formatDate(newest.install_date) : "Recently"}
+          />
+          <SummaryCard
+            icon={<BookmarkCheck size={11} className="text-[var(--color-accent)]" />}
+            label="Next"
+            mod={nextPlanned}
+            valueColor="#60A5FA"
+            valueText={nextPlanned?.cost ? formatCurrency(nextPlanned.cost) : nextPlanned ? "Planned" : "Nothing yet"}
+          />
+        </div>
+      )}
 
-          <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3.5">
-            <div className="flex items-center gap-1.5 mb-2.5">
-              <Calendar size={10} className="text-[#30d158]" />
-              <p className="text-[9px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Latest</p>
+      {/* ── Build Timeline (desktop and mobile horizontal scroll) ── */}
+      {installed.length > 0 && (
+        <div className="mx-5 sm:mx-8 mt-6">
+          <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 lg:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold tracking-tight">Build Timeline</h2>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Every mod, in order. Tap to expand.</p>
+              </div>
             </div>
-            {newest ? (
-              <>
-                <p className="text-xs font-bold leading-snug line-clamp-2 mb-1">{newest.name}</p>
-                <p className="text-[10px] text-[var(--color-text-muted)]">
-                  {newest.install_date ? formatDate(newest.install_date) : "Recently"}
-                </p>
-              </>
-            ) : (
-              <p className="text-[10px] text-[var(--color-text-disabled)]">—</p>
-            )}
-          </div>
-
-          <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3.5">
-            <div className="flex items-center gap-1.5 mb-2.5">
-              <BookmarkCheck size={10} className="text-[var(--color-accent)]" />
-              <p className="text-[9px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Next</p>
-            </div>
-            {nextPlanned ? (
-              <>
-                <p className="text-xs font-bold leading-snug line-clamp-2 mb-1">{nextPlanned.name}</p>
-                <p className="text-[10px] font-semibold text-[#60A5FA]">
-                  {nextPlanned.cost ? formatCurrency(nextPlanned.cost) : "Planned"}
-                </p>
-              </>
-            ) : (
-              <p className="text-[10px] text-[var(--color-text-disabled)]">Nothing yet</p>
-            )}
+            <BuildTimeline mods={installed} />
           </div>
         </div>
       )}
 
       {/* ── Spending chart ── */}
       {chartData.length > 0 && (
-        <div className="mx-5 mt-4 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5">
-          <p className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Investment by Category</p>
+        <div className="mx-5 sm:mx-8 mt-4 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 lg:p-6">
+          <p className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Investment by Category</p>
           <SpendingChart data={chartData} total={totalInvested} />
         </div>
       )}
 
-      {/* ── Main content ── */}
-      <div className="px-5 pb-8 mt-6 space-y-6">
-        <CarGallery carId={carId} initialCoverUrl={car.cover_image_url} />
-        <VehicleSpecs car={car} />
-
-        {/* AI Suggestions with glowing border */}
-        <div className="rounded-2xl border border-[rgba(59,130,246,0.2)] bg-[var(--color-bg-card)] overflow-hidden glow-pulse">
-          <AiSuggestions carId={carId} />
+      {/* ── Main content (two-column on desktop) ── */}
+      <div className="px-5 sm:px-8 pb-12 mt-6 lg:grid lg:grid-cols-3 lg:gap-6 space-y-6 lg:space-y-0">
+        <div className="lg:col-span-2 space-y-6">
+          <CarGallery carId={carId} initialCoverUrl={car.cover_image_url} />
+          <CarDetailTabs installed={installed} wishlist={wishlist} carId={carId} />
         </div>
 
-        <CarDetailTabs installed={installed} wishlist={wishlist} carId={carId} />
+        <div className="space-y-6">
+          <VehicleSpecs car={car} />
 
-        {/* Quick links */}
-        <div className="grid grid-cols-2 gap-3">
-          <Link
-            href={`/visualizer?carId=${carId}`}
-            className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
-          >
-            <Zap size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
-            <p className="text-xs font-bold">AI Visualizer</p>
-            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">Render your build</p>
-          </Link>
-          <Link
-            href={`/chat?carId=${carId}`}
-            className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
-          >
-            <MessageSquare size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
-            <p className="text-xs font-bold">Ask AI</p>
-            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">Chat about your car</p>
-          </Link>
+          <div className="rounded-2xl border border-[rgba(59,130,246,0.2)] bg-[var(--color-bg-card)] overflow-hidden glow-pulse">
+            <AiSuggestions carId={carId} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              href={`/visualizer?carId=${carId}`}
+              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
+            >
+              <Zap size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
+              <p className="text-xs font-bold">AI Render</p>
+            </Link>
+            <Link
+              href={`/chat?carId=${carId}`}
+              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
+            >
+              <MessageSquare size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
+              <p className="text-xs font-bold">Ask AI</p>
+            </Link>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SummaryCard({
+  icon,
+  label,
+  mod,
+  valueText,
+  valueColor,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  mod: { name: string } | null;
+  valueText: string;
+  valueColor: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3.5 lg:p-4">
+      <div className="flex items-center gap-1.5 mb-2.5">
+        {icon}
+        <p className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">{label}</p>
+      </div>
+      {mod ? (
+        <>
+          <p className="text-xs font-bold leading-snug line-clamp-2 mb-1">{mod.name}</p>
+          <p className="text-[10px] font-bold tabular" style={{ color: valueColor }}>
+            {valueText}
+          </p>
+        </>
+      ) : (
+        <p className="text-[10px] text-[var(--color-text-disabled)]">—</p>
+      )}
     </div>
   );
 }

@@ -21,7 +21,7 @@ export function TopBar({ username }: TopBarProps) {
   }
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 h-16 glass border-b border-[var(--color-border)]">
+    <header className="lg:hidden fixed top-0 left-0 right-0 z-40 h-16 glass border-b border-[var(--color-border)]">
       <div className="flex items-center justify-between h-full px-5 max-w-7xl mx-auto">
         {/* Logo */}
         <Link href="/garage" className="flex items-center gap-3 group">
