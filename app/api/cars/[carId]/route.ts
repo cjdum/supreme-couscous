@@ -49,10 +49,19 @@ export async function PATCH(request: Request, { params }: Params) {
   return NextResponse.json({ car: data });
 }
 
-export async function DELETE() {
-  // Hard delete is disabled. Use POST /api/cars/[carId]/sell to retire a car.
-  return NextResponse.json(
-    { error: "Cars cannot be deleted. Sell the car instead — it will move to Past Builds." },
-    { status: 405 }
-  );
+export async function DELETE(_req: Request, { params }: Params) {
+  const { carId } = await params;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Cards survive — schema sets pixel_cards.car_id to NULL on delete cascade
+  const { error } = await supabase
+    .from("cars")
+    .delete()
+    .eq("id", carId)
+    .eq("user_id", user.id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
 }

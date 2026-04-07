@@ -17,6 +17,7 @@ import { CarGallery } from "@/components/garage/car-gallery";
 import { BuildTimeline } from "@/components/garage/build-timeline";
 import { EditCarButton } from "@/components/garage/edit-car-button";
 import type { Car, Mod, ModCategory, Render } from "@/lib/supabase/types";
+import type { MintedCard } from "@/lib/pixel-card";
 
 interface Props {
   params: Promise<{ carId: string }>;
@@ -73,6 +74,17 @@ export default async function CarDetailPage({ params }: Props) {
     .from("car_photos")
     .select("id", { count: "exact", head: true })
     .eq("car_id", carId);
+  void photoCount;
+
+  // Latest pixel card + total count for this car
+  const { data: latestRaw, count: cardCount } = await supabase
+    .from("pixel_cards")
+    .select("*", { count: "exact" })
+    .eq("car_id", carId)
+    .eq("user_id", user.id)
+    .order("minted_at", { ascending: false })
+    .limit(1);
+  const latestCard = ((latestRaw ?? []) as MintedCard[])[0] ?? null;
 
   const installed = mods.filter((m) => m.status === "installed");
   const wishlist = mods.filter((m) => m.status === "wishlist");
@@ -182,7 +194,7 @@ export default async function CarDetailPage({ params }: Props) {
           >
             {car.is_public ? <><Globe size={10} /> Public</> : <><Lock size={10} /> Private</>}
           </div>
-          <EditCarButton car={car} />
+          <EditCarButton car={car} cardCount={cardCount ?? 0} />
         </div>
 
         {/* Car title over hero */}
@@ -318,14 +330,8 @@ export default async function CarDetailPage({ params }: Props) {
           <PixelCard
             carId={carId}
             carLabel={`${car.year} ${car.make} ${car.model}`}
-            pixelCardUrl={car.pixel_card_url}
-            pixelCardNickname={car.pixel_card_nickname}
-            pixelCardGeneratedAt={car.pixel_card_generated_at}
-            pixelCardHp={car.pixel_card_hp}
-            pixelCardModCount={car.pixel_card_mod_count}
-            pixelCardBuildScore={car.pixel_card_build_score}
-            pixelCardRarity={car.pixel_card_rarity}
-            vinVerified={car.vin_verified}
+            latestCard={latestCard}
+            cardCount={cardCount ?? 0}
           />
           <VehicleSpecs car={car} />
 

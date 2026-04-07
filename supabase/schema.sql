@@ -731,7 +731,60 @@ alter table cars add column if not exists pixel_card_rarity      text;
 -- ─────────────────────────────────────────────────────────────────────────────
 -- MIGRATION v9: VIN verification
 -- Marks a car as cryptographically linked to its real-world VIN via the NHTSA
--- decode API. Unlocks BUILDER / LEGEND card rarities.
+-- decode API.
 -- Run this block in Supabase SQL Editor.
 -- ─────────────────────────────────────────────────────────────────────────────
 alter table cars add column if not exists vin_verified boolean not null default false;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v10: Pixel cards table + remove rarity / sell flow
+-- Cards become memory snapshots: independent rows, persist after car deletion.
+-- Drop the per-car singleton card columns, drop is_sold/sold_at, restore
+-- normal car deletion. Add last_card_minted_at for cooldown tracking.
+-- Run this block in Supabase SQL Editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists pixel_cards (
+  id              uuid primary key default uuid_generate_v4(),
+  user_id         uuid not null references auth.users(id) on delete cascade,
+  car_id          uuid references cars(id) on delete set null,
+  car_snapshot    jsonb not null,
+  pixel_card_url  text not null,
+  nickname        text not null,
+  hp              integer,
+  mod_count       integer,
+  minted_at       timestamptz not null default now()
+);
+
+create index if not exists pixel_cards_user_id_idx   on pixel_cards(user_id);
+create index if not exists pixel_cards_car_id_idx    on pixel_cards(car_id);
+create index if not exists pixel_cards_minted_at_idx on pixel_cards(user_id, minted_at desc);
+
+alter table pixel_cards enable row level security;
+
+drop policy if exists "pixel_cards: owner all" on pixel_cards;
+create policy "pixel_cards: owner all"
+  on pixel_cards for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "pixel_cards: public read" on pixel_cards;
+create policy "pixel_cards: public read"
+  on pixel_cards for select
+  using (true);
+
+-- Drop the old per-car singleton columns
+alter table cars drop column if exists pixel_card_url;
+alter table cars drop column if exists pixel_card_nickname;
+alter table cars drop column if exists pixel_card_generated_at;
+alter table cars drop column if exists pixel_card_hp;
+alter table cars drop column if exists pixel_card_mod_count;
+alter table cars drop column if exists pixel_card_build_score;
+alter table cars drop column if exists pixel_card_rarity;
+
+-- Restore normal car deletion — drop the sell columns
+alter table cars drop column if exists is_sold;
+alter table cars drop column if exists sold_at;
+
+-- Cooldown tracker (72h between mints per car)
+alter table cars add column if not exists last_card_minted_at timestamptz;

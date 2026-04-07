@@ -1,36 +1,77 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { CardViewerModal } from "./card-viewer-modal";
-import { calculateRarityFromScore, type PixelCardRarity } from "@/lib/pixel-card";
-import type { Car } from "@/lib/supabase/types";
+import type { MintedCard } from "@/lib/pixel-card";
 
 interface CardCollectionProps {
-  cars: Car[];
+  /** All minted cards for the current user, sorted minted_at desc */
+  cards: MintedCard[];
+  /** Map of car_id → "YYYY Make Model" label (for cards whose car still exists) */
+  carLabels: Record<string, string>;
 }
 
-export function CardCollection({ cars }: CardCollectionProps) {
-  const [viewing, setViewing] = useState<Car | null>(null);
+interface ViewState {
+  cards: MintedCard[];
+  carLabel: string;
+  startIndex: number;
+}
 
-  const mintedCars = cars.filter((c) => c.pixel_card_url && c.pixel_card_nickname);
+export function CardCollection({ cards, carLabels }: CardCollectionProps) {
+  const [view, setView] = useState<ViewState | null>(null);
 
-  if (mintedCars.length === 0) return null;
+  // Group cards by car_id so we can navigate editions in the viewer.
+  const grouped = useMemo(() => {
+    const map = new Map<string, MintedCard[]>();
+    for (const c of cards) {
+      const key = c.car_id ?? `orphan:${c.id}`;
+      const arr = map.get(key) ?? [];
+      arr.push(c);
+      map.set(key, arr);
+    }
+    // Sort each group oldest → newest (Edition 1, 2, ...)
+    for (const arr of map.values()) {
+      arr.sort((a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime());
+    }
+    return map;
+  }, [cards]);
+
+  if (cards.length === 0) return null;
+
+  function openViewer(card: MintedCard) {
+    const key = card.car_id ?? `orphan:${card.id}`;
+    const group = grouped.get(key) ?? [card];
+    const startIndex = group.findIndex((c) => c.id === card.id);
+    const label = card.car_id ? carLabels[card.car_id] : null;
+    const snap = card.car_snapshot;
+    const fallback = `${snap.year} ${snap.make} ${snap.model}`;
+    setView({
+      cards: group,
+      carLabel: label ?? fallback,
+      startIndex: Math.max(0, startIndex),
+    });
+  }
 
   return (
     <>
-      {viewing && (
-        <CardViewerModal car={viewing} onClose={() => setViewing(null)} />
+      {view && (
+        <CardViewerModal
+          cards={view.cards}
+          carLabel={view.carLabel}
+          startIndex={view.startIndex}
+          onClose={() => setView(null)}
+        />
       )}
 
       <section className="mt-14">
         <div className="flex items-center gap-2 mb-5">
           <Sparkles size={15} className="text-[#f5d76e]" />
           <div>
-            <h2 className="text-base font-bold tracking-tight">Card Collection</h2>
+            <h2 className="text-base font-bold tracking-tight">Collection &amp; Awards</h2>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-              {mintedCars.length} permanent {mintedCars.length === 1 ? "card" : "cards"} minted
+              {cards.length} permanent {cards.length === 1 ? "card" : "cards"} minted
             </p>
           </div>
         </div>
@@ -38,39 +79,60 @@ export function CardCollection({ cars }: CardCollectionProps) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-            gap: "2rem",
+            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gap: "1.5rem",
             padding: "0.5rem 0",
           }}
         >
-          {mintedCars.map((car) => {
-            const rarity: PixelCardRarity =
-              (car.pixel_card_rarity as PixelCardRarity) ??
-              calculateRarityFromScore(car.pixel_card_build_score ?? 0);
+          {cards.map((card) => {
+            const snap = card.car_snapshot;
+            const label = (card.car_id && carLabels[card.car_id]) || `${snap.year} ${snap.make} ${snap.model}`;
+            const group = grouped.get(card.car_id ?? `orphan:${card.id}`) ?? [card];
+            const edition = group.findIndex((c) => c.id === card.id) + 1;
 
             return (
-              <div
-                key={car.id}
-                onClick={() => setViewing(car)}
-                style={{ cursor: "pointer", display: "flex", justifyContent: "center" }}
+              <button
+                key={card.id}
+                onClick={() => openViewer(card)}
+                style={{
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                }}
               >
-                {/* Scale card from 280px → fit grid cell */}
-                <div style={{ transform: "scale(0.72)", transformOrigin: "top center", height: 302 }}>
-                  <TradingCard
-                    cardUrl={car.pixel_card_url!}
-                    nickname={car.pixel_card_nickname!}
-                    generatedAt={car.pixel_card_generated_at}
-                    hp={car.pixel_card_hp}
-                    modCount={car.pixel_card_mod_count}
-                    buildScore={car.pixel_card_build_score}
-                    rarity={rarity}
-                    vinVerified={car.vin_verified}
-                    carLabel={`${car.year} ${car.make} ${car.model}`}
-                    idle
-                    interactive={false}
-                  />
-                </div>
-              </div>
+                <TradingCard
+                  cardUrl={card.pixel_card_url}
+                  nickname={card.nickname}
+                  generatedAt={card.minted_at}
+                  hp={card.hp}
+                  modCount={card.mod_count}
+                  buildScore={snap.build_score}
+                  vinVerified={snap.vin_verified}
+                  carLabel={label}
+                  scale={0.6}
+                  idle
+                  interactive={false}
+                />
+                {group.length > 1 && (
+                  <p
+                    style={{
+                      marginTop: 6,
+                      fontFamily: "ui-monospace, monospace",
+                      fontSize: 9,
+                      fontWeight: 800,
+                      color: "rgba(245,215,110,0.75)",
+                      letterSpacing: "0.15em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Ed. {edition} / {group.length}
+                  </p>
+                )}
+              </button>
             );
           })}
         </div>

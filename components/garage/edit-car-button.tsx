@@ -7,9 +7,10 @@ import type { Car } from "@/lib/supabase/types";
 
 interface EditCarButtonProps {
   car: Car;
+  cardCount?: number;
 }
 
-export function EditCarButton({ car }: EditCarButtonProps) {
+export function EditCarButton({ car, cardCount = 0 }: EditCarButtonProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -22,7 +23,14 @@ export function EditCarButton({ car }: EditCarButtonProps) {
         <Edit2 size={11} />
         Edit
       </button>
-      {open && <EditCarModal open={open} onClose={() => setOpen(false)} car={car} />}
+      {open && (
+        <EditCarModal
+          open={open}
+          onClose={() => setOpen(false)}
+          car={car}
+          cardCount={cardCount}
+        />
+      )}
     </>
   );
 }

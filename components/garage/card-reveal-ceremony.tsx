@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { TradingCard, type TradingCardData } from "./trading-card";
-import type { PixelCardRarity } from "@/lib/pixel-card";
 
 interface CardRevealCeremonyProps {
   card: TradingCardData;
@@ -260,7 +259,6 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
             >
               <TradingCard
                 {...card}
-                rarity={(card.rarity as PixelCardRarity) ?? "STOCK"}
                 carLabel={carLabel}
                 idle={phase === "card_settled" || phase === "nickname_reveal" || phase === "show_continue"}
                 interactive={false}

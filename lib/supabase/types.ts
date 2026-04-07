@@ -12,6 +12,20 @@ export type ModStatus = "installed" | "wishlist";
 
 export type ForumCategory = "general" | "build" | "advice" | "showcase" | "for_sale";
 
+export interface PixelCardSnapshot {
+  make: string;
+  model: string;
+  year: number;
+  color: string | null;
+  trim: string | null;
+  description: string | null;
+  mods: string[];
+  mod_count: number;
+  hp: number | null;
+  build_score: number | null;
+  vin_verified: boolean;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -79,16 +93,8 @@ export interface Database {
           stock_drivetrain: string | null;
           stock_transmission: string | null;
           description: string | null;
-          pixel_card_url: string | null;
-          pixel_card_nickname: string | null;
-          pixel_card_generated_at: string | null;
-          pixel_card_hp: number | null;
-          pixel_card_mod_count: number | null;
-          pixel_card_build_score: number | null;
-          pixel_card_rarity: string | null;
           vin_verified: boolean;
-          is_sold: boolean;
-          sold_at: string | null;
+          last_card_minted_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -123,16 +129,8 @@ export interface Database {
           stock_drivetrain?: string | null;
           stock_transmission?: string | null;
           description?: string | null;
-          pixel_card_url?: string | null;
-          pixel_card_nickname?: string | null;
-          pixel_card_generated_at?: string | null;
-          pixel_card_hp?: number | null;
-          pixel_card_mod_count?: number | null;
-          pixel_card_build_score?: number | null;
-          pixel_card_rarity?: string | null;
           vin_verified?: boolean;
-          is_sold?: boolean;
-          sold_at?: string | null;
+          last_card_minted_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -165,17 +163,37 @@ export interface Database {
           stock_drivetrain?: string | null;
           stock_transmission?: string | null;
           description?: string | null;
-          pixel_card_url?: string | null;
-          pixel_card_nickname?: string | null;
-          pixel_card_generated_at?: string | null;
-          pixel_card_hp?: number | null;
-          pixel_card_mod_count?: number | null;
-          pixel_card_build_score?: number | null;
-          pixel_card_rarity?: string | null;
           vin_verified?: boolean;
-          is_sold?: boolean;
-          sold_at?: string | null;
+          last_card_minted_at?: string | null;
           updated_at?: string;
+        };
+      };
+      pixel_cards: {
+        Row: {
+          id: string;
+          user_id: string;
+          car_id: string | null;
+          car_snapshot: PixelCardSnapshot;
+          pixel_card_url: string;
+          nickname: string;
+          hp: number | null;
+          mod_count: number | null;
+          minted_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          car_id?: string | null;
+          car_snapshot: PixelCardSnapshot;
+          pixel_card_url: string;
+          nickname: string;
+          hp?: number | null;
+          mod_count?: number | null;
+          minted_at?: string;
+        };
+        Update: {
+          car_id?: string | null;
+          nickname?: string;
         };
       };
       car_photos: {
@@ -485,3 +503,4 @@ export type ForumReply = Database["public"]["Tables"]["forum_replies"]["Row"];
 export type ForumLike = Database["public"]["Tables"]["forum_likes"]["Row"];
 export type ForumDownvote = Database["public"]["Tables"]["forum_downvotes"]["Row"];
 export type Purchase = Database["public"]["Tables"]["purchases"]["Row"];
+export type PixelCard = Database["public"]["Tables"]["pixel_cards"]["Row"];

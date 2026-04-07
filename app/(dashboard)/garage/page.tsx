@@ -11,6 +11,7 @@ import { PageContainer } from "@/components/ui/page-container";
 import { calculateBuildScore, LEVEL_COLORS } from "@/lib/build-score";
 import { CardCollection } from "@/components/garage/card-collection";
 import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
+import type { MintedCard } from "@/lib/pixel-card";
 
 export const metadata = { title: "Garage — MODVAULT" };
 
@@ -31,7 +32,6 @@ export default async function GaragePage() {
     .from("cars")
     .select("*")
     .eq("user_id", user!.id)
-    .eq("is_sold", false)
     .order("created_at", { ascending: false });
   const cars = ((carsRaw ?? []) as CarType[]).sort((a, b) => {
     if (a.is_primary && !b.is_primary) return -1;
@@ -128,6 +128,26 @@ export default async function GaragePage() {
       is_diy: m.is_diy,
       notes: m.notes,
     }));
+
+  // ── All minted cards across the user (for collection section) ──
+  const { data: userCardsRaw } = await supabase
+    .from("pixel_cards")
+    .select("*")
+    .eq("user_id", user!.id)
+    .order("minted_at", { ascending: false });
+  const userCards = (userCardsRaw ?? []) as MintedCard[];
+  const carLabels: Record<string, string> = {};
+  for (const c of cars) {
+    carLabels[c.id] = `${c.year} ${c.make} ${c.model}`;
+  }
+  // Group cards by car_id for CarsRail thumbnails (newest → oldest already)
+  const cardsByCarId = new Map<string, MintedCard[]>();
+  for (const card of userCards) {
+    if (!card.car_id) continue;
+    const arr = cardsByCarId.get(card.car_id) ?? [];
+    arr.push(card);
+    cardsByCarId.set(card.car_id, arr);
+  }
 
   return (
     <div className="min-h-dvh animate-fade">
@@ -234,7 +254,7 @@ export default async function GaragePage() {
                 Drag to reorder. {otherCars.length} {otherCars.length === 1 ? "car" : "cars"}.
               </p>
             </div>
-            <CarsRail cars={otherCars} stats={statsMap} />
+            <CarsRail cars={otherCars} stats={statsMap} cardsByCarId={cardsByCarId} />
           </section>
         )}
 
@@ -246,7 +266,7 @@ export default async function GaragePage() {
         )}
 
         {/* ── Pixel Card Collection ── */}
-        <CardCollection cars={cars} />
+        <CardCollection cards={userCards} carLabels={carLabels} />
       </PageContainer>
 
       <AddCarButton fab />

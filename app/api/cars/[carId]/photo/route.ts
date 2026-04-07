@@ -58,6 +58,23 @@ export async function POST(
     .update({ cover_image_url: publicUrl, updated_at: new Date().toISOString() })
     .eq("id", carId);
 
+  // Also save to car_photos gallery so this photo counts toward pixel-card
+  // eligibility (≥1 real photo). Without this, the onboarding photo only
+  // lives in cars.cover_image_url and the mint requirement reads zero.
+  // Determine next position.
+  const { count: existingCount } = await supabase
+    .from("car_photos")
+    .select("id", { count: "exact", head: true })
+    .eq("car_id", carId);
+
+  await supabase.from("car_photos").insert({
+    car_id: carId,
+    user_id: user.id,
+    url: publicUrl,
+    position: existingCount ?? 0,
+    is_cover: (existingCount ?? 0) === 0,
+  });
+
   return NextResponse.json({ url: publicUrl });
 }
 

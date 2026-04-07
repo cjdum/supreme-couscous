@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Globe, Lock, Wrench, Star, ShieldCheck } from "lucide-react";
 import type { Car } from "@/lib/supabase/types";
+import type { MintedCard } from "@/lib/pixel-card";
 import { formatCurrency, cn } from "@/lib/utils";
 import { SetPrimaryButton } from "./set-primary-button";
 import { CardViewerModal } from "./card-viewer-modal";
@@ -14,6 +15,8 @@ interface CarCardProps {
   totalSpent?: number;
   isPrimary?: boolean;
   compact?: boolean;
+  /** All minted cards for this car, newest → oldest (optional — for thumbnail + viewer) */
+  cards?: MintedCard[];
 }
 
 const MAKE_COLORS: Record<string, string> = {
@@ -41,16 +44,27 @@ export function CarCard({
   totalSpent = 0,
   isPrimary = false,
   compact = false,
+  cards = [],
 }: CarCardProps) {
   const accent = getMakeColor(car.make);
   const [viewingCard, setViewingCard] = useState(false);
-  const hasPixelCard = Boolean(car.pixel_card_url && car.pixel_card_nickname);
+
+  const hasPixelCard = cards.length > 0;
+  const latestCard = cards[0] ?? null; // cards arrive newest-first
+  const carLabel = `${car.year} ${car.make} ${car.model}`;
+
+  // Viewer needs oldest→newest
+  const viewerCards = [...cards].reverse();
 
   return (
     <div className="relative">
-      {/* Full-screen card viewer (portal) */}
       {viewingCard && hasPixelCard && (
-        <CardViewerModal car={car} onClose={() => setViewingCard(false)} />
+        <CardViewerModal
+          cards={viewerCards}
+          carLabel={carLabel}
+          startIndex={viewerCards.length - 1}
+          onClose={() => setViewingCard(false)}
+        />
       )}
 
       {/* Car card link */}
@@ -67,7 +81,7 @@ export function CarCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={car.cover_image_url}
-            alt={`${car.year} ${car.make} ${car.model}`}
+            alt={carLabel}
             loading="lazy"
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           />
@@ -226,12 +240,10 @@ export function CarCard({
           height: compact ? 42 : 51,
           borderRadius: 4,
           background: hasPixelCard ? "#0d0d1a" : "rgba(0,0,0,0.55)",
-          border: `1.5px solid ${
-            hasPixelCard ? "rgba(245,215,110,0.65)" : "rgba(255,255,255,0.12)"
-          }`,
-          transform: "rotate(-6deg)",
+          border: `1.5px solid ${hasPixelCard ? "#7b4fd4" : "rgba(255,255,255,0.12)"}`,
+          transform: "rotate(-5deg)",
           boxShadow: hasPixelCard
-            ? "0 2px 12px rgba(245,215,110,0.28), 0 4px 10px rgba(0,0,0,0.55)"
+            ? "0 2px 12px rgba(123,79,212,0.30), 0 4px 10px rgba(0,0,0,0.55)"
             : "0 2px 8px rgba(0,0,0,0.4)",
           overflow: "hidden",
           cursor: "pointer",
@@ -240,22 +252,22 @@ export function CarCard({
         }}
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLButtonElement).style.transform =
-            "rotate(-3deg) scale(1.12)";
+            "rotate(-2deg) scale(1.12)";
           (e.currentTarget as HTMLButtonElement).style.boxShadow = hasPixelCard
-            ? "0 4px 20px rgba(245,215,110,0.4), 0 6px 14px rgba(0,0,0,0.6)"
+            ? "0 4px 20px rgba(123,79,212,0.45), 0 6px 14px rgba(0,0,0,0.6)"
             : "0 4px 12px rgba(0,0,0,0.5)";
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.transform = "rotate(-6deg)";
+          (e.currentTarget as HTMLButtonElement).style.transform = "rotate(-5deg)";
           (e.currentTarget as HTMLButtonElement).style.boxShadow = hasPixelCard
-            ? "0 2px 12px rgba(245,215,110,0.28), 0 4px 10px rgba(0,0,0,0.55)"
+            ? "0 2px 12px rgba(123,79,212,0.30), 0 4px 10px rgba(0,0,0,0.55)"
             : "0 2px 8px rgba(0,0,0,0.4)";
         }}
       >
-        {hasPixelCard && car.pixel_card_url ? (
+        {hasPixelCard && latestCard ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={car.pixel_card_url}
+            src={latestCard.pixel_card_url}
             alt="Pixel card"
             style={{
               width: "100%",

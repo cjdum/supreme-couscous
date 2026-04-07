@@ -1,100 +1,70 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Unlock, Sparkles, CheckCircle2, Circle, Loader2, ShieldCheck } from "lucide-react";
+import { Lock, Unlock, Sparkles, Camera, Clock, Loader2, CheckCircle2 } from "lucide-react";
 import { haptic } from "@/lib/haptics";
-import {
-  calculateRarityFromScore,
-  type EligibilityCheck,
-  type EligibilityResponse,
-  type PixelCardRarity,
-} from "@/lib/pixel-card";
-import { TradingCard, type TradingCardData } from "./trading-card";
+import type { CardEligibility, MintedCard } from "@/lib/pixel-card";
+import { CARD_BORDER_COLOR } from "@/lib/pixel-card";
+import { TradingCard } from "./trading-card";
 import { CardRevealCeremony } from "./card-reveal-ceremony";
 
 interface PixelCardProps {
   carId: string;
   carLabel: string;
-  // Existing card data (null = not yet minted)
-  pixelCardUrl: string | null;
-  pixelCardNickname: string | null;
-  pixelCardGeneratedAt: string | null;
-  pixelCardHp: number | null;
-  pixelCardModCount: number | null;
-  pixelCardBuildScore: number | null;
-  pixelCardRarity: string | null;
-  vinVerified: boolean;
-  username?: string; // for share URL
+  /** Latest minted card for this car (or null) */
+  latestCard: MintedCard | null;
+  /** Total card count for this car (for "Edition" indicator) */
+  cardCount: number;
 }
 
-type MintState = "idle" | "generating" | "ceremony";
+type MintState = "idle" | "minting" | "ceremony";
 
 export function PixelCard(props: PixelCardProps) {
   const router = useRouter();
-  const [mintState, setMintState]   = useState<MintState>("idle");
-  const [error, setError]           = useState<string | null>(null);
-  const [freshCard, setFreshCard]   = useState<TradingCardData | null>(null);
-  const [eligibility, setEligibility] = useState<EligibilityResponse | null>(null);
+  const [mintState, setMintState] = useState<MintState>("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [freshCard, setFreshCard] = useState<MintedCard | null>(null);
+  const [eligibility, setEligibility] = useState<CardEligibility | null>(null);
   const [eligLoading, setEligLoading] = useState(true);
 
-  // ── Fetch server-side eligibility on mount ─────────────────────────────────
+  // ── Fetch eligibility (initial + polling fallback every 10s) ────────────
+  const fetchEligibility = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/cards/eligibility?carId=${props.carId}`);
+      if (res.ok) {
+        const data: CardEligibility = await res.json();
+        setEligibility(data);
+      }
+    } catch {
+      /* swallow — keep last value */
+    } finally {
+      setEligLoading(false);
+    }
+  }, [props.carId]);
+
   useEffect(() => {
-    if (props.pixelCardUrl) return; // already minted
-    setEligLoading(true);
-    fetch(`/api/cars/${props.carId}/check-eligibility`)
-      .then((r) => r.json())
-      .then((data: EligibilityResponse) => setEligibility(data))
-      .catch(() =>
-        setEligibility({ eligible: false, checks: [] })
-      )
-      .finally(() => setEligLoading(false));
-  }, [props.carId, props.pixelCardUrl]);
-
-  // ── Already generated — show permanent card ─────────────────────────────────
-  if (props.pixelCardUrl && props.pixelCardNickname) {
-    const rarity: PixelCardRarity =
-      (props.pixelCardRarity as PixelCardRarity) ??
-      calculateRarityFromScore(props.pixelCardBuildScore ?? 0);
-
-    const cardData: TradingCardData = {
-      cardUrl:     props.pixelCardUrl,
-      nickname:    props.pixelCardNickname,
-      generatedAt: props.pixelCardGeneratedAt,
-      hp:          props.pixelCardHp,
-      modCount:    props.pixelCardModCount,
-      buildScore:  props.pixelCardBuildScore,
-      rarity,
-      vinVerified: props.vinVerified,
-    };
-    return (
-      <div className="flex flex-col items-center">
-        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[rgba(245,215,110,0.6)] mb-4">
-          Pixel card · permanent
-        </p>
-        <TradingCard
-          {...cardData}
-          carLabel={props.carLabel}
-          idle
-          interactive
-          showShare
-          onShare={() => {
-            const url = `${window.location.origin}/u/`;
-            navigator.clipboard.writeText(url).catch(() => {});
-            haptic("light");
-          }}
-        />
-      </div>
-    );
-  }
+    fetchEligibility();
+    const interval = setInterval(fetchEligibility, 10_000);
+    return () => clearInterval(interval);
+  }, [fetchEligibility]);
 
   // ── Ceremony overlay (freshly minted) ───────────────────────────────────
   if (mintState === "ceremony" && freshCard) {
     return (
       <CardRevealCeremony
-        card={freshCard}
+        card={{
+          cardUrl:     freshCard.pixel_card_url,
+          nickname:    freshCard.nickname,
+          generatedAt: freshCard.minted_at,
+          hp:          freshCard.hp,
+          modCount:    freshCard.mod_count,
+          buildScore:  freshCard.car_snapshot.build_score,
+          vinVerified: freshCard.car_snapshot.vin_verified,
+        }}
         carLabel={props.carLabel}
         onComplete={() => {
+          setMintState("idle");
           router.refresh();
         }}
       />
@@ -103,43 +73,32 @@ export function PixelCard(props: PixelCardProps) {
 
   async function handleGenerate() {
     if (mintState !== "idle") return;
-    const confirmed = window.confirm(
-      "Mint your pixel card? This is permanent — the image and nickname are locked forever."
-    );
-    if (!confirmed) return;
+    if (!eligibility?.eligible) return;
 
-    setMintState("generating");
+    setMintState("minting");
     setError(null);
     try {
-      const res  = await fetch(`/api/cars/${props.carId}/pixel-card`, { method: "POST" });
+      const res = await fetch(`/api/cards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ carId: props.carId }),
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(typeof json.error === "string" ? json.error : "Failed to generate");
+        throw new Error(typeof json.error === "string" ? json.error : "Failed to mint");
       }
-      const rarity: PixelCardRarity =
-        (json.pixel_card_rarity as PixelCardRarity) ?? "STOCK";
-      const card: TradingCardData = {
-        cardUrl:     json.pixel_card_url,
-        nickname:    json.pixel_card_nickname,
-        generatedAt: json.pixel_card_generated_at,
-        hp:          json.pixel_card_hp,
-        modCount:    json.pixel_card_mod_count,
-        buildScore:  json.pixel_card_build_score,
-        rarity,
-        vinVerified: json.vin_verified ?? props.vinVerified,
-      };
-      setFreshCard(card);
+      setFreshCard(json.card as MintedCard);
       haptic("success");
       setMintState("ceremony");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate");
+      setError(err instanceof Error ? err.message : "Failed to mint");
       haptic("heavy");
       setMintState("idle");
     }
   }
 
-  // ── Eligibility loading skeleton ────────────────────────────────────────────
-  if (eligLoading) {
+  // ── Skeleton ────────────────────────────────────────────────────────────────
+  if (eligLoading && !eligibility) {
     return (
       <div>
         <div className="flex items-center gap-2 mb-4">
@@ -150,22 +109,18 @@ export function PixelCard(props: PixelCardProps) {
           </div>
         </div>
         <div className="rounded-2xl bg-[var(--color-bg-elevated)] animate-pulse mx-auto" style={{ width: 260, height: 180 }} />
-        <div className="mt-4 space-y-2">
-          {[1,2,3].map((i) => (
-            <div key={i} className="h-5 rounded bg-[var(--color-bg-elevated)] animate-pulse" />
-          ))}
-        </div>
       </div>
     );
   }
 
   const eligible = eligibility?.eligible ?? false;
-  const checks   = eligibility?.checks ?? [];
+  const hasPhoto = eligibility?.hasPhoto ?? false;
+  const cooldownH = eligibility?.cooldownRemainingHours ?? 0;
+  const hasCard   = !!props.latestCard;
 
-  // ── Locked / eligible state ──────────────────────────────────────────────────
   return (
     <div>
-      {/* ── Section label ─────────────────────────────────────────────── */}
+      {/* ── Section label ──────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2 mb-4">
         <div className="p-1.5 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)]">
           {eligible ? (
@@ -174,119 +129,111 @@ export function PixelCard(props: PixelCardProps) {
             <Lock size={12} className="text-[var(--color-text-muted)]" />
           )}
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="text-xs font-bold">
-            {eligible ? "Ready to mint" : "Pixel card locked"}
+            {hasCard ? `Pixel cards · ${props.cardCount}` : eligible ? "Ready to mint" : "Pixel card locked"}
           </p>
           <p className="text-[10px] text-[var(--color-text-muted)]">
-            {eligible
-              ? "Your collectible is waiting"
-              : "Complete all requirements to unlock"}
+            {hasCard
+              ? "Mint another to capture this moment"
+              : eligible
+              ? "Your first card is waiting"
+              : "Add a photo to unlock"}
           </p>
         </div>
       </div>
 
-      {/* ── VIN hint (if not verified) ──────────────────────────────────── */}
-      {!props.vinVerified && (
-        <div className="mb-3 flex items-start gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-2.5">
-          <ShieldCheck size={13} className="text-[var(--color-text-muted)] mt-0.5 flex-shrink-0" />
-          <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
-            <span className="text-white/60 font-semibold">Tip:</span> Verify your VIN in car settings for a higher rarity card (BUILDER or LEGEND).
-          </p>
+      {/* ── Latest card preview (if any) ───────────────────────────────────── */}
+      {hasCard && props.latestCard && (
+        <div className="mb-4 flex justify-center">
+          <TradingCard
+            cardUrl={props.latestCard.pixel_card_url}
+            nickname={props.latestCard.nickname}
+            generatedAt={props.latestCard.minted_at}
+            hp={props.latestCard.hp}
+            modCount={props.latestCard.mod_count}
+            buildScore={props.latestCard.car_snapshot.build_score}
+            vinVerified={props.latestCard.car_snapshot.vin_verified}
+            carLabel={props.carLabel}
+            idle
+            interactive
+          />
         </div>
       )}
 
-      {/* ── Card silhouette with progress ───────────────────────────────── */}
-      <div
-        className="rounded-2xl overflow-hidden relative mx-auto"
-        style={{
-          width: 260,
-          height: 180,
-          background: eligible
-            ? "linear-gradient(135deg, #1a0a2e 0%, #0d0d1a 100%)"
-            : "linear-gradient(135deg, #0d0d18 0%, #0a0a12 100%)",
-          border: `2px solid ${eligible ? "rgba(123,79,212,0.6)" : "rgba(61,61,92,0.8)"}`,
-          boxShadow: eligible ? "0 0 24px rgba(123,79,212,0.25)" : "none",
-          transition: "all 0.5s ease",
-        }}
-      >
-        {/* Pixel grid overlay */}
+      {/* ── Locked silhouette (only when no card yet) ──────────────────────── */}
+      {!hasCard && (
         <div
+          className="rounded-2xl overflow-hidden relative mx-auto"
           style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: [
-              "repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 4px)",
-              "repeating-linear-gradient(90deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 4px)",
-            ].join(", "),
-            pointerEvents: "none",
+            width: 260,
+            height: 180,
+            background: eligible
+              ? "linear-gradient(135deg, #1a0a2e 0%, #0d0d1a 100%)"
+              : "linear-gradient(135deg, #0d0d18 0%, #0a0a12 100%)",
+            border: `2px solid ${eligible ? CARD_BORDER_COLOR : "rgba(61,61,92,0.8)"}`,
+            boxShadow: eligible ? "0 0 24px rgba(123,79,212,0.30)" : "none",
+            transition: "all 0.5s ease",
           }}
-        />
-
-        {/* Lock icon or unlocked sparkle */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-          {eligible ? (
-            <>
-              <div
-                className="rounded-full flex items-center justify-center"
-                style={{ width: 44, height: 44, background: "rgba(123,79,212,0.2)", border: "2px solid rgba(123,79,212,0.5)" }}
-              >
-                <Sparkles size={20} style={{ color: "#7b4fd4" }} />
-              </div>
-              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, color: "#7b4fd4", fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
-                Unlocked
-              </p>
-            </>
-          ) : (
-            <>
-              <div
-                className="rounded-full flex items-center justify-center"
-                style={{ width: 44, height: 44, background: "rgba(255,255,255,0.04)", border: "2px solid rgba(255,255,255,0.1)" }}
-              >
-                <Lock size={20} className="text-[var(--color-text-muted)]" />
-              </div>
-              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 18, fontWeight: 900, color: "rgba(255,255,255,0.25)" }}>
-                {checks.filter((c) => c.met).length}/{checks.length} done
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* Progress bar strip at bottom */}
-        {checks.length > 0 && (
+        >
           <div
             style={{
               position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: 4,
-              background: "rgba(255,255,255,0.06)",
+              inset: 0,
+              backgroundImage: [
+                "repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 4px)",
+                "repeating-linear-gradient(90deg, rgba(255,255,255,0.018) 0px, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 4px)",
+              ].join(", "),
+              pointerEvents: "none",
             }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${Math.round((checks.filter((c) => c.met).length / checks.length) * 100)}%`,
-                background: eligible
-                  ? "linear-gradient(90deg, #7b4fd4, #a855f7)"
-                  : "linear-gradient(90deg, #3b82f6, #7b4fd4)",
-                transition: "width 0.6s cubic-bezier(0.4,0,0.2,1)",
-                borderRadius: "0 2px 0 0",
-              }}
-            />
+          />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            {eligible ? (
+              <>
+                <div
+                  className="rounded-full flex items-center justify-center"
+                  style={{ width: 44, height: 44, background: "rgba(123,79,212,0.2)", border: "2px solid rgba(123,79,212,0.5)" }}
+                >
+                  <Sparkles size={20} style={{ color: CARD_BORDER_COLOR }} />
+                </div>
+                <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, color: CARD_BORDER_COLOR, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                  Ready
+                </p>
+              </>
+            ) : (
+              <>
+                <div
+                  className="rounded-full flex items-center justify-center"
+                  style={{ width: 44, height: 44, background: "rgba(255,255,255,0.04)", border: "2px solid rgba(255,255,255,0.1)" }}
+                >
+                  <Lock size={20} className="text-[var(--color-text-muted)]" />
+                </div>
+                <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.15em" }}>
+                  Locked
+                </p>
+              </>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* ── Requirements list ────────────────────────────────────────────── */}
+      {/* ── Requirements list ──────────────────────────────────────────────── */}
       <div className="mt-4 space-y-2">
-        {checks.map((check) => (
-          <RequirementRow key={check.id} check={check} />
-        ))}
+        <RequirementRow
+          met={hasPhoto}
+          icon={<Camera size={13} />}
+          label="Upload a real photo"
+          detail={hasPhoto ? "Done" : "Required"}
+        />
+        <RequirementRow
+          met={cooldownH === 0}
+          icon={<Clock size={13} />}
+          label="72-hour cooldown"
+          detail={cooldownH === 0 ? "Ready" : `${cooldownH}h remaining`}
+        />
       </div>
 
-      {/* ── Error message ────────────────────────────────────────────────── */}
+      {/* ── Error message ──────────────────────────────────────────────────── */}
       {error && (
         <div
           role="alert"
@@ -296,77 +243,85 @@ export function PixelCard(props: PixelCardProps) {
         </div>
       )}
 
-      {/* ── Mint button (eligible only) ──────────────────────────────────── */}
-      {eligible && (
-        <div className="mt-4">
-          <button
-            onClick={handleGenerate}
-            disabled={mintState !== "idle"}
-            style={{
-              width: "100%",
-              height: 44,
-              borderRadius: 12,
-              background: mintState !== "idle"
-                ? "rgba(123,79,212,0.3)"
-                : "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-              border: "1px solid rgba(123,79,212,0.5)",
-              color: "white",
-              fontFamily: "ui-monospace, monospace",
-              fontSize: 12,
-              fontWeight: 700,
-              letterSpacing: "0.1em",
-              textTransform: "uppercase" as const,
-              cursor: mintState !== "idle" ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              transition: "all 0.2s",
-              boxShadow: mintState === "idle" ? "0 4px 20px rgba(123,79,212,0.35)" : "none",
-            }}
-          >
-            {mintState === "generating" ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Minting... (up to 30s)
-              </>
-            ) : (
-              <>
-                <Sparkles size={14} />
-                Mint card
-              </>
-            )}
-          </button>
-          <p className="text-[10px] text-[var(--color-text-disabled)] mt-2 text-center">
-            One generation per car, forever. No regeneration.
-          </p>
-        </div>
-      )}
+      {/* ── Mint button ────────────────────────────────────────────────────── */}
+      <div className="mt-4">
+        <button
+          onClick={handleGenerate}
+          disabled={!eligible || mintState !== "idle"}
+          style={{
+            width: "100%",
+            height: 44,
+            borderRadius: 12,
+            background: !eligible || mintState !== "idle"
+              ? "rgba(123,79,212,0.18)"
+              : "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+            border: `1px solid ${eligible ? "rgba(123,79,212,0.6)" : "rgba(123,79,212,0.25)"}`,
+            color: eligible ? "white" : "rgba(255,255,255,0.5)",
+            fontFamily: "ui-monospace, monospace",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase" as const,
+            cursor: !eligible || mintState !== "idle" ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            transition: "all 0.2s",
+            boxShadow: eligible && mintState === "idle" ? "0 4px 20px rgba(123,79,212,0.35)" : "none",
+          }}
+        >
+          {mintState === "minting" ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              Minting... (up to 30s)
+            </>
+          ) : (
+            <>
+              <Sparkles size={14} />
+              {hasCard ? "Mint another card" : "Mint card"}
+            </>
+          )}
+        </button>
+        <p className="text-[10px] text-[var(--color-text-disabled)] mt-2 text-center">
+          Each card is a permanent snapshot. Mint as many as you like — every 72h.
+        </p>
+      </div>
     </div>
   );
 }
 
-function RequirementRow({ check }: { check: EligibilityCheck }) {
+function RequirementRow({
+  met,
+  icon,
+  label,
+  detail,
+}: {
+  met: boolean;
+  icon: React.ReactNode;
+  label: string;
+  detail: string;
+}) {
   return (
     <div className="flex items-center gap-3">
       <div className="relative flex-shrink-0">
-        {check.met ? (
+        {met ? (
           <CheckCircle2 size={15} className="text-[#30d158]" />
         ) : (
-          <Circle size={15} className="text-[var(--color-text-disabled)]" />
+          <div className="text-[var(--color-text-disabled)]">{icon}</div>
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <p
             className={`text-[11px] font-semibold leading-snug ${
-              check.met ? "text-[var(--color-text-muted)] line-through" : "text-white/80"
+              met ? "text-[var(--color-text-muted)] line-through" : "text-white/80"
             }`}
           >
-            {check.label}
+            {label}
           </p>
           <p className="text-[10px] text-[var(--color-text-muted)] tabular-nums flex-shrink-0">
-            {check.detail}
+            {detail}
           </p>
         </div>
       </div>

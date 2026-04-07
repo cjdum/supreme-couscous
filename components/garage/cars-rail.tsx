@@ -4,10 +4,13 @@ import { useState } from "react";
 import { GripVertical } from "lucide-react";
 import { CarCard } from "./car-card";
 import type { Car } from "@/lib/supabase/types";
+import type { MintedCard } from "@/lib/pixel-card";
 
 interface CarsRailProps {
   cars: Car[];
   stats: Map<string, { count: number; total: number }>;
+  /** Map of car_id → all minted cards for that car (newest → oldest) */
+  cardsByCarId?: Map<string, MintedCard[]>;
 }
 
 /**
@@ -15,7 +18,7 @@ interface CarsRailProps {
  * Supports drag-to-reorder via HTML5 drag events.
  * Order is local-only (UI sugar) — persistence would require a `position` column.
  */
-export function CarsRail({ cars: initialCars, stats }: CarsRailProps) {
+export function CarsRail({ cars: initialCars, stats, cardsByCarId }: CarsRailProps) {
   const [cars, setCars] = useState(initialCars);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
@@ -72,6 +75,7 @@ export function CarsRail({ cars: initialCars, stats }: CarsRailProps) {
             totalSpent={stats.get(car.id)?.total ?? 0}
             isPrimary={false}
             compact
+            cards={cardsByCarId?.get(car.id) ?? []}
           />
         </div>
       ))}
