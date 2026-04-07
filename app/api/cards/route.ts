@@ -8,19 +8,16 @@ import { randomEra } from "@/lib/pixel-card";
 
 /**
  * POST /api/cards
- * body: { carId: string }
+ * body: { carId: string; occasion: string }
  *
  * Mints a new pixel card snapshot for a car.
  * Requirements:
  *   - At least 1 real photo (not a render or pixel-card)
- *   - 72 hour cooldown since last mint for this car
+ *   - occasion note required (max 100 chars) — frozen on the card forever
  *
- * Cards are independent rows. A car can have many cards. Cards persist
- * even if the car is deleted (car_id is set to null on delete).
+ * No cooldown. Cards are independent rows. A car can have many cards.
+ * Cards persist even if the car is deleted (car_id is set to null on delete).
  */
-
-const COOLDOWN_HOURS = 72;
-const COOLDOWN_MS    = COOLDOWN_HOURS * 60 * 60 * 1000;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -49,23 +46,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Slow down — try again in a minute." }, { status: 429 });
   }
 
-  let body: { carId?: string };
+  let body: { carId?: string; occasion?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+
   const carId = body.carId;
   if (!carId || typeof carId !== "string") {
     return NextResponse.json({ error: "carId required" }, { status: 400 });
   }
 
+  const occasion = (body.occasion ?? "").trim().slice(0, 100);
+  if (!occasion) {
+    return NextResponse.json({ error: "Occasion note is required" }, { status: 400 });
+  }
+
   // ── 1. Load car ─────────────────────────────────────────────────────────
   const { data: carRaw } = await supabase
     .from("cars")
-    .select(
-      "id, user_id, make, model, year, color, trim, description, horsepower, vin_verified, last_card_minted_at"
-    )
+    .select("id, user_id, make, model, year, color, trim, description, horsepower, vin_verified")
     .eq("id", carId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -81,37 +82,18 @@ export async function POST(req: Request) {
     description: string | null;
     horsepower: number | null;
     vin_verified: boolean;
-    last_card_minted_at: string | null;
   } | null;
 
   if (!car) return NextResponse.json({ error: "Car not found" }, { status: 404 });
 
-  // ── 2. Cooldown check ───────────────────────────────────────────────────
-  if (car.last_card_minted_at) {
-    const last = new Date(car.last_card_minted_at).getTime();
-    const elapsed = Date.now() - last;
-    if (elapsed < COOLDOWN_MS) {
-      const remainingMs = COOLDOWN_MS - elapsed;
-      const hours = Math.ceil(remainingMs / (60 * 60 * 1000));
-      return NextResponse.json(
-        {
-          error: `Cooldown active — try again in ${hours}h`,
-          remaining_ms: remainingMs,
-          remaining_hours: hours,
-        },
-        { status: 429 }
-      );
-    }
-  }
-
-  // ── 3. Photo check ──────────────────────────────────────────────────────
+  // ── 2. Photo check ──────────────────────────────────────────────────────
   const { data: photosRaw } = await supabase
     .from("car_photos")
-    .select("url, image_descriptor")
+    .select("url")
     .eq("car_id", carId)
     .order("position", { ascending: true });
 
-  const photos = (photosRaw ?? []) as { url: string; image_descriptor: string | null }[];
+  const photos = (photosRaw ?? []) as { url: string }[];
   const realPhotos = photos.filter((p) => isRealPhoto(p.url));
 
   if (realPhotos.length < 1) {
@@ -121,7 +103,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── 4. Mod list ─────────────────────────────────────────────────────────
+  // ── 3. Mod list ─────────────────────────────────────────────────────────
   const { data: modsRaw } = await supabase
     .from("mods")
     .select("name, status")
@@ -130,10 +112,9 @@ export async function POST(req: Request) {
 
   const mods = ((modsRaw ?? []) as { name: string; status: string }[]).map((m) => m.name);
 
-  // ── 5. Build snapshot ───────────────────────────────────────────────────
+  // ── 4. Build snapshot ───────────────────────────────────────────────────
   const colorLabel = car.color?.trim() || "white";
   const trimLabel  = car.trim?.trim() || null;
-  const carLabel   = `${car.year} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}`;
   const description = (car.description ?? "").trim() || null;
 
   const snapshot: PixelCardSnapshot = {
@@ -150,18 +131,19 @@ export async function POST(req: Request) {
     vin_verified: car.vin_verified,
   };
 
-  // ── 6. Assign era (random, permanent) ──────────────────────────────────
+  // ── 5. Assign era (random, permanent) ──────────────────────────────────
   const era = randomEra();
 
-  // ── 7. Run nickname + flavor text + DALL-E in parallel ──────────────────
+  // ── 6. Run nickname + flavor text + DALL-E in parallel ──────────────────
   const openai = getOpenAI();
   if (!openai) {
     return NextResponse.json({ error: "Image generation isn't configured." }, { status: 503 });
   }
 
-  // Flavor text: 2-sentence poetic description of the car's spirit
+  const modList = mods.join(", ") || "stock";
+
+  // Flavor text: 2-sentence poetic description of the car's spirit + occasion
   const flavorPromise = (async (): Promise<string | null> => {
-    const modList = mods.join(", ") || "completely stock";
     try {
       const msg = await anthropic.messages.create({
         model: "claude-sonnet-4-5",
@@ -171,14 +153,16 @@ export async function POST(req: Request) {
             role: "user",
             content: `Write flavor text for a collector's trading card for this car.
 
-${car.year} ${car.make} ${car.model}, ${colorLabel}${trimLabel ? ", " + trimLabel : ""}
+${car.year} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}, ${colorLabel}
 Mods: ${modList}
+Occasion: ${occasion}
 
 Rules:
 - Exactly 2 sentences.
 - Poetic, cinematic, automotive. Racing legend meets heist movie.
 - First sentence: the car's spirit or identity.
 - Second sentence: its destiny or what it commands.
+- Weave in the occasion subtly.
 - No clichés: no "beast", "monster", "powerhouse", "legend", "unleash".
 - Total max 180 characters.
 
@@ -194,7 +178,6 @@ Return only the 2-sentence text. No quotes, no labels.`,
   })();
 
   const nicknamePromise = (async () => {
-    const modList = mods.join(", ") || "stock";
     const nameMsg = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
       max_tokens: 40,
@@ -205,12 +188,13 @@ Return only the 2-sentence text. No quotes, no labels.`,
 
 ${car.year} ${car.make} ${car.model}, color: ${colorLabel}
 Mods: ${modList}
+Occasion: ${occasion}
 Description: ${description || "none provided"}
 
 Rules:
 - Exactly 3 words
 - Dark, automotive, poetic tone. Heist movie or racing legend energy.
-- Reference the color, mods, or description subtly
+- Reference the color, mods, or occasion subtly
 - Banned: Speed, Thunder, Beast, Turbo, Standard, Classic, Fast, Sport, Race, Power, any color as first word
 - Good: "The Asphalt Ghost", "Carbon Low Season", "Midnight Tax Evasion", "The Quiet Predator"
 - Bad: "Red Standard", "Blue Beast", "Turbo Sport Car"
@@ -235,8 +219,8 @@ Return only the 3-word name. Nothing else.`,
   })();
 
   const imagePromise = (async () => {
-    // Prompt built exclusively from DB fields — no user description involved
-    const pixelPrompt = `8-bit pixel art sprite of a ${car.year} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}, color: ${colorLabel}.
+    // Prompt built exclusively from DB fields — make/model/year/color/trim
+    const pixelPrompt = `pixel art trading card illustration of a ${car.year} ${colorLabel} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}, side profile, clean background, vibrant colors high detail.
 
 Style: True retro SNES-era pixel art. Hard chunky pixels, no anti-aliasing, no blur. Max 32 colors. Every pixel must be clearly blocky and visible. NOT photorealistic, NOT smooth.
 
@@ -301,7 +285,7 @@ No text, no HUD, no card borders, no logos, no license plates. Only the car spri
     return NextResponse.json({ error: `Couldn't mint your card. ${message}` }, { status: 500 });
   }
 
-  // ── 7. Insert into pixel_cards + bump cooldown ──────────────────────────
+  // ── 7. Insert into pixel_cards ──────────────────────────────────────────
   const mintedAt = new Date().toISOString();
 
   const { data: cardRaw, error: insErr } = await supabase
@@ -317,9 +301,10 @@ No text, no HUD, no card borders, no logos, no license plates. Only the car spri
       minted_at:      mintedAt,
       flavor_text:    flavorText ?? null,
       era,
+      occasion,
       // card_number is auto-assigned by the sequence
     })
-    .select("id, user_id, car_id, car_snapshot, pixel_card_url, nickname, hp, mod_count, minted_at, card_number, flavor_text, era")
+    .select("id, user_id, car_id, car_snapshot, pixel_card_url, nickname, hp, mod_count, minted_at, card_number, flavor_text, era, occasion")
     .single();
 
   if (insErr || !cardRaw) {
@@ -327,13 +312,7 @@ No text, no HUD, no card borders, no logos, no license plates. Only the car spri
     return NextResponse.json({ error: insErr?.message ?? "Failed to save card" }, { status: 500 });
   }
 
-  await supabase
-    .from("cars")
-    .update({ last_card_minted_at: mintedAt, updated_at: mintedAt })
-    .eq("id", carId)
-    .eq("user_id", user.id);
-
-  console.log(`[cards] minted card=${cardRaw.id} car=${carId} nickname="${nickname}"`);
+  console.log(`[cards] minted card=${cardRaw.id} car=${carId} nickname="${nickname}" occasion="${occasion}"`);
 
   return NextResponse.json({ card: cardRaw });
 }

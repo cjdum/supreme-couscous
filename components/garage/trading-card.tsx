@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback } from "react";
 import { Share2, ShieldCheck, RotateCcw } from "lucide-react";
 import { CARD_BORDER_COLOR, CARD_BORDER_GLOW, CARD_GOLD, ERA_COLORS, safeEra } from "@/lib/pixel-card";
 
@@ -15,6 +15,7 @@ export interface TradingCardData {
   cardNumber?: number | null;
   era?: string | null;
   flavorText?: string | null;
+  occasion?: string | null;
   mods?: string[];
   edition?: number | null;
 }
@@ -26,6 +27,10 @@ interface TradingCardProps extends TradingCardData {
   interactive?: boolean;
   showShare?: boolean;
   onShare?: () => void;
+  /** Controlled flip state. If provided, the component uses this instead of internal state. */
+  flipped?: boolean;
+  /** Called when the user clicks a flip button (controlled mode). */
+  onFlipChange?: (v: boolean) => void;
 }
 
 const CARD_W   = 280;
@@ -79,6 +84,7 @@ export function TradingCard({
   cardNumber,
   era: eraProp,
   flavorText,
+  occasion,
   mods = [],
   edition,
   carLabel,
@@ -87,6 +93,8 @@ export function TradingCard({
   interactive = true,
   showShare = false,
   onShare,
+  flipped: flippedProp,
+  onFlipChange,
 }: TradingCardProps) {
   const era      = safeEra(eraProp);
   const eraStyle = ERA_COLORS[era];
@@ -95,7 +103,16 @@ export function TradingCard({
   const shimmerRef = useRef<HTMLDivElement>(null);
   const pointerRef = useRef({ x: 0.5, y: 0.5, over: false });
   const rafRef     = useRef(0);
-  const [flipped, setFlipped] = useState(false);
+
+  // Controlled vs uncontrolled flip
+  const [internalFlipped, setInternalFlipped] = useState(false);
+  const isControlled = flippedProp !== undefined;
+  const flipped = isControlled ? flippedProp : internalFlipped;
+
+  function doFlip(v: boolean) {
+    if (!isControlled) setInternalFlipped(v);
+    onFlipChange?.(v);
+  }
 
   const parts     = carLabel.split(" ");
   const yearMatch = parts[0]?.match(/^\d{4}$/);
@@ -105,19 +122,6 @@ export function TradingCard({
   const mintDate = generatedAt
     ? new Date(generatedAt).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" })
     : "--/--/--";
-
-  // F key flips the card
-  useEffect(() => {
-    if (!interactive) return;
-    function onKey(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName ?? "";
-      if ((e.key === "f" || e.key === "F") && !["INPUT","TEXTAREA"].includes(tag)) {
-        setFlipped((prev) => !prev);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [interactive]);
 
   const scheduleTilt = useCallback(() => {
     if (rafRef.current) return;
@@ -140,12 +144,14 @@ export function TradingCard({
     });
   }, [scale]);
 
+  // Mouse events on the outer WRAPPER (full scaled area) — use outerRef.getBoundingClientRect()
+  // for accurate tilt calculation relative to the actual rendered card position.
   function onMouseMove(e: React.MouseEvent<HTMLDivElement>) {
     if (!interactive) return;
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = outerRef.current!.getBoundingClientRect();
     pointerRef.current = {
-      x: (e.clientX - rect.left) / rect.width,
-      y: (e.clientY - rect.top) / rect.height,
+      x: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
       over: true,
     };
     scheduleTilt();
@@ -157,7 +163,13 @@ export function TradingCard({
     if (outerRef.current) {
       outerRef.current.style.transition = "transform 0.55s cubic-bezier(0.23,1,0.32,1)";
       outerRef.current.style.transform = `perspective(900px) scale(${scale}) rotateX(0deg) rotateY(0deg)`;
-      setTimeout(() => { if (outerRef.current) outerRef.current.style.transition = ""; }, 550);
+      setTimeout(() => {
+        if (outerRef.current) {
+          outerRef.current.style.transition = "";
+          // Clear inline transform so the idle CSS animation can resume
+          outerRef.current.style.transform = "";
+        }
+      }, 560);
     }
     if (shimmerRef.current) {
       shimmerRef.current.style.transition = "opacity 0.35s";
@@ -168,24 +180,34 @@ export function TradingCard({
 
   const scaleKey = scale.toString().replace(".", "_");
 
+  const snap = carLabel; // for back display
+
   return (
-    <div style={{ width: CARD_W * scale, height: CARD_H * scale, position: "relative" }}>
+    // Outer WRAPPER: sized to the scaled card, receives mouse events
+    <div
+      onMouseMove={onMouseMove}
+      onMouseLeave={onMouseLeave}
+      style={{
+        width: CARD_W * scale,
+        height: CARD_H * scale,
+        position: "relative",
+        cursor: interactive ? "default" : "pointer",
+      }}
+    >
       <style>{`
         @keyframes tcFloat_${scaleKey} {
           0%,100% { transform: perspective(900px) scale(${scale}) translateY(0px) rotate(-0.5deg); }
-          50%      { transform: perspective(900px) scale(${scale}) translateY(-5px) rotate(0.5deg); }
+          50%      { transform: perspective(900px) scale(${scale}) translateY(-6px) rotate(0.5deg); }
         }
         .tc-idle-${scaleKey} { animation: tcFloat_${scaleKey} 3.2s ease-in-out infinite; }
         .tc-idle-${scaleKey}:hover { animation-play-state: paused; }
         @media (prefers-reduced-motion: reduce) { .tc-idle-${scaleKey} { animation: none !important; } }
       `}</style>
 
-      {/* Tilt + idle outer wrapper */}
+      {/* Tilt + idle outer wrapper — 80ms transition for smooth real-time tilt */}
       <div
         ref={outerRef}
         className={idle ? `tc-idle-${scaleKey}` : ""}
-        onMouseMove={onMouseMove}
-        onMouseLeave={onMouseLeave}
         style={{
           width: CARD_W,
           height: CARD_H,
@@ -194,7 +216,7 @@ export function TradingCard({
           transformStyle: "preserve-3d",
           position: "relative",
           willChange: "transform",
-          cursor: interactive ? "default" : "pointer",
+          transition: "transform 80ms ease",
         }}
       >
         {/* Holographic shimmer */}
@@ -377,7 +399,7 @@ export function TradingCard({
             }}>
               {interactive && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); setFlipped(true); }}
+                  onClick={(e) => { e.stopPropagation(); doFlip(true); }}
                   title="Flip card [F]"
                   style={{ background: "transparent", border: "none", cursor: "pointer", color: "rgba(200,180,240,0.3)", padding: 4, display: "flex", flexShrink: 0 }}
                 >
@@ -421,7 +443,7 @@ export function TradingCard({
             </div>
 
             {/* Decorative pixel grid */}
-            <div style={{ padding: "14px 0 10px", flexShrink: 0 }}>
+            <div style={{ padding: "10px 0 8px", flexShrink: 0 }}>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(15, 5px)", gridTemplateRows: "repeat(15, 5px)", gap: 1.5 }}>
                 {DECO.map((cell, i) => (
                   <div key={i} style={{
@@ -433,7 +455,7 @@ export function TradingCard({
             </div>
 
             {/* Era + card number */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexShrink: 0 }}>
               <div style={{ padding: "3px 10px", borderRadius: 20, background: eraStyle.bg, border: `1px solid ${eraStyle.border}`, fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900, color: eraStyle.text, letterSpacing: "0.2em", textTransform: "uppercase" as const }}>
                 {era}
               </div>
@@ -444,34 +466,43 @@ export function TradingCard({
               )}
             </div>
 
-            {/* Mint date */}
-            <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, color: "rgba(200,180,240,0.4)", textAlign: "center", letterSpacing: "0.12em", marginBottom: 8, flexShrink: 0 }}>
+            {/* Mint date + car identity */}
+            <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, color: "rgba(200,180,240,0.4)", textAlign: "center", letterSpacing: "0.1em", marginBottom: 4, flexShrink: 0, padding: "0 12px" }}>
               MINTED {mintDate}
             </p>
+
+            {/* Occasion note — frozen on this card forever */}
+            {occasion && (
+              <div style={{ width: "calc(100% - 28px)", marginBottom: 6, padding: "5px 8px", borderRadius: 6, background: `${eraStyle.bg}`, border: `1px solid ${eraStyle.border}`, flexShrink: 0 }}>
+                <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontStyle: "italic", color: eraStyle.text, textAlign: "center", letterSpacing: "0.08em", margin: 0, lineHeight: 1.5 }}>
+                  &ldquo;{occasion}&rdquo;
+                </p>
+              </div>
+            )}
 
             {/* Mod list */}
             <div style={{ flex: 1, width: "100%", padding: "0 14px 8px", overflowY: "hidden" }}>
               {mods.length > 0 ? (
                 <>
-                  <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 700, letterSpacing: "0.14em", color: "rgba(160,140,200,0.32)", textTransform: "uppercase" as const, marginBottom: 5 }}>
+                  <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 700, letterSpacing: "0.14em", color: "rgba(160,140,200,0.32)", textTransform: "uppercase" as const, marginBottom: 4 }}>
                     Mods at mint
                   </p>
                   <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                    {mods.slice(0, 9).map((m, i) => (
-                      <li key={i} style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, color: "rgba(200,185,230,0.62)", lineHeight: 1.8, display: "flex", gap: 5 }}>
+                    {mods.slice(0, 8).map((m, i) => (
+                      <li key={i} style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, color: "rgba(200,185,230,0.62)", lineHeight: 1.8, display: "flex", gap: 5 }}>
                         <span style={{ color: CARD_BORDER_COLOR, flexShrink: 0 }}>›</span>
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{m}</span>
                       </li>
                     ))}
-                    {mods.length > 9 && (
+                    {mods.length > 8 && (
                       <li style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, color: "rgba(200,185,230,0.28)", fontStyle: "italic", marginTop: 2 }}>
-                        +{mods.length - 9} more
+                        +{mods.length - 8} more
                       </li>
                     )}
                   </ul>
                 </>
               ) : (
-                <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, color: "rgba(200,185,230,0.22)", fontStyle: "italic", textAlign: "center", marginTop: 8 }}>
+                <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, color: "rgba(200,185,230,0.22)", fontStyle: "italic", textAlign: "center", marginTop: 6 }}>
                   Stock build
                 </p>
               )}
@@ -480,7 +511,7 @@ export function TradingCard({
             {/* Back footer */}
             <div style={{ width: "100%", height: 38, background: "rgba(5,5,12,0.94)", borderTop: `1px solid rgba(123,79,212,0.18)`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexShrink: 0 }}>
               {interactive && (
-                <button onClick={(e) => { e.stopPropagation(); setFlipped(false); }} title="Flip [F]"
+                <button onClick={(e) => { e.stopPropagation(); doFlip(false); }} title="Flip [F]"
                   style={{ background: "transparent", border: "none", cursor: "pointer", color: "rgba(200,180,240,0.35)", padding: 4, display: "flex" }}>
                   <RotateCcw size={10} />
                 </button>
@@ -492,10 +523,10 @@ export function TradingCard({
           </div>
 
         </div>{/* /flip container */}
-      </div>{/* /outer wrapper */}
+      </div>{/* /outerRef */}
 
-      {/* Unused but exported — suppress TS unused warning */}
-      {false && <span style={{ display: "none" }}>{CARD_BORDER_GLOW}</span>}
+      {/* Suppress unused import warning */}
+      {false && <span style={{ display: "none" }}>{CARD_BORDER_GLOW}{snap}</span>}
     </div>
   );
 }

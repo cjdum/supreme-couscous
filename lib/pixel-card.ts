@@ -2,12 +2,10 @@
  * Pixel Card — shared types + constants.
  *
  * No rarity. No tiers. Cards are uniform memory snapshots.
- * Eligibility: ≥1 real photo + 72h cooldown.
+ * Eligibility: ≥1 real photo. No cooldown.
  */
 
 import type { PixelCardSnapshot } from "@/lib/supabase/types";
-
-export const COOLDOWN_HOURS = 72;
 
 /** Uniform card border + glow — same for every card, always. */
 export const CARD_BORDER_COLOR = "#7b4fd4";
@@ -54,6 +52,8 @@ export interface MintedCard {
   flavor_text: string | null;
   /** Collectible era: Dawn / Chrome / Turbo / Neon / Apex (v11). */
   era: string;
+  /** Occasion note frozen onto the card at mint time (v12). */
+  occasion: string | null;
 }
 
 // ── CardEligibility ────────────────────────────────────────────────────────────
@@ -62,7 +62,4 @@ export interface CardEligibility {
   eligible: boolean;
   hasPhoto: boolean;
   realPhotoCount: number;
-  cooldownRemainingMs: number;
-  cooldownRemainingHours: number;
-  lastMintedAt: string | null;
 }

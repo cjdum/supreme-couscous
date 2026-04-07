@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { href: "/garage", icon: Car, label: "Garage", shortcut: "G" },
   { href: "/visualizer", icon: Zap, label: "Visualizer", shortcut: "V" },
   { href: "/chat", icon: MessageSquare, label: "AI Chat", shortcut: "C" },
-  { href: "/forum", icon: Sparkles, label: "Forum", shortcut: "F" },
+  { href: "/forum", icon: Sparkles, label: "Forum", shortcut: "" },
   { href: "/stats", icon: BarChart2, label: "Stats", shortcut: "S" },
 ];
 
@@ -65,14 +65,16 @@ export function SidebarNav({ username }: SidebarNavProps) {
                 )}
                 <Icon size={18} strokeWidth={active ? 2.5 : 1.75} />
                 <span className="text-sm font-bold flex-1">{label}</span>
-                <kbd className={cn(
-                  "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
-                  active
-                    ? "bg-[var(--color-accent)]/20 text-[var(--color-accent-bright)]"
-                    : "bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)]"
-                )}>
-                  {shortcut}
-                </kbd>
+                {shortcut && (
+                  <kbd className={cn(
+                    "text-[9px] font-mono font-bold px-1.5 py-0.5 rounded transition-colors",
+                    active
+                      ? "bg-[var(--color-accent)]/20 text-[var(--color-accent-bright)]"
+                      : "bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)]"
+                  )}>
+                    {shortcut}
+                  </kbd>
+                )}
               </Link>
             );
           })}

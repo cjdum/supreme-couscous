@@ -810,3 +810,16 @@ alter table pixel_cards add column if not exists flavor_text text;
 
 -- Collectible era badge: one of Dawn / Chrome / Turbo / Neon / Apex
 alter table pixel_cards add column if not exists era text not null default 'Chrome';
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v12: Occasion note + remove cooldown
+-- Cards now carry a frozen occasion note ("Just picked her up", "Aerokit installed").
+-- The 72h cooldown is removed — users can mint any time they have a real photo.
+-- Run this block in Supabase SQL Editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Occasion note frozen onto the card forever (max 100 chars enforced in app layer)
+alter table pixel_cards add column if not exists occasion text;
+
+-- Drop cooldown tracker — no longer used
+alter table cars drop column if exists last_card_minted_at;

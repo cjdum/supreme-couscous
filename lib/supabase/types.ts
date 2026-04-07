@@ -94,7 +94,6 @@ export interface Database {
           stock_transmission: string | null;
           description: string | null;
           vin_verified: boolean;
-          last_card_minted_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -130,7 +129,6 @@ export interface Database {
           stock_transmission?: string | null;
           description?: string | null;
           vin_verified?: boolean;
-          last_card_minted_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -164,7 +162,6 @@ export interface Database {
           stock_transmission?: string | null;
           description?: string | null;
           vin_verified?: boolean;
-          last_card_minted_at?: string | null;
           updated_at?: string;
         };
       };
@@ -182,6 +179,7 @@ export interface Database {
           card_number: number | null;
           flavor_text: string | null;
           era: string;
+          occasion: string | null;
         };
         Insert: {
           id?: string;
@@ -195,12 +193,14 @@ export interface Database {
           minted_at?: string;
           flavor_text?: string | null;
           era?: string;
+          occasion?: string | null;
         };
         Update: {
           car_id?: string | null;
           nickname?: string;
           flavor_text?: string | null;
           era?: string;
+          occasion?: string | null;
         };
       };
       car_photos: {

@@ -84,7 +84,7 @@ export function GlobalEnhancers() {
 
       const map: Record<string, string> = {
         g: "/garage",
-        f: "/forum",
+        // f is reserved for card flip when the card viewer is open
         c: "/chat",
         v: "/visualizer",
         s: "/stats",
@@ -108,9 +108,9 @@ export function GlobalEnhancers() {
     { key: "G", label: "Garage" },
     { key: "V", label: "Visualizer" },
     { key: "C", label: "AI Chat" },
-    { key: "F", label: "Forum" },
     { key: "S", label: "Stats" },
     { key: "P", label: "Profile" },
+    { key: "F", label: "Flip card (in viewer)" },
     { key: "?", label: "Show shortcuts" },
   ];
 

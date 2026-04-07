@@ -17,14 +17,30 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
   const initial = startIndex ?? cards.length - 1;
   const [idx, setIdx] = useState(Math.max(0, Math.min(initial, cards.length - 1)));
   const [copied, setCopied] = useState(false);
+  // Flip state managed here so F/Space can control it without the global keydown in TradingCard
+  const [flipped, setFlipped] = useState(false);
 
   const card = cards[idx];
 
+  // Reset flip when switching cards
+  useEffect(() => {
+    setFlipped(false);
+  }, [idx]);
+
+  // Keyboard controls scoped to this modal
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft"  && idx > 0)               setIdx((i) => i - 1);
-      if (e.key === "ArrowRight" && idx < cards.length - 1) setIdx((i) => i + 1);
+      const tag = (e.target as HTMLElement)?.tagName ?? "";
+      if (["INPUT", "TEXTAREA"].includes(tag)) return;
+
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "ArrowLeft"  && idx > 0)               { setIdx((i) => i - 1); return; }
+      if (e.key === "ArrowRight" && idx < cards.length - 1) { setIdx((i) => i + 1); return; }
+      // F and Space both flip the card — only active while this modal is mounted
+      if (e.key === "f" || e.key === "F" || e.key === " ") {
+        e.preventDefault();
+        setFlipped((prev) => !prev);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -137,6 +153,7 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
             </button>
           )}
 
+          {/* idle=false in fullscreen viewer — no floating animation, pure tilt focus */}
           <TradingCard
             cardUrl={card.pixel_card_url}
             nickname={card.nickname}
@@ -148,14 +165,17 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
             cardNumber={card.card_number}
             era={card.era}
             flavorText={card.flavor_text}
+            occasion={card.occasion}
             mods={snap.mods ?? []}
             edition={cards.length > 1 ? edition : null}
             carLabel={carLabel}
             scale={1.1}
-            idle
+            idle={false}
             interactive
             showShare
             onShare={handleShare}
+            flipped={flipped}
+            onFlipChange={setFlipped}
           />
 
           {cards.length > 1 && (
@@ -221,9 +241,25 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           </div>
 
           {/* Mint date */}
-          <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, color: "rgba(245,215,110,0.7)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 14 }}>
+          <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, color: "rgba(245,215,110,0.7)", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: card.occasion ? 10 : 14 }}>
             Minted {mintedDate}
           </p>
+
+          {/* Occasion note */}
+          {card.occasion && (
+            <div style={{
+              marginBottom: 14, padding: "10px 14px", borderRadius: 10,
+              background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
+              boxShadow: `0 0 12px ${eraStyle.glow}`,
+            }}>
+              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 700, color: "rgba(160,140,200,0.5)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 4 }}>
+                Occasion
+              </p>
+              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, fontStyle: "italic", color: eraStyle.text, lineHeight: 1.55, margin: 0, letterSpacing: "0.02em" }}>
+                &ldquo;{card.occasion}&rdquo;
+              </p>
+            </div>
+          )}
 
           {/* Flavor text */}
           {card.flavor_text && (
@@ -285,7 +321,7 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
         color: "rgba(255,255,255,0.2)", letterSpacing: "0.18em", textTransform: "uppercase",
         pointerEvents: "none",
       }}>
-        {cards.length > 1 ? "← → editions · " : ""}F to flip · Esc to close
+        {cards.length > 1 ? "← → editions · " : ""}F / Space to flip · Esc to close
       </p>
     </div>
   );

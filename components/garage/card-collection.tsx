@@ -123,6 +123,7 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
                   cardNumber={card.card_number}
                   era={card.era}
                   flavorText={card.flavor_text}
+                  occasion={card.occasion}
                   mods={snap.mods ?? []}
                   edition={group.length > 1 ? edition : null}
                   carLabel={label}
@@ -156,7 +157,7 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
                   )}
                 </div>
 
-                {/* Edition + mint date */}
+                {/* Edition + mint date + occasion */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                   {group.length > 1 && (
                     <p style={{
@@ -174,6 +175,17 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
                   }}>
                     {mintedDate}
                   </p>
+                  {card.occasion && (
+                    <p style={{
+                      margin: "2px 0 0",
+                      fontFamily: "ui-monospace, monospace", fontSize: 8, fontStyle: "italic",
+                      color: eraStyle.text, letterSpacing: "0.04em",
+                      maxWidth: 160, textAlign: "center",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      &ldquo;{card.occasion}&rdquo;
+                    </p>
+                  )}
                 </div>
               </button>
             );
