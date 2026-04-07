@@ -788,3 +788,25 @@ alter table cars drop column if exists sold_at;
 
 -- Cooldown tracker (72h between mints per car)
 alter table cars add column if not exists last_card_minted_at timestamptz;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v11: Card identity — card_number, flavor_text, era
+-- Each minted card gets a globally unique sequential card number (e.g. #0042),
+-- an AI-generated 2-sentence poetic flavor text, and a randomly assigned era
+-- badge (Dawn / Chrome / Turbo / Neon / Apex).
+-- Run this block in Supabase SQL Editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Globally unique sequential card number — auto-increments across all cards
+create sequence if not exists pixel_cards_card_number_seq;
+alter table pixel_cards
+  add column if not exists card_number bigint not null
+    default nextval('pixel_cards_card_number_seq');
+
+create unique index if not exists pixel_cards_card_number_idx on pixel_cards(card_number);
+
+-- AI-generated 2-sentence poetic flavor text (stored with the card forever)
+alter table pixel_cards add column if not exists flavor_text text;
+
+-- Collectible era badge: one of Dawn / Chrome / Turbo / Neon / Apex
+alter table pixel_cards add column if not exists era text not null default 'Chrome';

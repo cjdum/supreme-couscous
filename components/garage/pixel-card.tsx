@@ -51,6 +51,7 @@ export function PixelCard(props: PixelCardProps) {
 
   // ── Ceremony overlay (freshly minted) ───────────────────────────────────
   if (mintState === "ceremony" && freshCard) {
+    const snap = freshCard.car_snapshot;
     return (
       <CardRevealCeremony
         card={{
@@ -59,8 +60,13 @@ export function PixelCard(props: PixelCardProps) {
           generatedAt: freshCard.minted_at,
           hp:          freshCard.hp,
           modCount:    freshCard.mod_count,
-          buildScore:  freshCard.car_snapshot.build_score,
-          vinVerified: freshCard.car_snapshot.vin_verified,
+          buildScore:  snap.build_score,
+          vinVerified: snap.vin_verified,
+          cardNumber:  freshCard.card_number,
+          era:         freshCard.era,
+          flavorText:  freshCard.flavor_text,
+          mods:        snap.mods ?? [],
+          edition:     props.cardCount + 1,
         }}
         carLabel={props.carLabel}
         onComplete={() => {
@@ -154,6 +160,11 @@ export function PixelCard(props: PixelCardProps) {
             modCount={props.latestCard.mod_count}
             buildScore={props.latestCard.car_snapshot.build_score}
             vinVerified={props.latestCard.car_snapshot.vin_verified}
+            cardNumber={props.latestCard.card_number}
+            era={props.latestCard.era}
+            flavorText={props.latestCard.flavor_text}
+            mods={props.latestCard.car_snapshot.mods ?? []}
+            edition={props.cardCount > 1 ? props.cardCount : null}
             carLabel={props.carLabel}
             idle
             interactive

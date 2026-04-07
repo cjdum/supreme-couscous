@@ -179,6 +179,9 @@ export interface Database {
           hp: number | null;
           mod_count: number | null;
           minted_at: string;
+          card_number: number | null;
+          flavor_text: string | null;
+          era: string;
         };
         Insert: {
           id?: string;
@@ -190,10 +193,14 @@ export interface Database {
           hp?: number | null;
           mod_count?: number | null;
           minted_at?: string;
+          flavor_text?: string | null;
+          era?: string;
         };
         Update: {
           car_id?: string | null;
           nickname?: string;
+          flavor_text?: string | null;
+          era?: string;
         };
       };
       car_photos: {

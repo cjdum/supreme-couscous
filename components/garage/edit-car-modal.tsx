@@ -49,8 +49,13 @@ export function EditCarModal({ open, onClose, car, cardCount = 0 }: EditCarModal
   const [identityWarning, setIdentityWarning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const identityChanged =
-    form.make !== car.make || form.model !== car.model || form.year !== car.year;
+  // Count how many of the three identity fields have changed.
+  // Only block save when 2+ change at once — that looks like a different car.
+  const identityDelta = [
+    form.make  !== car.make,
+    form.model !== car.model,
+    form.year  !== car.year,
+  ].filter(Boolean).length;
 
   async function handleVerifyVin() {
     if (vinVerifying) return;
@@ -132,7 +137,8 @@ export function EditCarModal({ open, onClose, car, cardCount = 0 }: EditCarModal
   }
 
   function handleSave() {
-    if (identityChanged && cardCount > 0 && !identityWarning) {
+    // Block only when 2+ identity fields change simultaneously — looks like a different car.
+    if (identityDelta >= 2 && !identityWarning) {
       setIdentityWarning(true);
       return;
     }
@@ -166,34 +172,31 @@ export function EditCarModal({ open, onClose, car, cardCount = 0 }: EditCarModal
           </div>
         )}
 
-        {/* ── Identity warning (when changing make/model/year on a car with cards) */}
+        {/* ── Identity block (2+ core fields changed — looks like a different car) */}
         {identityWarning && (
-          <div className="rounded-xl border border-[rgba(245,215,110,0.4)] bg-[rgba(245,215,110,0.06)] p-4 space-y-3">
+          <div className="rounded-xl border border-[rgba(255,59,48,0.4)] bg-[rgba(255,59,48,0.06)] p-4 space-y-3">
             <div className="flex items-start gap-2">
-              <AlertTriangle size={14} className="text-[#f5d76e] flex-shrink-0 mt-0.5" />
+              <AlertTriangle size={14} className="text-[var(--color-danger)] flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-bold text-[#f5d76e]">Change this car&rsquo;s identity?</p>
+                <p className="text-xs font-bold text-white">This looks like a different car</p>
                 <p className="text-[11px] text-[var(--color-text-secondary)] mt-1">
-                  Changing the make, model, or year will affect future cards. Your existing
-                  {cardCount === 1 ? " card stays " : ` ${cardCount} cards stay `}
-                  saved as-is. Continue?
+                  You&rsquo;ve changed {identityDelta} of the core identity fields (make, model, year).
+                  Would you like to add a new car instead?
                 </p>
               </div>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => setIdentityWarning(false)}
-                className="flex-1 h-9 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-secondary)] cursor-pointer"
+                className="flex-1 h-9 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-secondary)] cursor-pointer hover:border-[var(--color-border-bright)] transition-colors"
               >
-                Cancel
+                Keep editing
               </button>
               <button
-                onClick={persistSave}
-                disabled={saving}
-                className="flex-1 h-9 rounded-lg bg-[#f5d76e] text-black text-xs font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                onClick={() => { onClose(); router.push("/garage"); }}
+                className="flex-1 h-9 rounded-lg bg-[var(--color-accent)] text-white text-xs font-bold cursor-pointer hover:brightness-110 transition-all flex items-center justify-center gap-1.5"
               >
-                {saving && <Loader2 size={12} className="animate-spin" />}
-                Yes, change it
+                Add new car
               </button>
             </div>
           </div>

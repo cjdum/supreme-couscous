@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimit, AI_RATE_LIMIT } from "@/lib/rate-limit";
 import type { PixelCardSnapshot } from "@/lib/supabase/types";
+import { randomEra } from "@/lib/pixel-card";
 
 /**
  * POST /api/cards
@@ -149,11 +150,48 @@ export async function POST(req: Request) {
     vin_verified: car.vin_verified,
   };
 
-  // ── 6. Run nickname + DALL-E in parallel ────────────────────────────────
+  // ── 6. Assign era (random, permanent) ──────────────────────────────────
+  const era = randomEra();
+
+  // ── 7. Run nickname + flavor text + DALL-E in parallel ──────────────────
   const openai = getOpenAI();
   if (!openai) {
     return NextResponse.json({ error: "Image generation isn't configured." }, { status: 503 });
   }
+
+  // Flavor text: 2-sentence poetic description of the car's spirit
+  const flavorPromise = (async (): Promise<string | null> => {
+    const modList = mods.join(", ") || "completely stock";
+    try {
+      const msg = await anthropic.messages.create({
+        model: "claude-sonnet-4-5",
+        max_tokens: 120,
+        messages: [
+          {
+            role: "user",
+            content: `Write flavor text for a collector's trading card for this car.
+
+${car.year} ${car.make} ${car.model}, ${colorLabel}${trimLabel ? ", " + trimLabel : ""}
+Mods: ${modList}
+
+Rules:
+- Exactly 2 sentences.
+- Poetic, cinematic, automotive. Racing legend meets heist movie.
+- First sentence: the car's spirit or identity.
+- Second sentence: its destiny or what it commands.
+- No clichés: no "beast", "monster", "powerhouse", "legend", "unleash".
+- Total max 180 characters.
+
+Return only the 2-sentence text. No quotes, no labels.`,
+          },
+        ],
+      });
+      const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : "";
+      return text.slice(0, 280) || null;
+    } catch {
+      return null; // flavor text is optional — never block a mint
+    }
+  })();
 
   const nicknamePromise = (async () => {
     const modList = mods.join(", ") || "stock";
@@ -197,17 +235,18 @@ Return only the 3-word name. Nothing else.`,
   })();
 
   const imagePromise = (async () => {
-    const pixelPrompt = `8-bit pixel art sprite of a ${car.year} ${car.make} ${car.model} in ${colorLabel}.
+    // Prompt built exclusively from DB fields — no user description involved
+    const pixelPrompt = `8-bit pixel art sprite of a ${car.year} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}, color: ${colorLabel}.
 
-Style: True retro pixel art. Chunky visible pixels. Maximum 32 colors. Deliberately low resolution like a 1990s SNES game. NOT smooth. NOT HD. Every pixel must be clearly blocky and visible.
+Style: True retro SNES-era pixel art. Hard chunky pixels, no anti-aliasing, no blur. Max 32 colors. Every pixel must be clearly blocky and visible. NOT photorealistic, NOT smooth.
 
-Composition: 3/4 front-left angle. Car fills 80% of frame. Body shape and silhouette must be accurate to the actual ${car.year} ${car.make} ${car.model}.
+Composition: Side profile view. Car silhouette is accurate to the actual ${car.year} ${car.make} ${car.model}. Car fills 85% of the frame horizontally.
 
-Color: Primary color must be ${colorLabel}. Do not substitute.
+Color accuracy: Paint must be ${colorLabel}. Do not substitute or blend into a generic color.
 
-Background: Solid flat #0d0d1a. No gradients.
+Background: Solid flat color #0a0a18. No gradients, no shadows on ground.
 
-No text, no UI, no card borders, no logos, no license plates. Just the car sprite.`;
+No text, no HUD, no card borders, no logos, no license plates. Only the car sprite.`;
 
     const imageResponse = await openai.images.generate({
       model: "dall-e-3",
@@ -249,8 +288,13 @@ No text, no UI, no card borders, no logos, no license plates. Just the car sprit
 
   let nickname: string;
   let pixelCardUrl: string;
+  let flavorText: string | null;
   try {
-    [nickname, pixelCardUrl] = await Promise.all([nicknamePromise, imagePromise]);
+    [nickname, pixelCardUrl, flavorText] = await Promise.all([
+      nicknamePromise,
+      imagePromise,
+      flavorPromise,
+    ]);
   } catch (err) {
     console.error("[cards] generation failed:", err);
     const message = err instanceof Error ? err.message : "Generation failed";
@@ -271,8 +315,11 @@ No text, no UI, no card borders, no logos, no license plates. Just the car sprit
       hp:             car.horsepower,
       mod_count:      mods.length,
       minted_at:      mintedAt,
+      flavor_text:    flavorText ?? null,
+      era,
+      // card_number is auto-assigned by the sequence
     })
-    .select("id, user_id, car_id, car_snapshot, pixel_card_url, nickname, hp, mod_count, minted_at")
+    .select("id, user_id, car_id, car_snapshot, pixel_card_url, nickname, hp, mod_count, minted_at, card_number, flavor_text, era")
     .single();
 
   if (insErr || !cardRaw) {

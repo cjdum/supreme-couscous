@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  Zap, Gauge, Weight, Timer, Sparkles, RefreshCw, Loader2, TrendingUp, ArrowRight
+  Zap, Gauge, Weight, Timer, Sparkles, Loader2, TrendingUp, ArrowRight, Pencil, Check, X
 } from "lucide-react";
 import type { Car } from "@/lib/supabase/types";
 
@@ -58,6 +58,11 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
   const [showStock, setShowStock] = useState(false);
   const [localCar, setLocalCar] = useState<Car>(car);
 
+  // Inline stat editing
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
   const hasSpecs =
     localCar.horsepower != null ||
     localCar.torque != null ||
@@ -93,6 +98,40 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
     }
   }
 
+  function startEdit(field: string, currentValue: number | string | null) {
+    setEditingField(field);
+    setEditValue(currentValue != null ? String(currentValue) : "");
+  }
+
+  async function commitEdit() {
+    if (!editingField) return;
+    setEditSaving(true);
+    try {
+      const isNumericField = !["engine_size", "drivetrain", "transmission"].includes(editingField);
+      const parsed = isNumericField ? parseFloat(editValue) : editValue.trim();
+      if (isNumericField && isNaN(parsed as number)) {
+        setEditingField(null);
+        return;
+      }
+      const patch: Partial<Car> = { [editingField]: parsed };
+      const res = await fetch(`/api/cars/${car.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      setLocalCar((prev) => ({ ...prev, ...patch }));
+      // Also update modified display
+      if (modified) setModified((prev) => prev ? { ...prev, [editingField]: parsed } : prev);
+      onUpdate?.(patch);
+    } catch {
+      /* silently keep previous value */
+    } finally {
+      setEditSaving(false);
+      setEditingField(null);
+    }
+  }
+
   // Derive display figures — prefer fresh API data, fall back to stored car row.
   const displayStock: StockSpecs = stock ?? {
     horsepower: null,
@@ -120,41 +159,6 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
       : null
   );
 
-  if (!hasSpecs && !displayModified) {
-    return (
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold">Vehicle Specs</h3>
-        </div>
-        <div className="rounded-[16px] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center mx-auto mb-3">
-            <Sparkles size={18} className="text-[var(--color-accent-bright)]" />
-          </div>
-          <p className="text-sm font-bold text-[var(--color-text-secondary)] mb-1">No specs yet</p>
-          <p className="text-xs text-[var(--color-text-muted)] mb-4">
-            AI will estimate stock figures and factor in every installed mod.
-          </p>
-          <button
-            onClick={handleGuessSpecs}
-            disabled={guessing}
-            className="inline-flex items-center gap-2 min-h-[44px] px-5 py-3 rounded-xl bg-[var(--color-accent)] text-white text-xs font-bold disabled:opacity-50 cursor-pointer hover:brightness-110"
-          >
-            {guessing ? (
-              <>
-                <Loader2 size={13} className="animate-spin" /> Calculating…
-              </>
-            ) : (
-              <>
-                <Zap size={13} /> Calculate specs
-              </>
-            )}
-          </button>
-          {error && <p className="mt-3 text-[11px] text-[var(--color-danger)]">{error}</p>}
-        </div>
-      </div>
-    );
-  }
-
   // Active display — either modified or stock depending on toggle
   const active: ModifiedSpecs | StockSpecs = showStock ? displayStock : (displayModified ?? displayStock);
   const isAI = localCar.specs_ai_guessed;
@@ -172,7 +176,7 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
 
   return (
     <div>
-      {/* Header with toggle */}
+      {/* Header — always shows AI button */}
       <div className="flex items-center justify-between mb-3 gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <h3 className="text-sm font-bold truncate">Vehicle Specs</h3>
@@ -182,21 +186,28 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <button
-            onClick={handleGuessSpecs}
-            disabled={guessing}
-            className="min-h-[36px] w-9 h-9 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-white hover:border-[var(--color-border-bright)] disabled:opacity-50 cursor-pointer"
-            aria-label="Refresh specs"
-          >
-            {guessing ? (
-              <Loader2 size={13} className="animate-spin" />
-            ) : (
-              <RefreshCw size={12} />
-            )}
-          </button>
-        </div>
+        <button
+          onClick={handleGuessSpecs}
+          disabled={guessing}
+          className="flex-shrink-0 inline-flex items-center gap-1.5 min-h-[36px] h-9 px-3.5 rounded-xl bg-[var(--color-accent)] text-white text-[10px] font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer hover:brightness-110 transition-all"
+        >
+          {guessing ? (
+            <><Loader2 size={12} className="animate-spin" /> Calculating…</>
+          ) : (
+            <><Sparkles size={12} /> {hasSpecs ? "Re-analyse" : "Get AI Analysis"}</>
+          )}
+        </button>
       </div>
+
+      {/* Empty state (no specs yet) */}
+      {!hasSpecs && !displayModified && (
+        <div className="rounded-[16px] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 text-center mb-4">
+          <p className="text-xs text-[var(--color-text-muted)]">
+            AI will estimate stock figures and factor in every installed mod.
+          </p>
+          {error && <p className="mt-2 text-[11px] text-[var(--color-danger)]">{error}</p>}
+        </div>
+      )}
 
       {/* Stock vs Modified toggle */}
       {(stock || hasSpecs) && modDeltas.length > 0 && (
@@ -227,6 +238,7 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
       )}
 
       {/* Main stat cards — big numbers, driver's license aesthetic */}
+      {(hasSpecs || displayModified) && (
       <div className="grid grid-cols-2 gap-2.5">
         <BigStatCard
           icon={<Zap size={13} />}
@@ -237,6 +249,14 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
           delta={!showStock && totalHpGain !== 0 ? totalHpGain : null}
           deltaLabel={hpMods.length > 0 ? `from ${hpMods.length} ${hpMods.length === 1 ? "mod" : "mods"}` : null}
           barMax={HP_SCALE_MAX}
+          fieldKey="horsepower"
+          editing={editingField === "horsepower"}
+          editValue={editingField === "horsepower" ? editValue : ""}
+          editSaving={editSaving}
+          onEdit={() => startEdit("horsepower", active.horsepower)}
+          onEditChange={setEditValue}
+          onEditCommit={commitEdit}
+          onEditCancel={() => setEditingField(null)}
         />
         <BigStatCard
           icon={<TrendingUp size={13} />}
@@ -247,6 +267,14 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
           delta={!showStock && totalTorqueGain !== 0 ? totalTorqueGain : null}
           deltaLabel={torqueMods.length > 0 ? `from ${torqueMods.length} ${torqueMods.length === 1 ? "mod" : "mods"}` : null}
           barMax={TORQUE_SCALE_MAX}
+          fieldKey="torque"
+          editing={editingField === "torque"}
+          editValue={editingField === "torque" ? editValue : ""}
+          editSaving={editSaving}
+          onEdit={() => startEdit("torque", active.torque)}
+          onEditChange={setEditValue}
+          onEditCommit={commitEdit}
+          onEditCancel={() => setEditingField(null)}
         />
         <BigStatCard
           icon={<Timer size={13} />}
@@ -257,6 +285,14 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
           delta={!showStock && totalAccelGain !== 0 ? totalAccelGain : null}
           deltaLabel={accelMods.length > 0 ? `from ${accelMods.length} ${accelMods.length === 1 ? "mod" : "mods"}` : null}
           lowerIsBetter
+          fieldKey="zero_to_sixty"
+          editing={editingField === "zero_to_sixty"}
+          editValue={editingField === "zero_to_sixty" ? editValue : ""}
+          editSaving={editSaving}
+          onEdit={() => startEdit("zero_to_sixty", active.zero_to_sixty)}
+          onEditChange={setEditValue}
+          onEditCommit={commitEdit}
+          onEditCancel={() => setEditingField(null)}
         />
         <BigStatCard
           icon={<Gauge size={13} />}
@@ -265,11 +301,20 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
           unit="mph"
           accent="#ff453a"
           barMax={TOP_SPEED_MAX}
+          fieldKey="top_speed"
+          editing={editingField === "top_speed"}
+          editValue={editingField === "top_speed" ? editValue : ""}
+          editSaving={editSaving}
+          onEdit={() => startEdit("top_speed", active.top_speed)}
+          onEditChange={setEditValue}
+          onEditCommit={commitEdit}
+          onEditCancel={() => setEditingField(null)}
         />
       </div>
+      )}
 
       {/* Secondary specs */}
-      <div className="grid grid-cols-2 gap-2.5 mt-2.5">
+      {(hasSpecs || displayModified) && <div className="grid grid-cols-2 gap-2.5 mt-2.5">
         <SmallStatCard
           icon={<Weight size={11} />}
           label="Weight"
@@ -283,7 +328,7 @@ export function VehicleSpecs({ car, onUpdate }: VehicleSpecsProps) {
           label="Drivetrain"
           value={active.drivetrain ?? "—"}
         />
-      </div>
+      </div>}
 
       {/* Engine and transmission — less prominent */}
       {(active.engine_size || active.transmission) && (
@@ -391,6 +436,14 @@ function BigStatCard({
   deltaLabel,
   barMax,
   lowerIsBetter,
+  fieldKey,
+  editing,
+  editValue,
+  editSaving,
+  onEdit,
+  onEditChange,
+  onEditCommit,
+  onEditCancel,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -401,6 +454,14 @@ function BigStatCard({
   deltaLabel?: string | null;
   barMax?: number;
   lowerIsBetter?: boolean;
+  fieldKey?: string;
+  editing?: boolean;
+  editValue?: string;
+  editSaving?: boolean;
+  onEdit?: () => void;
+  onEditChange?: (v: string) => void;
+  onEditCommit?: () => void;
+  onEditCancel?: () => void;
 }) {
   const displayValue =
     value == null || value === "" || value === 0
@@ -421,41 +482,90 @@ function BigStatCard({
 
   return (
     <div
-      className="relative rounded-2xl p-4 overflow-hidden border"
+      className="relative rounded-2xl p-4 overflow-hidden border group"
       style={{
         background: `linear-gradient(135deg, ${accent}0d 0%, rgba(18,18,20,0.5) 100%)`,
         borderColor: `${accent}22`,
       }}
     >
-      <div className="flex items-center gap-1.5 mb-2" style={{ color: accent }}>
-        {icon}
-        <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">{label}</span>
-      </div>
-      <div className="flex items-baseline gap-1 mb-0.5">
-        <p
-          className="text-3xl font-black leading-none tabular"
-          style={{ color: displayValue === "—" ? "var(--color-text-disabled)" : "white" }}
-        >
-          {displayValue}
-        </p>
-        {displayValue !== "—" && (
-          <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase">{unit}</span>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5" style={{ color: accent }}>
+          {icon}
+          <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">{label}</span>
+        </div>
+        {/* Edit button — visible on hover when not editing */}
+        {fieldKey && onEdit && !editing && (
+          <button
+            onClick={onEdit}
+            className="opacity-0 group-hover:opacity-100 transition-opacity w-6 h-6 rounded-md flex items-center justify-center"
+            style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.4)" }}
+            aria-label={`Edit ${label}`}
+          >
+            <Pencil size={10} />
+          </button>
         )}
       </div>
-      {delta != null && delta !== 0 && (
-        <p className="text-[9px] font-bold" style={{ color: deltaColor ?? undefined }}>
-          {delta > 0 ? "+" : ""}{lowerIsBetter ? delta.toFixed(1) : delta}
-          {unit === "sec" ? "s" : unit === "mph" ? "mph" : unit === "lb-ft" ? "lb-ft" : unit === "hp" ? "hp" : ""}
-          {deltaLabel ? ` • ${deltaLabel}` : ""}
-        </p>
-      )}
-      {barPct != null && (
-        <div className="mt-2.5 h-1 rounded-full bg-[rgba(255,255,255,0.05)] overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${barPct}%`, backgroundColor: accent }}
+
+      {editing ? (
+        /* Inline edit mode */
+        <div className="flex items-center gap-1.5 mt-1">
+          <input
+            autoFocus
+            type="number"
+            value={editValue}
+            onChange={(e) => onEditChange?.(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onEditCommit?.();
+              if (e.key === "Escape") onEditCancel?.();
+            }}
+            className="flex-1 h-8 rounded-lg text-sm font-bold text-white text-center bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.15)] focus:outline-none focus:border-[rgba(255,255,255,0.35)] min-w-0"
+            placeholder="0"
           />
+          <button
+            onClick={onEditCommit}
+            disabled={editSaving}
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 disabled:opacity-50 cursor-pointer"
+            style={{ background: "rgba(48,209,88,0.2)", color: "#30d158" }}
+          >
+            {editSaving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+          </button>
+          <button
+            onClick={onEditCancel}
+            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 cursor-pointer"
+            style={{ background: "rgba(255,69,58,0.12)", color: "#ff453a" }}
+          >
+            <X size={11} />
+          </button>
         </div>
+      ) : (
+        <>
+          <div className="flex items-baseline gap-1 mb-0.5">
+            <p
+              className="text-3xl font-black leading-none tabular"
+              style={{ color: displayValue === "—" ? "var(--color-text-disabled)" : "white" }}
+            >
+              {displayValue}
+            </p>
+            {displayValue !== "—" && (
+              <span className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase">{unit}</span>
+            )}
+          </div>
+          {delta != null && delta !== 0 && (
+            <p className="text-[9px] font-bold" style={{ color: deltaColor ?? undefined }}>
+              {delta > 0 ? "+" : ""}{lowerIsBetter ? delta.toFixed(1) : delta}
+              {unit === "sec" ? "s" : unit === "mph" ? "mph" : unit === "lb-ft" ? "lb-ft" : unit === "hp" ? "hp" : ""}
+              {deltaLabel ? ` • ${deltaLabel}` : ""}
+            </p>
+          )}
+          {barPct != null && (
+            <div className="mt-2.5 h-1 rounded-full bg-[rgba(255,255,255,0.05)] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${barPct}%`, backgroundColor: accent }}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

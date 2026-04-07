@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { CardViewerModal } from "./card-viewer-modal";
+import { ERA_COLORS, safeEra } from "@/lib/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
 
 interface CardCollectionProps {
@@ -90,6 +91,12 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
             const group = grouped.get(card.car_id ?? `orphan:${card.id}`) ?? [card];
             const edition = group.findIndex((c) => c.id === card.id) + 1;
 
+            const era = safeEra(card.era);
+            const eraStyle = ERA_COLORS[era];
+            const mintedDate = new Date(card.minted_at).toLocaleDateString(undefined, {
+              month: "short", day: "numeric", year: "numeric",
+            });
+
             return (
               <button
                 key={card.id}
@@ -102,6 +109,7 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
                   background: "transparent",
                   border: "none",
                   padding: 0,
+                  gap: 6,
                 }}
               >
                 <TradingCard
@@ -112,26 +120,61 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
                   modCount={card.mod_count}
                   buildScore={snap.build_score}
                   vinVerified={snap.vin_verified}
+                  cardNumber={card.card_number}
+                  era={card.era}
+                  flavorText={card.flavor_text}
+                  mods={snap.mods ?? []}
+                  edition={group.length > 1 ? edition : null}
                   carLabel={label}
                   scale={0.6}
                   idle
                   interactive={false}
                 />
-                {group.length > 1 && (
-                  <p
-                    style={{
-                      marginTop: 6,
-                      fontFamily: "ui-monospace, monospace",
-                      fontSize: 9,
-                      fontWeight: 800,
-                      color: "rgba(245,215,110,0.75)",
-                      letterSpacing: "0.15em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Ed. {edition} / {group.length}
+
+                {/* Meta row: era badge + card# */}
+                <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 4,
+                    padding: "2px 7px", borderRadius: 12,
+                    background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
+                  }}>
+                    <div style={{ width: 4, height: 4, borderRadius: "50%", background: eraStyle.text, flexShrink: 0 }} />
+                    <span style={{
+                      fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900,
+                      letterSpacing: "0.18em", textTransform: "uppercase" as const, color: eraStyle.text,
+                    }}>
+                      {era}
+                    </span>
+                  </div>
+                  {card.card_number != null && (
+                    <span style={{
+                      fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700,
+                      color: "rgba(200,180,240,0.5)", letterSpacing: "0.1em",
+                    }}>
+                      #{String(card.card_number).padStart(4, "0")}
+                    </span>
+                  )}
+                </div>
+
+                {/* Edition + mint date */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                  {group.length > 1 && (
+                    <p style={{
+                      margin: 0,
+                      fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 800,
+                      color: "rgba(245,215,110,0.75)", letterSpacing: "0.15em", textTransform: "uppercase" as const,
+                    }}>
+                      Ed. {edition} / {group.length}
+                    </p>
+                  )}
+                  <p style={{
+                    margin: 0,
+                    fontFamily: "ui-monospace, monospace", fontSize: 8,
+                    color: "rgba(180,160,220,0.45)", letterSpacing: "0.08em",
+                  }}>
+                    {mintedDate}
                   </p>
-                )}
+                </div>
               </button>
             );
           })}
