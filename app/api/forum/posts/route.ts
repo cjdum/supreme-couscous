@@ -3,8 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 
 const createPostSchema = z.object({
-  title: z.string().min(3).max(200),
-  content: z.string().min(10).max(5000),
+  title: z.string().min(1).max(200),
+  content: z.string().min(1).max(5000),
   category: z.enum(["general", "build", "advice", "showcase", "for_sale"]).default("general"),
   car_id: z.string().uuid().optional().nullable(),
 });

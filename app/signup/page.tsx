@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, MailCheck, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function SignupPage() {
+  const router = useRouter();
   const [form, setForm] = useState<SignupInput>({ email: "", password: "", username: "" });
   const [errors, setErrors] = useState<Partial<SignupInput>>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export default function SignupPage() {
       return;
     }
 
-    const { error } = await supabase.auth.signUp({
+    const { data: signupData, error } = await supabase.auth.signUp({
       email: result.data.email,
       password: result.data.password,
       options: {
@@ -73,6 +75,13 @@ export default function SignupPage() {
         setServerError(error.message);
       }
       setLoading(false);
+      return;
+    }
+
+    // If Supabase returned a session immediately (email confirmation disabled),
+    // skip the "check email" screen and go straight to the garage.
+    if (signupData?.session) {
+      router.push("/garage");
       return;
     }
 

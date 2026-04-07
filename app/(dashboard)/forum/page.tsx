@@ -82,6 +82,7 @@ export default function ForumPage() {
   const [showNewPost, setShowNewPost] = useState(false);
   const [newPost, setNewPost] = useState({ title: "", content: "", category: "general", car_id: "" });
   const [submittingPost, setSubmittingPost] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [upvotedPosts, setUpvotedPosts] = useState<Set<string>>(new Set());
   const [downvotedPosts, setDownvotedPosts] = useState<Set<string>>(new Set());
@@ -187,7 +188,12 @@ export default function ForumPage() {
 
   async function submitPost() {
     if (!newPost.title.trim() || !newPost.content.trim() || submittingPost) return;
+    if (!currentUserId) {
+      setPostError("You must be signed in to post. Please sign in first.");
+      return;
+    }
     setSubmittingPost(true);
+    setPostError(null);
     try {
       const res = await fetch("/api/forum/posts", {
         method: "POST",
@@ -203,12 +209,14 @@ export default function ForumPage() {
       if (res.ok) {
         setShowNewPost(false);
         setNewPost({ title: "", content: "", category: "general", car_id: "" });
+        setPostError(null);
         fetchPosts();
       } else {
-        alert(typeof json.error === "string" ? json.error : "Failed to post");
+        const msg = typeof json.error === "string" ? json.error : "Failed to post";
+        setPostError(msg === "Unauthorized" ? "You must be signed in to post." : msg);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      setPostError("Something went wrong. Please try again.");
     } finally {
       setSubmittingPost(false);
     }
@@ -325,15 +333,23 @@ export default function ForumPage() {
       {/* New Post Modal */}
       {showNewPost && (
         <>
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" onClick={() => setShowNewPost(false)} />
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" onClick={() => { setShowNewPost(false); setPostError(null); }} />
           <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 max-w-lg mx-auto rounded-[22px] bg-[#111111] border border-[rgba(255,255,255,0.08)] p-5 shadow-2xl animate-scale-in">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold">New Post</h2>
-              <button onClick={() => setShowNewPost(false)} className="w-7 h-7 rounded-lg bg-[#1a1a1a] flex items-center justify-center cursor-pointer hover:bg-[#222222]">
+              <button onClick={() => { setShowNewPost(false); setPostError(null); }} className="w-7 h-7 rounded-lg bg-[#1a1a1a] flex items-center justify-center cursor-pointer hover:bg-[#222222]">
                 <X size={13} className="text-[rgba(255,255,255,0.45)]" />
               </button>
             </div>
             <div className="space-y-3">
+              {postError && (
+                <div className="rounded-[10px] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] px-3 py-2.5 text-xs text-[#f87171]">
+                  {postError}
+                  {postError.includes("signed in") && (
+                    <a href="/login" className="ml-1.5 underline font-semibold">Sign in →</a>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.35)] uppercase tracking-wider mb-1.5">Category</p>
