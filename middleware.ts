@@ -6,20 +6,15 @@ const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth/callback"];
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
-  // If Supabase redirected auth params to the wrong page (e.g. homepage),
-  // catch them and forward to /auth/callback so verification actually works.
-  if (pathname !== "/auth/callback") {
-    const code = searchParams.get("code");
-    const tokenHash = searchParams.get("token_hash");
-    if (code || tokenHash) {
-      const callbackUrl = new URL("/auth/callback", request.url);
-      // Forward all search params to the callback
-      searchParams.forEach((value, key) => callbackUrl.searchParams.set(key, value));
-      if (!callbackUrl.searchParams.has("next")) {
-        callbackUrl.searchParams.set("next", "/garage");
-      }
-      return NextResponse.redirect(callbackUrl);
-    }
+  // ── Auth callback: handle verification IN middleware where cookie
+  // setting on redirect responses is guaranteed to work. ──
+  // Catch auth params on ANY page (Supabase may redirect to / instead of /auth/callback)
+  const code = searchParams.get("code");
+  const tokenHash = searchParams.get("token_hash");
+  const type = searchParams.get("type");
+
+  if (code || tokenHash) {
+    return handleAuthCallback(request, code, tokenHash, type);
   }
 
   // Allow public paths and static assets
@@ -35,6 +30,80 @@ export async function middleware(request: NextRequest) {
   return protectedRoute(request);
 }
 
+// ── Auth callback handler (runs in middleware context) ──────────────────────
+async function handleAuthCallback(
+  request: NextRequest,
+  code: string | null,
+  tokenHash: string | null,
+  type: string | null,
+): Promise<NextResponse> {
+  const next = request.nextUrl.searchParams.get("next") ?? "/garage";
+  const safeNext = next.startsWith("/") ? next : "/garage";
+  const origin = request.nextUrl.origin;
+
+  // Create a redirect response — cookies will be set directly on this
+  let response = NextResponse.redirect(new URL(safeNext, request.url));
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          response = NextResponse.redirect(new URL(safeNext, request.url));
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  // Flow 1: Email OTP verification (token_hash + type)
+  if (tokenHash && type) {
+    console.log("[auth/middleware] OTP flow — type:", type);
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: type as "signup" | "recovery" | "invite" | "magiclink" | "email",
+    });
+
+    if (!error) {
+      console.log("[auth/middleware] OTP success, user:", data?.user?.id);
+      return response;
+    }
+
+    console.error("[auth/middleware] OTP failed:", error.message, error.status);
+    return NextResponse.redirect(
+      new URL(`/login?error=verification_failed`, request.url)
+    );
+  }
+
+  // Flow 2: OAuth / PKCE code exchange
+  if (code) {
+    console.log("[auth/middleware] PKCE code exchange");
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+    if (!error) {
+      console.log("[auth/middleware] Code exchange success, user:", data?.user?.id);
+      return response;
+    }
+
+    console.error("[auth/middleware] Code exchange failed:", error.message, error.status);
+    return NextResponse.redirect(
+      new URL(`/login?error=auth_callback_failed`, request.url)
+    );
+  }
+
+  return NextResponse.redirect(new URL("/login?error=auth_callback_failed", request.url));
+}
+
+// ── Session refresh for public routes ──────────────────────────────────────
 async function refreshSession(request: NextRequest): Promise<NextResponse> {
   let response = NextResponse.next({ request });
 
@@ -63,6 +132,7 @@ async function refreshSession(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
+// ── Protected route guard ──────────────────────────────────────────────────
 async function protectedRoute(request: NextRequest): Promise<NextResponse> {
   let response = NextResponse.next({ request });
 
