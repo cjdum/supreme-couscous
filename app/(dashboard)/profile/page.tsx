@@ -20,6 +20,7 @@ interface Stats {
   carCount: number;
   modCount: number;
   totalInvested: number;
+  forumPosts: number;
 }
 
 function BadgeIcon({ icon, color, size = 14 }: { icon: string; color: string; size?: number }) {
@@ -35,23 +36,23 @@ function BadgeIcon({ icon, color, size = 14 }: { icon: string; color: string; si
 function BadgeCard({ badge }: { badge: Badge }) {
   return (
     <div
-      className={`rounded-[14px] border p-3 flex flex-col items-center gap-2 text-center transition-all ${
+      className={`rounded-2xl border p-3.5 flex flex-col items-center gap-2.5 text-center transition-all ${
         badge.earned
-          ? "border-[rgba(255,255,255,0.1)] bg-[#111111]"
-          : "border-[rgba(255,255,255,0.04)] bg-[rgba(255,255,255,0.02)] opacity-45"
+          ? "border-[var(--color-border)] bg-[var(--color-bg-card)]"
+          : "border-transparent bg-[rgba(255,255,255,0.02)] opacity-40"
       }`}
     >
       <div
-        className="w-9 h-9 rounded-[10px] flex items-center justify-center"
-        style={{ background: badge.earned ? `${badge.color}18` : "rgba(255,255,255,0.04)" }}
+        className="w-10 h-10 rounded-xl flex items-center justify-center"
+        style={{ background: badge.earned ? `${badge.color}15` : "rgba(255,255,255,0.04)" }}
       >
-        <BadgeIcon icon={badge.icon} color={badge.earned ? badge.color : "rgba(255,255,255,0.2)"} size={16} />
+        <BadgeIcon icon={badge.icon} color={badge.earned ? badge.color : "#333"} size={17} />
       </div>
       <div>
-        <p className={`text-[11px] font-bold leading-tight ${badge.earned ? "text-white" : "text-[rgba(255,255,255,0.3)]"}`}>
+        <p className={`text-[11px] font-bold leading-tight ${badge.earned ? "text-white" : "text-[var(--color-text-muted)]"}`}>
           {badge.name}
         </p>
-        <p className="text-[9px] text-[rgba(255,255,255,0.25)] mt-0.5 leading-tight">
+        <p className="text-[9px] text-[var(--color-text-muted)] mt-0.5 leading-tight">
           {badge.description}
         </p>
       </div>
@@ -62,7 +63,7 @@ function BadgeCard({ badge }: { badge: Badge }) {
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [stats, setStats] = useState<Stats>({ carCount: 0, modCount: 0, totalInvested: 0 });
+  const [stats, setStats] = useState<Stats>({ carCount: 0, modCount: 0, totalInvested: 0, forumPosts: 0 });
   const [buildScore, setBuildScore] = useState<ReturnType<typeof calculateBuildScore> | null>(null);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
@@ -136,7 +137,7 @@ export default function ProfilePage() {
       setBadges(computeBadges(badgeInput));
 
       const invested = installedMods.reduce((s, m) => s + (m.cost ?? 0), 0);
-      setStats({ carCount: carIds.length, modCount: installedMods.length, totalInvested: invested });
+      setStats({ carCount: carIds.length, modCount: installedMods.length, totalInvested: invested, forumPosts: postRes.count ?? 0 });
       setBuildScore(score);
       setLoading(false);
     });
@@ -163,78 +164,77 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="px-4 py-5 max-w-lg mx-auto space-y-3">
-        {[1, 2, 3].map((i) => <div key={i} className="skeleton h-32 rounded-[22px]" />)}
+      <div className="px-5 py-6 max-w-lg mx-auto space-y-3">
+        {[1, 2, 3].map((i) => <div key={i} className="skeleton h-36 rounded-3xl" />)}
       </div>
     );
   }
 
-  const levelColor = buildScore ? LEVEL_COLORS[buildScore.level] : "rgba(255,255,255,0.3)";
+  const levelColor = buildScore ? LEVEL_COLORS[buildScore.level] : "#555";
   const levelData = LEVELS.find((l) => l.name === buildScore?.level);
   const earnedBadges = badges.filter((b) => b.earned);
   const lockedBadges = badges.filter((b) => !b.earned);
   const visibleBadges = showAllBadges ? badges : [...earnedBadges, ...lockedBadges].slice(0, 8);
 
   return (
-    <div className="px-4 py-5 max-w-lg mx-auto space-y-3 pb-8">
-      {/* Avatar + name */}
-      <div className="rounded-[22px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-5 flex items-center gap-4">
+    <div className="px-5 py-6 max-w-lg mx-auto space-y-4 pb-8 stagger-children">
+      {/* ── Hero: Avatar + name ── */}
+      <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6 flex items-center gap-5">
         <div
-          className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: "linear-gradient(135deg, #3B82F6, #60A5FA)" }}
+          className="w-18 h-18 rounded-2xl flex items-center justify-center flex-shrink-0"
+          style={{ background: "linear-gradient(135deg, #3B82F6, #60A5FA)", width: "72px", height: "72px" }}
         >
           {profile?.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatar_url} alt="Avatar" className="w-full h-full rounded-full object-cover" />
+            <img src={profile.avatar_url} alt="Avatar" className="w-full h-full rounded-2xl object-cover" />
           ) : (
-            <User size={26} className="text-white" />
+            <User size={28} className="text-white" />
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-lg font-bold truncate">{profile?.display_name || `@${profile?.username}`}</p>
-          <p className="text-xs text-[rgba(255,255,255,0.3)] truncate">@{profile?.username} · {email}</p>
+          <p className="text-xl font-bold truncate">{profile?.display_name || `@${profile?.username}`}</p>
+          <p className="text-xs text-[var(--color-text-muted)] truncate mt-0.5">@{profile?.username} · {email}</p>
           {buildScore && (
-            <div className="flex items-center gap-1.5 mt-1.5">
+            <div className="flex items-center gap-2 mt-2">
               <div className="w-2 h-2 rounded-full" style={{ background: levelColor }} />
-              <span className="text-[11px] font-semibold" style={{ color: levelColor }}>{buildScore.level}</span>
+              <span className="text-[11px] font-bold" style={{ color: levelColor }}>{buildScore.level}</span>
               {levelData && (
-                <span className="text-[10px] text-[rgba(255,255,255,0.25)]">· {levelData.description}</span>
+                <span className="text-[10px] text-[var(--color-text-muted)]">· {levelData.description}</span>
               )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Build Score */}
+      {/* ── Build Score — prominent ── */}
       {buildScore && (
-        <div className="rounded-[22px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-5">
-          <div className="flex items-start justify-between mb-4">
+        <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6">
+          <div className="flex items-start justify-between mb-5">
             <div>
-              <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider mb-1.5">Build Score</p>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold tabular-nums">{buildScore.score}</span>
-                <Award size={15} style={{ color: levelColor }} className="mb-0.5" />
+              <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Build Score</p>
+              <div className="flex items-baseline gap-2.5">
+                <span className="text-4xl font-bold tabular-nums">{buildScore.score}</span>
+                <Award size={16} style={{ color: levelColor }} className="mb-0.5" />
               </div>
             </div>
             <div
-              className="px-3 py-1.5 rounded-full text-xs font-bold"
-              style={{ background: `${levelColor}18`, color: levelColor, border: `1px solid ${levelColor}30` }}
+              className="px-4 py-2 rounded-full text-xs font-bold"
+              style={{ background: `${levelColor}15`, color: levelColor, border: `1px solid ${levelColor}25` }}
             >
               {buildScore.level}
             </div>
           </div>
 
           {/* Level progression */}
-          <div className="mb-4">
-            {/* Level names bar */}
-            <div className="flex justify-between mb-1.5">
+          <div className="mb-5">
+            <div className="flex justify-between mb-2">
               {LEVELS.map((l, i) => (
                 <div
                   key={l.name}
-                  className={`w-2 h-2 rounded-full transition-all ${
+                  className={`w-2.5 h-2.5 rounded-full transition-all ${
                     i <= buildScore.levelIndex ? "opacity-100" : "opacity-20"
                   }`}
-                  style={{ background: i <= buildScore.levelIndex ? l.color : "rgba(255,255,255,0.2)" }}
+                  style={{ background: i <= buildScore.levelIndex ? l.color : "#333" }}
                   title={l.name}
                 />
               ))}
@@ -249,14 +249,14 @@ export default function ProfilePage() {
               />
             </div>
             {buildScore.nextLevel ? (
-              <div className="flex justify-between mt-1.5">
-                <p className="text-[10px] text-[rgba(255,255,255,0.28)]">{buildScore.score} pts</p>
-                <p className="text-[10px] text-[rgba(255,255,255,0.28)]">
+              <div className="flex justify-between mt-2">
+                <p className="text-[10px] text-[var(--color-text-muted)]">{buildScore.score} pts</p>
+                <p className="text-[10px] text-[var(--color-text-muted)]">
                   <Target size={9} className="inline mr-0.5" />{buildScore.nextLevel} at {buildScore.nextThreshold} pts
                 </p>
               </div>
             ) : (
-              <p className="text-[10px] text-[rgba(255,255,255,0.35)] mt-1.5 text-center">
+              <p className="text-[10px] text-[var(--color-text-muted)] mt-2 text-center">
                 Maximum level reached — you are the build.
               </p>
             )}
@@ -264,12 +264,12 @@ export default function ProfilePage() {
 
           {/* Score breakdown */}
           {buildScore.breakdown.length > 0 && (
-            <div className="space-y-1 pt-3 border-t border-[rgba(255,255,255,0.05)]">
-              <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.25)] uppercase tracking-wider mb-2">How you earned it</p>
+            <div className="space-y-1.5 pt-4 border-t border-[var(--color-border)]">
+              <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2.5">How you earned it</p>
               {buildScore.breakdown.map((item, i) => (
                 <div key={i} className="flex items-center justify-between">
-                  <span className="text-[11px] text-[rgba(255,255,255,0.4)]">{item.label}</span>
-                  <span className="text-[11px] font-semibold text-[rgba(255,255,255,0.55)]">+{item.points}</span>
+                  <span className="text-[11px] text-[var(--color-text-secondary)]">{item.label}</span>
+                  <span className="text-[11px] font-semibold text-[var(--color-text-secondary)]">+{item.points}</span>
                 </div>
               ))}
             </div>
@@ -277,35 +277,33 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* ── Stats row ── */}
+      <div className="grid grid-cols-4 gap-2">
         {[
-          { icon: <Car size={12} />, label: "Vehicles", value: stats.carCount },
-          { icon: <Wrench size={12} />, label: "Mods", value: stats.modCount },
-          { icon: <TrendingUp size={12} />, label: "Invested", value: stats.totalInvested > 0 ? formatCurrency(stats.totalInvested) : "—", accent: true },
+          { icon: <Car size={13} />, label: "Cars", value: stats.carCount },
+          { icon: <Wrench size={13} />, label: "Mods", value: stats.modCount },
+          { icon: <TrendingUp size={13} />, label: "Invested", value: stats.totalInvested > 0 ? formatCurrency(stats.totalInvested) : "—", accent: true },
+          { label: "Posts", value: stats.forumPosts },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-[16px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-3.5 text-center">
-            <div className="flex items-center justify-center gap-1 mb-1 text-[rgba(255,255,255,0.25)]">
-              {stat.icon}
-              <span className="text-[9px] uppercase font-semibold tracking-wider">{stat.label}</span>
-            </div>
-            <p className={`text-xl font-bold ${stat.accent ? "text-[#60A5FA]" : ""}`}>{stat.value}</p>
+          <div key={stat.label} className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3.5 text-center">
+            <p className={`text-lg font-bold ${stat.accent ? "text-[#60A5FA]" : ""}`}>{stat.value}</p>
+            <p className="text-[9px] uppercase font-semibold tracking-wider text-[var(--color-text-muted)] mt-1">{stat.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Badges */}
+      {/* ── Badges — 4 column grid ── */}
       {badges.length > 0 && (
-        <div className="rounded-[22px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-5">
-          <div className="flex items-center justify-between mb-4">
+        <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6">
+          <div className="flex items-center justify-between mb-5">
             <div>
-              <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider">Badges</p>
-              <p className="text-xs text-[rgba(255,255,255,0.4)] mt-0.5">
+              <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Badges</p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
                 {earnedBadges.length} of {badges.length} earned
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-2.5">
             {visibleBadges.map((badge) => (
               <BadgeCard key={badge.id} badge={badge} />
             ))}
@@ -313,7 +311,7 @@ export default function ProfilePage() {
           {badges.length > 8 && (
             <button
               onClick={() => setShowAllBadges((v) => !v)}
-              className="w-full mt-3 py-2 text-xs text-[rgba(255,255,255,0.35)] hover:text-[rgba(255,255,255,0.6)] transition-colors cursor-pointer"
+              className="w-full mt-4 py-2.5 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer font-medium"
             >
               {showAllBadges ? "Show less" : `Show all ${badges.length} badges`}
             </button>
@@ -321,53 +319,53 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Profile fields */}
-      <div className="rounded-[22px] border border-[rgba(255,255,255,0.07)] bg-[#111111] overflow-hidden">
-        <div className="px-5 py-3 border-b border-[rgba(255,255,255,0.05)]">
-          <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider">Profile Info</p>
+      {/* ── Profile fields ── */}
+      <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden">
+        <div className="px-6 py-4 border-b border-[var(--color-border)]">
+          <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Profile Info</p>
         </div>
         {(["display_name", "bio"] as const).map((field) => {
           const labels = { display_name: "Display Name", bio: "Bio" };
-          const placeholders = { display_name: "Your name…", bio: "Tell others about your builds…" };
+          const placeholders = { display_name: "Your name...", bio: "Tell others about your builds..." };
           const isEditing = editingField === field;
           const value = profile?.[field];
           return (
-            <div key={field} className="px-5 py-4 border-b border-[rgba(255,255,255,0.05)] last:border-0">
+            <div key={field} className="px-6 py-5 border-b border-[var(--color-border)] last:border-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider mb-1.5">{labels[field]}</p>
+                  <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">{labels[field]}</p>
                   {isEditing ? (
                     field === "bio" ? (
                       <textarea autoFocus value={editValue} onChange={(e) => setEditValue(e.target.value)}
-                        className="w-full bg-[#1a1a1a] rounded-[8px] border border-[#3B82F6] px-3 py-2 text-sm outline-none resize-none text-white"
+                        className="w-full bg-[var(--color-bg-elevated)] rounded-xl border border-[var(--color-accent)] px-4 py-3 text-sm outline-none resize-none text-white"
                         rows={3} placeholder={placeholders[field]} maxLength={500} />
                     ) : (
                       <input autoFocus type="text" value={editValue} onChange={(e) => setEditValue(e.target.value)}
-                        className="w-full bg-[#1a1a1a] rounded-[8px] border border-[#3B82F6] px-3 py-2 text-sm outline-none text-white"
+                        className="w-full bg-[var(--color-bg-elevated)] rounded-xl border border-[var(--color-accent)] px-4 py-3 text-sm outline-none text-white"
                         placeholder={placeholders[field]} maxLength={60} />
                     )
                   ) : (
-                    <p className={`text-sm ${value ? "text-white" : "text-[rgba(255,255,255,0.2)] italic"}`}>
+                    <p className={`text-sm ${value ? "text-white" : "text-[var(--color-text-disabled)] italic"}`}>
                       {value || placeholders[field]}
                     </p>
                   )}
                 </div>
-                <div className="flex-shrink-0 flex items-center gap-1 mt-5">
+                <div className="flex-shrink-0 flex items-center gap-1.5 mt-6">
                   {isEditing ? (
                     <>
                       <button onClick={() => saveField(field)} disabled={saving}
-                        className="w-7 h-7 rounded-lg bg-[rgba(34,197,94,0.1)] flex items-center justify-center hover:opacity-80 cursor-pointer">
-                        <Check size={13} className="text-[#22c55e]" />
+                        className="w-8 h-8 rounded-xl bg-[var(--color-success-muted)] flex items-center justify-center hover:opacity-80 cursor-pointer">
+                        <Check size={14} className="text-[var(--color-success)]" />
                       </button>
                       <button onClick={() => setEditingField(null)}
-                        className="w-7 h-7 rounded-lg bg-[#1a1a1a] flex items-center justify-center hover:opacity-80 cursor-pointer">
-                        <X size={13} className="text-[rgba(255,255,255,0.35)]" />
+                        className="w-8 h-8 rounded-xl bg-[var(--color-bg-elevated)] flex items-center justify-center hover:opacity-80 cursor-pointer">
+                        <X size={14} className="text-[var(--color-text-muted)]" />
                       </button>
                     </>
                   ) : (
                     <button onClick={() => { setEditingField(field); setEditValue(value ?? ""); }}
-                      className="w-7 h-7 rounded-lg bg-[#1a1a1a] flex items-center justify-center hover:border hover:border-[rgba(255,255,255,0.12)] transition-colors cursor-pointer">
-                      <Edit2 size={11} className="text-[rgba(255,255,255,0.28)]" />
+                      className="w-8 h-8 rounded-xl bg-[var(--color-bg-elevated)] flex items-center justify-center hover:bg-[var(--color-bg-hover)] transition-colors cursor-pointer">
+                      <Edit2 size={12} className="text-[var(--color-text-muted)]" />
                     </button>
                   )}
                 </div>
@@ -377,22 +375,22 @@ export default function ProfilePage() {
         })}
       </div>
 
-      {/* Links */}
-      <div className="rounded-[22px] border border-[rgba(255,255,255,0.07)] bg-[#111111] overflow-hidden">
+      {/* ── Links ── */}
+      <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden">
         {[
-          { label: "My Garage", href: "/garage", icon: <Car size={14} /> },
-          { label: "Forum", href: "/forum", icon: <Wrench size={14} /> },
+          { label: "My Garage", href: "/garage", icon: <Car size={15} /> },
+          { label: "Forum", href: "/forum", icon: <Wrench size={15} /> },
         ].map((link) => (
           <a key={link.label} href={link.href}
-            className="flex items-center gap-3 px-5 py-3.5 border-b border-[rgba(255,255,255,0.05)] last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
-            <span className="text-[rgba(255,255,255,0.3)]">{link.icon}</span>
+            className="flex items-center gap-3.5 px-6 py-4 border-b border-[var(--color-border)] last:border-0 hover:bg-[rgba(255,255,255,0.02)] transition-colors">
+            <span className="text-[var(--color-text-muted)]">{link.icon}</span>
             <span className="text-sm font-medium flex-1">{link.label}</span>
-            <ChevronRight size={14} className="text-[rgba(255,255,255,0.18)]" />
+            <ChevronRight size={15} className="text-[var(--color-text-disabled)]" />
           </a>
         ))}
         <button onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-5 py-4 text-sm font-medium text-[#ef4444] hover:bg-[rgba(239,68,68,0.05)] transition-colors cursor-pointer">
-          <LogOut size={14} />
+          className="w-full flex items-center gap-3.5 px-6 py-4.5 text-sm font-medium text-[var(--color-danger)] hover:bg-[var(--color-danger-muted)] transition-colors cursor-pointer border-t border-[var(--color-border)]">
+          <LogOut size={15} />
           Sign out
         </button>
       </div>

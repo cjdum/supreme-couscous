@@ -81,16 +81,16 @@ function LoginForm() {
           <p className="text-sm text-[var(--color-text-secondary)]">Sign in to your garage</p>
         </div>
 
-        <div className="rounded-[22px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-6 shadow-2xl">
+        <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6 shadow-[0_16px_64px_rgba(0,0,0,0.5)]">
           {authError === "verification_failed" && (
-            <div className="rounded-[10px] bg-[rgba(245,158,11,0.1)] border border-[rgba(245,158,11,0.2)] px-4 py-3 text-sm text-[#fbbf24] mb-4" role="alert">
+            <div className="rounded-xl bg-[var(--color-warning-muted)] border border-[rgba(255,159,10,0.2)] px-4 py-3 text-sm text-[var(--color-warning)] mb-4" role="alert">
               Your verification link expired or is invalid. Please{" "}
               <Link href="/signup" className="underline font-medium">sign up again</Link>{" "}
               or request a new link.
             </div>
           )}
           {authError === "auth_callback_failed" && (
-            <div className="rounded-[10px] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] px-4 py-3 text-sm text-[#f87171] mb-4" role="alert">
+            <div className="rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.2)] px-4 py-3 text-sm text-[var(--color-danger)] mb-4" role="alert">
               Sign-in failed. Please try again or contact support.
             </div>
           )}
@@ -99,7 +99,7 @@ function LoginForm() {
             type="button"
             onClick={handleGoogleAuth}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 h-11 rounded-[12px] bg-[var(--color-bg-elevated)] border border-[var(--color-border)] hover:border-[var(--color-border-bright)] hover:bg-[var(--color-bg-hover)] text-sm font-medium transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+            className="w-full flex items-center justify-center gap-3 h-11 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] hover:border-[var(--color-border-bright)] hover:bg-[var(--color-bg-hover)] text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
           >
             <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />

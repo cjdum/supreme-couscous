@@ -8,14 +8,23 @@ import { AddCarModal } from "./add-car-modal";
 interface AddCarButtonProps {
   label?: string;
   asCard?: boolean;
+  fab?: boolean;
 }
 
-export function AddCarButton({ label, asCard }: AddCarButtonProps) {
+export function AddCarButton({ label, asCard, fab }: AddCarButtonProps) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
-      {asCard ? (
+      {fab ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="fab"
+          aria-label="Add car"
+        >
+          <Plus size={24} />
+        </button>
+      ) : asCard ? (
         <button
           onClick={() => setOpen(true)}
           className="flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--color-border)] hover:border-[var(--color-border-bright)] hover:bg-[var(--color-bg-elevated)] transition-all duration-200 cursor-pointer group"

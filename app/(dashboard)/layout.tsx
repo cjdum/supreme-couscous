@@ -23,9 +23,12 @@ export default async function DashboardLayout({
   const profile = profileRaw as { username: string } | null;
 
   return (
-    <div className="min-h-dvh bg-[var(--color-bg)]">
+    <div className="min-h-dvh bg-[var(--color-bg)] gradient-bg">
       <TopBar username={profile?.username} />
-      <main className="pt-14" style={{ paddingBottom: "max(80px, calc(env(safe-area-inset-bottom) + 68px))" }}>
+      <main
+        className="pt-16 animate-fade"
+        style={{ paddingBottom: "max(88px, calc(env(safe-area-inset-bottom) + 76px))" }}
+      >
         {children}
       </main>
       <BottomNav />

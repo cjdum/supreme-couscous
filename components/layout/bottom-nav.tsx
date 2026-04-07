@@ -22,7 +22,7 @@ export function BottomNav() {
       style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}
       aria-label="Main navigation"
     >
-      <div className="flex items-stretch h-[60px] max-w-lg mx-auto px-1">
+      <div className="flex items-stretch h-[64px] max-w-lg mx-auto px-2">
         {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
 
@@ -31,7 +31,7 @@ export function BottomNav() {
               key={href}
               href={href}
               className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-1 min-h-[44px] rounded-xl transition-all duration-150 relative",
+                "flex-1 flex flex-col items-center justify-center gap-1.5 min-h-[44px] rounded-2xl transition-all duration-200 relative",
                 active
                   ? "text-[var(--color-accent)]"
                   : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
@@ -40,16 +40,16 @@ export function BottomNav() {
               aria-current={active ? "page" : undefined}
             >
               {active && (
-                <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--color-accent)]" />
+                <span className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-[3px] rounded-full bg-[var(--color-accent)]" />
               )}
               <Icon
-                size={21}
+                size={22}
                 strokeWidth={active ? 2.5 : 1.75}
                 aria-hidden="true"
               />
               <span
                 className={cn(
-                  "text-[10px] font-medium leading-none",
+                  "text-[10px] font-semibold leading-none",
                   active ? "text-[var(--color-accent)]" : "text-[var(--color-text-muted)]"
                 )}
               >

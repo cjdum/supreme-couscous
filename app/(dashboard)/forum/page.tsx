@@ -49,11 +49,11 @@ const SORT_OPTIONS: { value: SortMode; label: string; icon: React.ReactNode }[] 
 ];
 
 const FLAIR_STYLES: Record<string, { bg: string; color: string }> = {
-  build: { bg: "rgba(59,130,246,0.15)", color: "#60A5FA" },
-  advice: { bg: "rgba(245,158,11,0.15)", color: "#fbbf24" },
-  showcase: { bg: "rgba(34,197,94,0.15)", color: "#4ade80" },
-  general: { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)" },
-  for_sale: { bg: "rgba(168,85,247,0.15)", color: "#c084fc" },
+  build: { bg: "rgba(59,130,246,0.12)", color: "#60A5FA" },
+  advice: { bg: "rgba(255,159,10,0.12)", color: "#ff9f0a" },
+  showcase: { bg: "rgba(48,209,88,0.12)", color: "#30d158" },
+  general: { bg: "rgba(255,255,255,0.05)", color: "#8a8a8a" },
+  for_sale: { bg: "rgba(168,85,247,0.12)", color: "#c084fc" },
 };
 
 function scorePost(post: Post): number {
@@ -63,8 +63,8 @@ function scorePost(post: Post): number {
 function AvatarInitial({ username }: { username: string }) {
   const initial = username[0]?.toUpperCase() ?? "?";
   return (
-    <div className="w-7 h-7 rounded-full bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] flex items-center justify-center flex-shrink-0">
-      <span className="text-[10px] font-bold text-[rgba(255,255,255,0.45)]">{initial}</span>
+    <div className="w-8 h-8 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] flex items-center justify-center flex-shrink-0">
+      <span className="text-[10px] font-bold text-[var(--color-text-secondary)]">{initial}</span>
     </div>
   );
 }
@@ -101,7 +101,6 @@ export default function ForumPage() {
         .order("created_at", { ascending: false });
       setUserCars((cars ?? []) as typeof userCars);
 
-      // Load existing votes
       const { data: upvotes } = await supabase
         .from("forum_likes")
         .select("post_id")
@@ -229,18 +228,15 @@ export default function ForumPage() {
     const isDownvoted = downvotedPosts.has(postId);
 
     if (isUpvoted) {
-      // Remove upvote
       await supabase.from("forum_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
       setUpvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
     } else {
-      // If downvoted, remove downvote first
       if (isDownvoted) {
         try { await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId); } catch { /* table may not exist */ }
         setDownvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
         setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p));
       }
-      // Add upvote
       await supabase.from("forum_likes").insert({ post_id: postId, user_id: currentUserId });
       setUpvotedPosts((prev) => new Set(prev).add(postId));
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: p.likes_count + 1 } : p));
@@ -254,18 +250,15 @@ export default function ForumPage() {
     const isDownvoted = downvotedPosts.has(postId);
 
     if (isDownvoted) {
-      // Remove downvote
       try { await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId); } catch { /* table may not exist */ }
       setDownvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p));
     } else {
-      // If upvoted, remove upvote first
       if (isUpvoted) {
         await supabase.from("forum_likes").delete().eq("post_id", postId).eq("user_id", currentUserId);
         setUpvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
         setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, likes_count: Math.max(0, p.likes_count - 1) } : p));
       }
-      // Add downvote
       try { await supabase.from("forum_downvotes").insert({ post_id: postId, user_id: currentUserId }); } catch { /* table may not exist */ }
       setDownvotedPosts((prev) => new Set(prev).add(postId));
       setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: (p.downvotes_count ?? 0) + 1 } : p));
@@ -275,52 +268,52 @@ export default function ForumPage() {
   const flair = (cat: string) => FLAIR_STYLES[cat] ?? FLAIR_STYLES.general;
 
   return (
-    <div className="px-4 py-5 max-w-2xl mx-auto">
+    <div className="px-5 py-6 max-w-2xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold">Forum</h1>
-          <p className="text-xs text-[rgba(255,255,255,0.28)] mt-0.5">Community discussion</p>
+          <h1 className="text-2xl font-bold tracking-tight">Forum</h1>
+          <p className="text-xs text-[var(--color-text-muted)] mt-1">Community discussion</p>
         </div>
         <button
           onClick={() => setShowNewPost(true)}
-          className="flex items-center gap-1.5 h-9 px-4 rounded-[10px] bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#60A5FA] transition-colors active:scale-95 cursor-pointer"
+          className="flex items-center gap-2 h-10 px-5 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold hover:brightness-110 transition-all active:scale-95 cursor-pointer shadow-[0_4px_20px_rgba(59,130,246,0.25)]"
         >
-          <Plus size={13} />
-          Post
+          <Plus size={14} />
+          Create Post
         </button>
       </div>
 
       {/* Sort + Category */}
-      <div className="space-y-2 mb-5">
-        {/* Sort tabs */}
-        <div className="flex bg-[#1a1a1a] rounded-[12px] p-1 gap-0.5">
+      <div className="space-y-3 mb-6">
+        {/* Sort tabs — pill style */}
+        <div className="flex bg-[var(--color-bg-card)] rounded-2xl p-1.5 gap-1 border border-[var(--color-border)]">
           {SORT_OPTIONS.map((opt) => (
             <button
               key={opt.value}
               onClick={() => setSort(opt.value)}
-              className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-[9px] text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                 sort === opt.value
-                  ? "bg-[#111111] text-white shadow-sm"
-                  : "text-[rgba(255,255,255,0.35)] hover:text-[rgba(255,255,255,0.6)]"
+                  ? "bg-[var(--color-bg-elevated)] text-white shadow-sm"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
               }`}
             >
-              <span className={sort === opt.value ? "text-[#3B82F6]" : ""}>{opt.icon}</span>
+              <span className={sort === opt.value ? "text-[var(--color-accent)]" : ""}>{opt.icon}</span>
               {opt.label}
             </button>
           ))}
         </div>
 
         {/* Category pills */}
-        <div className="flex gap-1.5 overflow-x-auto hide-scrollbar pb-0.5">
+        <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-0.5">
           {CATEGORIES.map((cat) => (
             <button
               key={cat.value}
               onClick={() => setCategory(cat.value)}
-              className={`flex items-center gap-1.5 h-7 px-3 rounded-full text-[11px] font-medium whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${
+              className={`flex items-center gap-1.5 h-8 px-4 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer flex-shrink-0 ${
                 category === cat.value
-                  ? "bg-[#3B82F6] text-white"
-                  : "bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-[rgba(255,255,255,0.45)] hover:border-[rgba(255,255,255,0.15)]"
+                  ? "bg-[var(--color-accent)] text-white shadow-[0_2px_12px_rgba(59,130,246,0.25)]"
+                  : "bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-bright)] hover:text-[var(--color-text-secondary)]"
               }`}
             >
               {cat.icon}
@@ -333,30 +326,30 @@ export default function ForumPage() {
       {/* New Post Modal */}
       {showNewPost && (
         <>
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" onClick={() => { setShowNewPost(false); setPostError(null); }} />
-          <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 max-w-lg mx-auto rounded-[22px] bg-[#111111] border border-[rgba(255,255,255,0.08)] p-5 shadow-2xl animate-scale-in">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold">New Post</h2>
-              <button onClick={() => { setShowNewPost(false); setPostError(null); }} className="w-7 h-7 rounded-lg bg-[#1a1a1a] flex items-center justify-center cursor-pointer hover:bg-[#222222]">
-                <X size={13} className="text-[rgba(255,255,255,0.45)]" />
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md" onClick={() => { setShowNewPost(false); setPostError(null); }} />
+          <div className="fixed inset-x-5 top-1/2 -translate-y-1/2 z-50 max-w-lg mx-auto rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.6)] animate-scale-in">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold">New Post</h2>
+              <button onClick={() => { setShowNewPost(false); setPostError(null); }} className="w-8 h-8 rounded-xl bg-[var(--color-bg-elevated)] flex items-center justify-center cursor-pointer hover:bg-[var(--color-bg-hover)] transition-colors">
+                <X size={14} className="text-[var(--color-text-muted)]" />
               </button>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {postError && (
-                <div className="rounded-[10px] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] px-3 py-2.5 text-xs text-[#f87171]">
+                <div className="rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.2)] px-4 py-3 text-xs text-[var(--color-danger)]">
                   {postError}
                   {postError.includes("signed in") && (
-                    <a href="/login" className="ml-1.5 underline font-semibold">Sign in →</a>
+                    <a href="/login" className="ml-1.5 underline font-semibold">Sign in</a>
                   )}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.35)] uppercase tracking-wider mb-1.5">Category</p>
+                  <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Category</p>
                   <select
                     value={newPost.category}
                     onChange={(e) => setNewPost((p) => ({ ...p, category: e.target.value }))}
-                    className="w-full rounded-[10px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-sm px-3 py-2.5 outline-none focus:border-[#3B82F6] text-white"
+                    className="w-full rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-sm px-3 py-2.5 outline-none focus:border-[var(--color-accent)] text-white"
                   >
                     {CATEGORIES.filter((c) => c.value !== "all").map((c) => (
                       <option key={c.value} value={c.value}>{c.label}</option>
@@ -365,11 +358,11 @@ export default function ForumPage() {
                 </div>
                 {userCars.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.35)] uppercase tracking-wider mb-1.5">Tag Your Car</p>
+                    <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Tag Your Car</p>
                     <select
                       value={newPost.car_id}
                       onChange={(e) => setNewPost((p) => ({ ...p, car_id: e.target.value }))}
-                      className="w-full rounded-[10px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-sm px-3 py-2.5 outline-none focus:border-[#3B82F6] text-white"
+                      className="w-full rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-sm px-3 py-2.5 outline-none focus:border-[var(--color-accent)] text-white"
                     >
                       <option value="">None</option>
                       {userCars.map((c) => (
@@ -380,40 +373,40 @@ export default function ForumPage() {
                 )}
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.35)] uppercase tracking-wider mb-1.5">Title</p>
+                <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Title</p>
                 <input
                   type="text"
                   value={newPost.title}
                   onChange={(e) => setNewPost((p) => ({ ...p, title: e.target.value }))}
                   placeholder="What's on your mind?"
-                  className="w-full rounded-[10px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-sm px-3 py-2.5 outline-none focus:border-[#3B82F6] text-white placeholder-[rgba(255,255,255,0.25)]"
+                  className="w-full rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-sm px-4 py-3 outline-none focus:border-[var(--color-accent)] text-white placeholder-[var(--color-text-muted)]"
                   maxLength={200}
                 />
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.35)] uppercase tracking-wider mb-1.5">Details</p>
+                <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Details</p>
                 <textarea
                   value={newPost.content}
                   onChange={(e) => setNewPost((p) => ({ ...p, content: e.target.value }))}
-                  placeholder="Describe your build, ask a question, share details…"
+                  placeholder="Describe your build, ask a question, share details..."
                   rows={4}
-                  className="w-full rounded-[10px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-sm px-3 py-2.5 outline-none focus:border-[#3B82F6] text-white placeholder-[rgba(255,255,255,0.25)] resize-none"
+                  className="w-full rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-sm px-4 py-3 outline-none focus:border-[var(--color-accent)] text-white placeholder-[var(--color-text-muted)] resize-none"
                   maxLength={5000}
                 />
               </div>
-              <div className="flex gap-2 pt-1">
+              <div className="flex gap-2.5 pt-1">
                 <button
                   onClick={() => setShowNewPost(false)}
-                  className="flex-1 h-10 rounded-[10px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-sm font-medium text-[rgba(255,255,255,0.55)] hover:border-[rgba(255,255,255,0.15)] transition-colors cursor-pointer"
+                  className="flex-1 h-11 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-sm font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-border-bright)] transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={submitPost}
                   disabled={submittingPost || !newPost.title.trim() || !newPost.content.trim()}
-                  className="flex-1 h-10 rounded-[10px] bg-[#3B82F6] text-white text-sm font-semibold hover:bg-[#60A5FA] transition-colors disabled:opacity-40 cursor-pointer"
+                  className="flex-1 h-11 rounded-xl bg-[var(--color-accent)] text-white text-sm font-bold hover:brightness-110 transition-all disabled:opacity-40 cursor-pointer"
                 >
-                  {submittingPost ? "Posting…" : "Post"}
+                  {submittingPost ? "Posting..." : "Post"}
                 </button>
               </div>
             </div>
@@ -425,25 +418,27 @@ export default function ForumPage() {
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="skeleton h-28 rounded-[18px]" />
+            <div key={i} className="skeleton h-32 rounded-2xl" />
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <div className="text-center py-20">
-          <div className="w-14 h-14 rounded-2xl bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] flex items-center justify-center mx-auto mb-4">
-            <MessageSquare size={22} className="text-[rgba(255,255,255,0.2)]" />
+        <div className="text-center py-24">
+          <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center mx-auto mb-5">
+            <MessageSquare size={24} className="text-[var(--color-text-disabled)]" />
           </div>
-          <p className="text-sm font-semibold text-[rgba(255,255,255,0.55)]">No posts yet</p>
-          <p className="text-xs text-[rgba(255,255,255,0.28)] mt-1">Be the first to start a discussion</p>
+          <p className="text-lg font-bold text-[var(--color-text-secondary)]">No posts yet</p>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1.5 max-w-xs mx-auto">
+            Be the legend who starts it.
+          </p>
           <button
             onClick={() => setShowNewPost(true)}
-            className="mt-4 h-9 px-5 rounded-full bg-[#3B82F6] text-white text-xs font-semibold hover:bg-[#60A5FA] transition-colors cursor-pointer"
+            className="mt-6 h-10 px-6 rounded-full bg-[var(--color-accent)] text-white text-xs font-bold hover:brightness-110 transition-all cursor-pointer shadow-[0_4px_20px_rgba(59,130,246,0.25)]"
           >
             Create post
           </button>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3 stagger-children">
           {posts.map((post) => {
             const isExpanded = expandedPost === post.id;
             const postReplies = replies[post.id] ?? [];
@@ -455,11 +450,10 @@ export default function ForumPage() {
             return (
               <div
                 key={post.id}
-                className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[#111111] overflow-hidden"
+                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden"
               >
-                {/* Post body */}
-                <div className="p-4">
-                  <div className="flex gap-3">
+                <div className="p-5">
+                  <div className="flex gap-3.5">
                     {/* Vote column */}
                     <div className="flex flex-col items-center gap-1 flex-shrink-0 pt-0.5">
                       <button
@@ -467,13 +461,13 @@ export default function ForumPage() {
                         className={`vote-btn up ${isUpvoted ? "active" : ""}`}
                         aria-label="Upvote"
                       >
-                        <ArrowUp size={14} />
+                        <ArrowUp size={15} />
                       </button>
                       <span
                         className={`text-xs font-bold tabular-nums min-w-[20px] text-center ${
                           isUpvoted ? "text-[#60A5FA]" :
-                          isDownvoted ? "text-[#f87171]" :
-                          "text-[rgba(255,255,255,0.45)]"
+                          isDownvoted ? "text-[var(--color-danger)]" :
+                          "text-[var(--color-text-muted)]"
                         }`}
                       >
                         {score}
@@ -483,16 +477,16 @@ export default function ForumPage() {
                         className={`vote-btn down ${isDownvoted ? "active" : ""}`}
                         aria-label="Downvote"
                       >
-                        <ArrowDown size={14} />
+                        <ArrowDown size={15} />
                       </button>
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       {/* Meta row */}
-                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      <div className="flex items-center gap-2.5 flex-wrap mb-2">
                         <AvatarInitial username={post.profiles.username} />
-                        <span className="text-[11px] font-semibold text-[rgba(255,255,255,0.7)]">
+                        <span className="text-[11px] font-semibold text-[var(--color-text-secondary)]">
                           @{post.profiles.username}
                         </span>
                         <span
@@ -501,44 +495,44 @@ export default function ForumPage() {
                         >
                           {post.category.replace("_", " ")}
                         </span>
-                        <span className="text-[10px] text-[rgba(255,255,255,0.28)] ml-auto">
+                        <span className="text-[10px] text-[var(--color-text-muted)] ml-auto">
                           {formatRelativeDate(post.created_at)}
                         </span>
                       </div>
 
                       {/* Title */}
-                      <h3 className="text-sm font-bold leading-snug mb-1">{post.title}</h3>
+                      <h3 className="text-[15px] font-bold leading-snug mb-1.5">{post.title}</h3>
 
                       {/* Content preview */}
-                      <p className={`text-[12px] text-[rgba(255,255,255,0.5)] leading-relaxed ${isExpanded ? "" : "line-clamp-2"}`}>
+                      <p className={`text-[13px] text-[var(--color-text-secondary)] leading-relaxed ${isExpanded ? "" : "line-clamp-2"}`}>
                         {post.content}
                       </p>
 
                       {/* Car tag */}
                       {post.cars && (
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <Car size={9} className="text-[rgba(255,255,255,0.28)]" />
-                          <span className="text-[10px] text-[rgba(255,255,255,0.35)]">
+                        <div className="flex items-center gap-2 mt-2.5">
+                          <Car size={10} className="text-[var(--color-text-muted)]" />
+                          <span className="text-[10px] text-[var(--color-text-muted)] font-medium">
                             {post.cars.year} {post.cars.make} {post.cars.model}
                           </span>
                         </div>
                       )}
 
                       {/* Actions row */}
-                      <div className="flex items-center gap-3 mt-2.5 pt-2 border-t border-[rgba(255,255,255,0.05)]">
+                      <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--color-border)]">
                         <button
                           onClick={() => togglePost(post.id)}
-                          className="flex items-center gap-1.5 text-[11px] text-[rgba(255,255,255,0.35)] hover:text-[rgba(255,255,255,0.6)] transition-colors cursor-pointer"
+                          className="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer font-medium"
                         >
-                          <MessageSquare size={12} />
+                          <MessageSquare size={13} />
                           {post.replies_count} {post.replies_count === 1 ? "reply" : "replies"}
                         </button>
                         <div className="ml-auto">
                           <button
                             onClick={() => togglePost(post.id)}
-                            className="text-[rgba(255,255,255,0.28)] hover:text-[rgba(255,255,255,0.55)] transition-colors cursor-pointer"
+                            className="text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors cursor-pointer p-1"
                           >
-                            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                           </button>
                         </div>
                       </div>
@@ -548,51 +542,51 @@ export default function ForumPage() {
 
                 {/* Replies drawer */}
                 {isExpanded && (
-                  <div className="border-t border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)] px-4 py-3 space-y-3 animate-in-fast">
+                  <div className="border-t border-[var(--color-border)] bg-[rgba(255,255,255,0.01)] px-5 py-4 space-y-3 animate-in-fast">
                     {loadingReplies === post.id ? (
-                      <div className="py-3 flex justify-center gap-1">
+                      <div className="py-4 flex justify-center gap-1.5">
                         {[0, 1, 2].map((i) => (
-                          <div key={i} className="w-1.5 h-1.5 rounded-full bg-[rgba(255,255,255,0.2)]"
+                          <div key={i} className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)]"
                             style={{ animation: `typing-dot 1.2s ease ${i * 0.15}s infinite` }} />
                         ))}
                       </div>
                     ) : postReplies.length === 0 ? (
-                      <p className="text-center text-xs text-[rgba(255,255,255,0.25)] py-2">No replies yet — be the first!</p>
+                      <p className="text-center text-xs text-[var(--color-text-muted)] py-3">No replies yet — be the first!</p>
                     ) : (
                       postReplies.map((r) => (
-                        <div key={r.id} className="flex gap-2.5">
+                        <div key={r.id} className="flex gap-3">
                           <AvatarInitial username={r.profiles.username} />
-                          <div className="flex-1 bg-[#1a1a1a] rounded-[12px] px-3 py-2 border border-[rgba(255,255,255,0.05)]">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[11px] font-semibold text-[rgba(255,255,255,0.7)]">@{r.profiles.username}</span>
-                              <span className="text-[10px] text-[rgba(255,255,255,0.28)]">{formatRelativeDate(r.created_at)}</span>
+                          <div className="flex-1 bg-[var(--color-bg-elevated)] rounded-2xl px-4 py-3 border border-[var(--color-border)]">
+                            <div className="flex items-center gap-2.5 mb-1.5">
+                              <span className="text-[11px] font-semibold text-[var(--color-text-secondary)]">@{r.profiles.username}</span>
+                              <span className="text-[10px] text-[var(--color-text-muted)]">{formatRelativeDate(r.created_at)}</span>
                             </div>
-                            <p className="text-[12px] text-[rgba(255,255,255,0.55)] leading-relaxed">{r.content}</p>
+                            <p className="text-[13px] text-[var(--color-text-secondary)] leading-relaxed">{r.content}</p>
                           </div>
                         </div>
                       ))
                     )}
 
                     {/* Reply input */}
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex gap-2.5 pt-1">
                       <input
                         type="text"
                         value={replyText[post.id] ?? ""}
                         onChange={(e) => setReplyText((prev) => ({ ...prev, [post.id]: e.target.value }))}
                         onKeyDown={(e) => e.key === "Enter" && submitReply(post.id)}
-                        placeholder="Write a reply…"
-                        className="flex-1 h-9 rounded-[10px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-[12px] px-3 outline-none focus:border-[#3B82F6] placeholder-[rgba(255,255,255,0.25)] text-white"
+                        placeholder="Write a reply..."
+                        className="flex-1 h-10 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[13px] px-4 outline-none focus:border-[var(--color-accent)] placeholder-[var(--color-text-muted)] text-white"
                       />
                       <button
                         onClick={() => submitReply(post.id)}
                         disabled={!replyText[post.id]?.trim() || submittingReply === post.id}
-                        className="w-9 h-9 rounded-[10px] bg-[#3B82F6] flex items-center justify-center disabled:opacity-35 hover:bg-[#60A5FA] transition-colors cursor-pointer"
+                        className="w-10 h-10 rounded-xl bg-[var(--color-accent)] flex items-center justify-center disabled:opacity-35 hover:brightness-110 transition-all cursor-pointer"
                         aria-label="Send reply"
                       >
                         {submittingReply === post.id ? (
-                          <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          <div className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                         ) : (
-                          <Send size={13} className="text-white" />
+                          <Send size={14} className="text-white" />
                         )}
                       </button>
                     </div>

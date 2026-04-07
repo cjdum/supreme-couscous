@@ -42,7 +42,6 @@ function VisualizerContent() {
   const [renders, setRenders] = useState<Render[]>([]);
   const [loadingRenders, setLoadingRenders] = useState(true);
 
-  // Image analysis
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadedMediaType, setUploadedMediaType] = useState<string>("image/jpeg");
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
@@ -51,7 +50,6 @@ function VisualizerContent() {
   const [activeTab, setActiveTab] = useState<"render" | "analyze">("render");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Expanded render view
   const [expandedRender, setExpandedRender] = useState<Render | null>(null);
 
   useEffect(() => {
@@ -179,49 +177,49 @@ function VisualizerContent() {
     : [];
 
   return (
-    <div className="px-4 py-5 max-w-2xl mx-auto">
-      <div className="flex items-center gap-2.5 mb-1">
-        <div className="w-8 h-8 rounded-[10px] bg-[rgba(59,130,246,0.15)] flex items-center justify-center">
-          <Wand2 size={15} className="text-[#60A5FA]" />
+    <div className="px-5 py-6 max-w-2xl mx-auto">
+      <div className="flex items-center gap-3 mb-1">
+        <div className="w-10 h-10 rounded-2xl bg-[var(--color-accent-muted)] flex items-center justify-center">
+          <Wand2 size={17} className="text-[#60A5FA]" />
         </div>
-        <h1 className="text-xl font-bold">Visualizer</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Visualizer</h1>
       </div>
-      <p className="text-sm text-[rgba(255,255,255,0.4)] mb-5 pl-[42px]">
-        Describe your dream build — DALL-E 3 renders it in photorealistic detail.
+      <p className="text-sm text-[var(--color-text-muted)] mb-6 pl-[52px]">
+        Describe a mod. See it rendered on your car.
       </p>
 
       {/* Tab switcher */}
-      <div className="flex bg-[#1a1a1a] rounded-[14px] p-1 mb-5 gap-1">
+      <div className="flex bg-[var(--color-bg-card)] rounded-2xl p-1.5 mb-6 gap-1 border border-[var(--color-border)]">
         <button
           onClick={() => setActiveTab("render")}
-          className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === "render"
-              ? "bg-[#3B82F6] text-white shadow-sm"
-              : "text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.7)]"
+              ? "bg-[var(--color-accent)] text-white shadow-sm"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
           }`}
         >
-          <Sparkles size={13} />
+          <Sparkles size={14} />
           Generate Render
         </button>
         <button
           onClick={() => setActiveTab("analyze")}
-          className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
+          className={`flex-1 flex items-center justify-center gap-2 h-10 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === "analyze"
-              ? "bg-[#3B82F6] text-white shadow-sm"
-              : "text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.7)]"
+              ? "bg-[var(--color-accent)] text-white shadow-sm"
+              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
           }`}
         >
-          <Eye size={13} />
+          <Eye size={14} />
           Analyze Photo
         </button>
       </div>
 
       {/* Render tab */}
       {activeTab === "render" && (
-        <div className="space-y-4 mb-6">
-          <div className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-5">
+        <div className="space-y-5 mb-6">
+          <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6">
             {cars.length > 0 && (
-              <div className="mb-4">
+              <div className="mb-5">
                 <Select
                   label="Vehicle"
                   value={selectedCarId}
@@ -238,21 +236,21 @@ function VisualizerContent() {
               label="Describe your desired look"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Wide body kit, Vossen wheels, matte chalk wrap, lowered on KW coilovers, carbon fiber splitter and rear wing…"
+              placeholder="Wide body kit, Vossen wheels, matte chalk wrap, lowered on KW coilovers, carbon fiber splitter and rear wing..."
               rows={4}
               hint="The more specific you are, the better the result"
             />
 
             {/* Quick suggestions */}
             {promptSuggestions.length > 0 && !prompt && (
-              <div className="mt-3">
-                <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.25)] uppercase tracking-wider mb-2">Quick styles</p>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="mt-4">
+                <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2.5">Quick styles</p>
+                <div className="flex flex-wrap gap-2">
                   {promptSuggestions.map((s) => (
                     <button
                       key={s}
                       onClick={() => setPrompt(s)}
-                      className="text-[11px] px-2.5 py-1 rounded-lg bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-[rgba(255,255,255,0.4)] hover:border-[rgba(59,130,246,0.4)] hover:text-[rgba(255,255,255,0.7)] transition-all cursor-pointer"
+                      className="text-[11px] px-3 py-1.5 rounded-full bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[rgba(59,130,246,0.3)] hover:text-[var(--color-text-secondary)] transition-all cursor-pointer"
                     >
                       {s.split(",")[0].trim()}
                     </button>
@@ -262,68 +260,82 @@ function VisualizerContent() {
             )}
 
             {error && (
-              <div className="mt-3 rounded-[10px] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.15)] px-3 py-2.5 text-xs text-[#f87171]" role="alert">
+              <div className="mt-4 rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.15)] px-4 py-3 text-xs text-[var(--color-danger)]" role="alert">
                 {error}
               </div>
             )}
 
-            <Button className="w-full mt-4" onClick={handleGenerate} loading={loading} disabled={!selectedCarId || !prompt.trim()}>
-              <Sparkles size={14} />
-              {loading ? "Generating with DALL-E 3…" : "Generate Render"}
+            {/* Large prominent generate button */}
+            <Button className="w-full mt-5 h-12 text-sm font-bold" onClick={handleGenerate} loading={loading} disabled={!selectedCarId || !prompt.trim()}>
+              <Sparkles size={16} />
+              {loading ? "Generating with DALL-E 3..." : "Generate Render"}
             </Button>
 
             {loading && (
-              <p className="text-[11px] text-center text-[rgba(255,255,255,0.25)] mt-2">
-                DALL-E 3 is rendering your build — usually 15–30 seconds
-              </p>
+              <div className="mt-4 flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+                <p className="text-[11px] text-center text-[var(--color-text-muted)]">
+                  DALL-E 3 is rendering your build — usually 15-30 seconds
+                </p>
+              </div>
             )}
           </div>
 
-          {/* Render Gallery */}
+          {/* Render Gallery — masonry style */}
           <div>
-            <h2 className="text-sm font-bold mb-3">Render Gallery</h2>
+            <h2 className="text-sm font-bold mb-4">Render Gallery</h2>
             {loadingRenders ? (
               <div className="space-y-3">
-                {[1, 2].map((i) => <div key={i} className="aspect-video skeleton rounded-[14px]" />)}
+                {[1, 2].map((i) => <div key={i} className="aspect-video skeleton rounded-2xl" />)}
               </div>
             ) : renders.length === 0 ? (
-              <div className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[#111111] py-14 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-[#1a1a1a] flex items-center justify-center mx-auto mb-3">
-                  <ImageIcon size={20} className="text-[rgba(255,255,255,0.15)]" />
+              <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] py-16 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-[var(--color-bg-elevated)] flex items-center justify-center mx-auto mb-4">
+                  <ImageIcon size={22} className="text-[var(--color-text-disabled)]" />
                 </div>
-                <p className="text-sm font-semibold text-[rgba(255,255,255,0.45)]">No renders yet</p>
-                <p className="text-xs text-[rgba(255,255,255,0.25)] mt-1">Describe your dream build above to generate your first render</p>
+                <p className="text-base font-bold text-[var(--color-text-secondary)]">No renders yet</p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1.5 max-w-xs mx-auto">
+                  Describe a mod. See it rendered on your car.
+                </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
+              <div className="masonry-grid">
                 {renders.map((render) => (
                   <div
                     key={render.id}
-                    className="rounded-[16px] border border-[rgba(255,255,255,0.07)] bg-[#111111] overflow-hidden card-hover cursor-pointer"
+                    className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden card-hover cursor-pointer group"
                     onClick={() => setExpandedRender(render)}
                   >
                     {render.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={render.image_url}
-                        alt={`AI render: ${render.user_prompt}`}
-                        className="w-full object-cover"
-                        style={{ aspectRatio: "16/9" }}
-                      />
+                      <div className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={render.image_url}
+                          alt={`AI render: ${render.user_prompt}`}
+                          className="w-full object-cover"
+                          style={{ aspectRatio: "4/3" }}
+                        />
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm text-white text-xs font-semibold">
+                            <Eye size={13} /> View Full Size
+                          </div>
+                        </div>
+                      </div>
                     ) : (
-                      <div className="bg-[#1a1a1a] flex items-center justify-center" style={{ aspectRatio: "16/9" }}>
-                        <p className="text-xs text-[rgba(255,255,255,0.25)]">No image available</p>
+                      <div className="bg-[var(--color-bg-elevated)] flex items-center justify-center" style={{ aspectRatio: "4/3" }}>
+                        <p className="text-xs text-[var(--color-text-muted)]">No image</p>
                       </div>
                     )}
-                    <div className="flex items-start justify-between gap-3 p-3">
+                    <div className="flex items-start justify-between gap-3 p-3.5">
                       <div className="min-w-0">
-                        <p className="text-xs text-[rgba(255,255,255,0.55)] leading-relaxed line-clamp-2">{render.user_prompt}</p>
-                        <p className="text-[10px] text-[rgba(255,255,255,0.25)] mt-1">{formatRelativeDate(render.created_at)}</p>
+                        <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed line-clamp-2">{render.user_prompt}</p>
+                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">{formatRelativeDate(render.created_at)}</p>
                       </div>
                       {render.image_url && (
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDownload(render); }}
-                          className="shrink-0 p-1.5 rounded-lg text-[rgba(255,255,255,0.3)] hover:text-[rgba(255,255,255,0.7)] hover:bg-[#1a1a1a] transition-colors cursor-pointer"
+                          className="shrink-0 p-2 rounded-xl text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer"
                           aria-label="Download"
                         >
                           <Download size={14} />
@@ -340,10 +352,10 @@ function VisualizerContent() {
 
       {/* Analyze tab */}
       {activeTab === "analyze" && (
-        <div className="space-y-4 mb-6">
-          <div className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-5">
+        <div className="space-y-5 mb-6">
+          <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6">
             {cars.length > 0 && (
-              <div className="mb-4">
+              <div className="mb-5">
                 <Select
                   label="Vehicle context (optional)"
                   value={selectedCarId}
@@ -362,25 +374,25 @@ function VisualizerContent() {
             {!uploadedPreview ? (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-[rgba(255,255,255,0.08)] rounded-[14px] p-8 flex flex-col items-center gap-3 hover:border-[#3B82F6] hover:bg-[rgba(59,130,246,0.04)] transition-all cursor-pointer group"
+                className="w-full border-2 border-dashed border-[var(--color-border)] rounded-2xl p-10 flex flex-col items-center gap-4 hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] transition-all cursor-pointer group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-[#1a1a1a] flex items-center justify-center group-hover:bg-[rgba(59,130,246,0.1)] transition-colors">
-                  <Upload size={20} className="text-[rgba(255,255,255,0.2)] group-hover:text-[#60A5FA] transition-colors" />
+                <div className="w-14 h-14 rounded-2xl bg-[var(--color-bg-elevated)] flex items-center justify-center group-hover:bg-[rgba(59,130,246,0.1)] transition-colors">
+                  <Upload size={22} className="text-[var(--color-text-muted)] group-hover:text-[#60A5FA] transition-colors" />
                 </div>
                 <div className="text-center">
-                  <p className="text-sm font-semibold">Upload a car photo</p>
-                  <p className="text-xs text-[rgba(255,255,255,0.3)] mt-0.5">JPG, PNG or WebP · Max 8MB</p>
+                  <p className="text-sm font-bold">Upload a car photo</p>
+                  <p className="text-xs text-[var(--color-text-muted)] mt-1">JPG, PNG or WebP · Max 8MB</p>
                 </div>
               </button>
             ) : (
-              <div className="relative rounded-[14px] overflow-hidden">
+              <div className="relative rounded-2xl overflow-hidden">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={uploadedPreview} alt="Uploaded car" className="w-full max-h-64 object-cover" />
+                <img src={uploadedPreview} alt="Uploaded car" className="w-full max-h-72 object-cover" />
                 <button
                   onClick={() => { setUploadedPreview(null); setUploadedImage(null); setAnalysis(null); }}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center hover:bg-black/90 transition-colors cursor-pointer"
+                  className="absolute top-3 right-3 w-8 h-8 rounded-xl bg-black/70 flex items-center justify-center hover:bg-black/90 transition-colors cursor-pointer"
                 >
-                  <X size={13} className="text-white" />
+                  <X size={14} className="text-white" />
                 </button>
               </div>
             )}
@@ -394,44 +406,44 @@ function VisualizerContent() {
             />
 
             {error && (
-              <div className="mt-3 rounded-[10px] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.15)] px-3 py-2.5 text-xs text-[#f87171]">
+              <div className="mt-4 rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.15)] px-4 py-3 text-xs text-[var(--color-danger)]">
                 {error}
               </div>
             )}
 
-            <Button className="w-full mt-4" onClick={handleAnalyze} loading={analyzing} disabled={!uploadedImage}>
-              <Eye size={14} />
-              {analyzing ? "Claude is analyzing…" : "Analyze Photo"}
+            <Button className="w-full mt-5 h-12 text-sm font-bold" onClick={handleAnalyze} loading={analyzing} disabled={!uploadedImage}>
+              <Eye size={16} />
+              {analyzing ? "Claude is analyzing..." : "Analyze Photo"}
             </Button>
           </div>
 
           {analysis && (
-            <div className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[#111111] overflow-hidden animate-in">
-              <div className="px-5 py-4 border-b border-[rgba(255,255,255,0.05)]">
-                <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider mb-1">Detected Vehicle</p>
-                <h3 className="text-base font-bold">{analysis.detected_vehicle}</h3>
-                <p className="text-xs text-[rgba(255,255,255,0.5)] mt-1 leading-relaxed">{analysis.overall_assessment}</p>
+            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden animate-in">
+              <div className="px-6 py-5 border-b border-[var(--color-border)]">
+                <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">Detected Vehicle</p>
+                <h3 className="text-lg font-bold">{analysis.detected_vehicle}</h3>
+                <p className="text-xs text-[var(--color-text-secondary)] mt-1.5 leading-relaxed">{analysis.overall_assessment}</p>
               </div>
 
-              <div className="grid grid-cols-3 divide-x divide-[rgba(255,255,255,0.05)] border-b border-[rgba(255,255,255,0.05)]">
+              <div className="grid grid-cols-3 divide-x divide-[var(--color-border)] border-b border-[var(--color-border)]">
                 {[
                   { label: "Color", value: analysis.color },
                   { label: "Condition", value: analysis.condition },
                   { label: "Stance", value: analysis.stance },
                 ].map((item) => (
-                  <div key={item.label} className="px-3 py-3 text-center">
-                    <p className="text-[10px] text-[rgba(255,255,255,0.28)] mb-0.5">{item.label}</p>
+                  <div key={item.label} className="px-4 py-4 text-center">
+                    <p className="text-[10px] text-[var(--color-text-muted)] mb-1">{item.label}</p>
                     <p className="text-xs font-semibold capitalize">{item.value || "—"}</p>
                   </div>
                 ))}
               </div>
 
               {analysis.visible_mods?.length > 0 && (
-                <div className="px-5 py-3 border-b border-[rgba(255,255,255,0.05)]">
-                  <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider mb-2">Visible Mods</p>
-                  <div className="flex flex-wrap gap-1.5">
+                <div className="px-6 py-4 border-b border-[var(--color-border)]">
+                  <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">Visible Mods</p>
+                  <div className="flex flex-wrap gap-2">
                     {analysis.visible_mods.map((mod, i) => (
-                      <span key={i} className="tag bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-[rgba(255,255,255,0.5)]">
+                      <span key={i} className="tag bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)]">
                         {mod}
                       </span>
                     ))}
@@ -440,38 +452,38 @@ function VisualizerContent() {
               )}
 
               {analysis.suggestions?.length > 0 && (
-                <div className="px-5 py-4">
-                  <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider mb-3">AI Suggestions</p>
+                <div className="px-6 py-5">
+                  <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">AI Suggestions</p>
                   <div className="space-y-3">
                     {analysis.suggestions.map((s, i) => (
-                      <div key={i} className="rounded-[14px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] p-3.5">
-                        <div className="flex items-start justify-between gap-2 mb-1.5">
-                          <p className="text-sm font-semibold">{s.name}</p>
+                      <div key={i} className="rounded-2xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] p-4">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <p className="text-sm font-bold">{s.name}</p>
                           <span
-                            className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
+                            className="text-[10px] font-bold px-2.5 py-0.5 rounded-full flex-shrink-0"
                             style={{
-                              background: s.priority === "high" ? "rgba(239,68,68,0.1)" : s.priority === "medium" ? "rgba(245,158,11,0.1)" : "rgba(255,255,255,0.06)",
-                              color: s.priority === "high" ? "#f87171" : s.priority === "medium" ? "#fbbf24" : "rgba(255,255,255,0.3)",
+                              background: s.priority === "high" ? "rgba(255,69,58,0.1)" : s.priority === "medium" ? "rgba(255,159,10,0.1)" : "rgba(255,255,255,0.05)",
+                              color: s.priority === "high" ? "#ff453a" : s.priority === "medium" ? "#ff9f0a" : "#555",
                             }}
                           >
                             {s.priority}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2.5 mb-2.5">
                           <CategoryBadge category={s.category} className="text-[10px]" />
-                          <span className="text-[10px] text-[rgba(255,255,255,0.3)] font-medium">{s.estimated_cost}</span>
+                          <span className="text-[10px] text-[var(--color-text-muted)] font-medium">{s.estimated_cost}</span>
                         </div>
-                        <p className="text-xs text-[rgba(255,255,255,0.45)] leading-relaxed mb-2">{s.reason}</p>
+                        <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed mb-3">{s.reason}</p>
                         <div className="flex gap-2 flex-wrap">
                           {s.amazon_url && (
                             <a href={s.amazon_url} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[rgba(255,153,0,0.08)] border border-[rgba(255,153,0,0.15)] text-[10px] font-medium text-[#FF9900] hover:bg-[rgba(255,153,0,0.15)] transition-colors">
-                              <ShoppingCart size={9} /> Amazon <ExternalLink size={8} />
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[rgba(255,153,0,0.08)] border border-[rgba(255,153,0,0.15)] text-[10px] font-semibold text-[#FF9900] hover:bg-[rgba(255,153,0,0.15)] transition-colors">
+                              <ShoppingCart size={10} /> Amazon <ExternalLink size={8} />
                             </a>
                           )}
                           {s.summit_url && (
                             <a href={s.summit_url} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-[10px] font-medium text-[rgba(255,255,255,0.4)] hover:border-[rgba(255,255,255,0.15)] transition-colors">
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[10px] font-semibold text-[var(--color-text-muted)] hover:border-[var(--color-border-bright)] transition-colors">
                               Summit Racing <ExternalLink size={8} />
                             </a>
                           )}
@@ -490,32 +502,32 @@ function VisualizerContent() {
       {expandedRender && (
         <>
           <div
-            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-5"
             onClick={() => setExpandedRender(null)}
           >
             <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => setExpandedRender(null)}
-                className="absolute -top-10 right-0 w-9 h-9 rounded-full bg-[#1a1a1a] border border-[rgba(255,255,255,0.1)] flex items-center justify-center hover:bg-[#222222] transition-colors cursor-pointer"
+                className="absolute -top-12 right-0 w-10 h-10 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer"
               >
-                <X size={15} className="text-white" />
+                <X size={16} className="text-white" />
               </button>
               {expandedRender.image_url && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={expandedRender.image_url}
                   alt={expandedRender.user_prompt}
-                  className="w-full rounded-[16px]"
+                  className="w-full rounded-2xl"
                 />
               )}
-              <div className="mt-3 flex items-start justify-between gap-3">
-                <p className="text-xs text-[rgba(255,255,255,0.45)] leading-relaxed flex-1">{expandedRender.user_prompt}</p>
+              <div className="mt-4 flex items-start justify-between gap-4">
+                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed flex-1">{expandedRender.user_prompt}</p>
                 {expandedRender.image_url && (
                   <button
                     onClick={() => handleDownload(expandedRender)}
-                    className="flex items-center gap-1.5 h-8 px-3 rounded-[8px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.1)] text-xs text-[rgba(255,255,255,0.55)] hover:text-white hover:border-[rgba(255,255,255,0.2)] transition-all cursor-pointer flex-shrink-0"
+                    className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] text-xs text-[var(--color-text-secondary)] hover:text-white hover:border-[var(--color-border-bright)] transition-all cursor-pointer flex-shrink-0"
                   >
-                    <Download size={12} /> Download
+                    <Download size={13} /> Download
                   </button>
                 )}
               </div>

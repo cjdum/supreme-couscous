@@ -65,7 +65,6 @@ function ChatContent() {
 
       const carList = (carsRaw ?? []) as CarType[];
 
-      // Fetch mod counts for each car
       const carsWithMods: CarWithMods[] = await Promise.all(
         carList.map(async (car) => {
           const { data: modsRaw } = await supabase
@@ -161,60 +160,70 @@ function ChatContent() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-130px)] max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between flex-shrink-0 border-b border-[rgba(255,255,255,0.05)]">
+    <div className="flex flex-col h-[calc(100dvh-140px)] max-w-2xl mx-auto">
+      {/* Header with car context */}
+      <div className="px-5 pt-5 pb-4 flex items-center justify-between flex-shrink-0 border-b border-[var(--color-border)]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-[10px] bg-[#3B82F6] flex items-center justify-center glow-accent-sm">
-            <Bot size={17} className="text-white" />
+          <div className="w-10 h-10 rounded-2xl bg-[var(--color-accent)] flex items-center justify-center glow-accent-sm">
+            <Bot size={18} className="text-white" />
           </div>
           <div>
             <h1 className="text-base font-bold">VAULT AI</h1>
-            <p className="text-[11px] text-[rgba(255,255,255,0.28)]">Automotive advisor</p>
+            <p className="text-[11px] text-[var(--color-text-muted)]">Automotive advisor</p>
           </div>
         </div>
 
-        {/* Car selector */}
+        {/* Car selector — shows thumbnail */}
         {!loadingCars && cars.length > 0 && (
           <div className="relative">
             <button
               onClick={() => setShowCarPicker((v) => !v)}
-              className="flex items-center gap-2 h-8 px-3 rounded-[10px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] hover:border-[rgba(255,255,255,0.15)] transition-colors text-xs font-medium cursor-pointer"
+              className="flex items-center gap-2.5 h-9 px-3.5 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] hover:border-[var(--color-border-bright)] transition-colors text-xs font-medium cursor-pointer"
             >
-              <Car size={12} className="text-[#3B82F6]" />
-              <span className="max-w-[90px] truncate text-[rgba(255,255,255,0.6)]">
+              {selectedCar?.cover_image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={selectedCar.cover_image_url} alt="" className="w-5 h-5 rounded-md object-cover" />
+              ) : (
+                <Car size={13} className="text-[var(--color-accent)]" />
+              )}
+              <span className="max-w-[80px] truncate text-[var(--color-text-secondary)]">
                 {selectedCar ? `${selectedCar.year} ${selectedCar.make}` : "Select car"}
               </span>
-              <ChevronDown size={11} className="text-[rgba(255,255,255,0.28)]" />
+              <ChevronDown size={11} className="text-[var(--color-text-muted)]" />
             </button>
 
             {showCarPicker && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowCarPicker(false)} />
-                <div className="absolute right-0 top-10 z-20 w-60 rounded-[14px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.08)] shadow-2xl overflow-hidden animate-scale-in">
-                  <p className="px-3 py-2 text-[10px] font-semibold text-[rgba(255,255,255,0.35)] uppercase tracking-wider border-b border-[rgba(255,255,255,0.06)]">
+                <div className="absolute right-0 top-11 z-20 w-64 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] shadow-[0_16px_64px_rgba(0,0,0,0.5)] overflow-hidden animate-scale-in">
+                  <p className="px-4 py-2.5 text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider border-b border-[var(--color-border)]">
                     Your garage
                   </p>
                   {cars.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => { setSelectedCarId(c.id); setShowCarPicker(false); }}
-                      className={`w-full text-left flex items-center gap-3 px-3 py-2.5 hover:bg-[#222222] transition-colors cursor-pointer ${
-                        c.id === selectedCarId ? "text-[#60A5FA]" : "text-[rgba(255,255,255,0.55)]"
+                      className={`w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer ${
+                        c.id === selectedCarId ? "text-[#60A5FA]" : "text-[var(--color-text-secondary)]"
                       }`}
                     >
-                      <Car size={13} className={c.id === selectedCarId ? "text-[#3B82F6]" : "text-[rgba(255,255,255,0.28)]"} />
+                      {c.cover_image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.cover_image_url} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                      ) : (
+                        <Car size={14} className={c.id === selectedCarId ? "text-[var(--color-accent)]" : "text-[var(--color-text-muted)]"} />
+                      )}
                       <div className="min-w-0">
                         <p className="text-xs font-semibold truncate">{c.year} {c.make} {c.model}</p>
                         {c.modCount > 0 && (
-                          <p className="text-[10px] text-[rgba(255,255,255,0.28)]">{c.modCount} mod{c.modCount > 1 ? "s" : ""} installed</p>
+                          <p className="text-[10px] text-[var(--color-text-muted)]">{c.modCount} mod{c.modCount > 1 ? "s" : ""}</p>
                         )}
                       </div>
                     </button>
                   ))}
                   <button
                     onClick={() => { setSelectedCarId(""); setShowCarPicker(false); }}
-                    className="w-full text-left flex items-center gap-3 px-3 py-2.5 text-xs text-[rgba(255,255,255,0.3)] hover:bg-[#222222] transition-colors cursor-pointer border-t border-[rgba(255,255,255,0.06)]"
+                    className="w-full text-left flex items-center gap-3 px-4 py-3 text-xs text-[var(--color-text-muted)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer border-t border-[var(--color-border)]"
                   >
                     General (no car context)
                   </button>
@@ -226,15 +235,15 @@ function ChatContent() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 space-y-4 py-4">
+      <div className="flex-1 overflow-y-auto px-5 space-y-5 py-5">
         {messages.length === 0 && (
-          <div className="space-y-5">
-            {/* Welcome message */}
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-[#3B82F6] flex items-center justify-center flex-shrink-0">
+          <div className="space-y-6">
+            {/* Welcome message with blue left border */}
+            <div className="flex gap-3.5">
+              <div className="w-8 h-8 rounded-xl bg-[var(--color-accent)] flex items-center justify-center flex-shrink-0">
                 <Bot size={14} className="text-white" />
               </div>
-              <div className="chat-bubble-ai px-4 py-3 max-w-[88%]">
+              <div className="chat-bubble-ai px-5 py-4 max-w-[88%]">
                 <p className="text-sm leading-relaxed">
                   {selectedCar
                     ? `Hey! I've got your ${selectedCar.year} ${selectedCar.make} ${selectedCar.model} loaded up${selectedCar.modCount > 0 ? ` with your ${selectedCar.modCount} mods` : ""}. What do you want to know?`
@@ -243,20 +252,20 @@ function ChatContent() {
               </div>
             </div>
 
-            {/* Suggested prompts */}
-            <div className="space-y-2 pl-11">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Sparkles size={11} className="text-[#3B82F6]" />
-                <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.35)] uppercase tracking-wider">
-                  {selectedCar ? `Suggested for your ${selectedCar.make} ${selectedCar.model}` : "Suggested questions"}
+            {/* Suggested prompts — pill buttons */}
+            <div className="space-y-3 pl-[46px]">
+              <div className="flex items-center gap-2 mb-3">
+                <Sparkles size={12} className="text-[var(--color-accent)]" />
+                <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
+                  {selectedCar ? `Suggested for your ${selectedCar.make}` : "Suggested questions"}
                 </p>
               </div>
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 {suggestedPrompts.map((q) => (
                   <button
                     key={q}
                     onClick={() => sendMessage(q)}
-                    className="text-left text-xs px-3.5 py-2.5 rounded-[12px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] hover:border-[rgba(59,130,246,0.4)] hover:bg-[rgba(59,130,246,0.06)] transition-all text-[rgba(255,255,255,0.55)] cursor-pointer"
+                    className="text-left text-xs px-4 py-3 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] hover:border-[rgba(59,130,246,0.3)] hover:bg-[rgba(59,130,246,0.04)] transition-all text-[var(--color-text-secondary)] cursor-pointer"
                   >
                     {q}
                   </button>
@@ -267,33 +276,33 @@ function ChatContent() {
         )}
 
         {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+          <div key={i} className={`flex gap-3.5 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
             <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+              className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
                 msg.role === "user"
-                  ? "bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)]"
-                  : "bg-[#3B82F6]"
+                  ? "bg-[var(--color-bg-card)] border border-[var(--color-border)]"
+                  : "bg-[var(--color-accent)]"
               }`}
             >
               {msg.role === "user" ? (
-                <User size={12} className="text-[rgba(255,255,255,0.55)]" />
+                <User size={13} className="text-[var(--color-text-secondary)]" />
               ) : (
-                <Bot size={12} className="text-white" />
+                <Bot size={13} className="text-white" />
               )}
             </div>
             <div
-              className={`max-w-[82%] px-4 py-3 text-sm leading-relaxed ${
+              className={`max-w-[82%] px-5 py-3.5 text-sm leading-relaxed ${
                 msg.role === "user" ? "chat-bubble-user" : "chat-bubble-ai"
               }`}
             >
               {msg.content ? (
                 <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
               ) : (
-                <span className="flex gap-1 items-center h-4">
+                <span className="flex gap-1.5 items-center h-4">
                   {[0, 1, 2].map((j) => (
                     <span
                       key={j}
-                      className="w-1.5 h-1.5 rounded-full bg-[rgba(255,255,255,0.3)]"
+                      className="w-1.5 h-1.5 rounded-full bg-[var(--color-text-muted)]"
                       style={{ animation: `typing-dot 1.2s ease ${j * 0.15}s infinite` }}
                     />
                   ))}
@@ -305,9 +314,9 @@ function ChatContent() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-4 py-3 flex-shrink-0 border-t border-[rgba(255,255,255,0.05)]">
-        <div className="flex items-end gap-2">
+      {/* Input — frosted glass, fixed at bottom */}
+      <div className="px-5 py-4 flex-shrink-0 border-t border-[var(--color-border)] glass">
+        <div className="flex items-end gap-2.5">
           <div className="flex-1">
             <textarea
               ref={inputRef}
@@ -316,13 +325,13 @@ function ChatContent() {
               onKeyDown={handleKeyDown}
               placeholder={
                 selectedCar
-                  ? `Ask about your ${selectedCar.make} ${selectedCar.model}…`
-                  : "Ask about mods, performance, builds…"
+                  ? `Ask about your ${selectedCar.make} ${selectedCar.model}...`
+                  : "Ask about mods, performance, builds..."
               }
               rows={1}
               disabled={streaming}
-              className="w-full resize-none rounded-[14px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] focus:border-[#3B82F6] px-4 py-3 text-sm text-white placeholder-[rgba(255,255,255,0.25)] outline-none transition-all disabled:opacity-50 max-h-32 overflow-y-auto"
-              style={{ minHeight: "46px" }}
+              className="w-full resize-none rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] focus:border-[var(--color-accent)] px-5 py-3.5 text-sm text-white placeholder-[var(--color-text-muted)] outline-none transition-all disabled:opacity-50 max-h-32 overflow-y-auto"
+              style={{ minHeight: "48px" }}
               onInput={(e) => {
                 const t = e.currentTarget;
                 t.style.height = "auto";
@@ -333,13 +342,17 @@ function ChatContent() {
           <button
             onClick={() => sendMessage(input)}
             disabled={!input.trim() || streaming}
-            className="w-11 h-11 rounded-[12px] bg-[#3B82F6] flex items-center justify-center disabled:opacity-35 disabled:pointer-events-none hover:bg-[#60A5FA] transition-all active:scale-95 flex-shrink-0 cursor-pointer"
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-95 flex-shrink-0 cursor-pointer ${
+              input.trim()
+                ? "bg-[var(--color-accent)] glow-accent-sm"
+                : "bg-[var(--color-bg-card)] border border-[var(--color-border)]"
+            } disabled:opacity-35 disabled:pointer-events-none`}
             aria-label="Send message"
           >
-            <Send size={15} className="text-white" />
+            <Send size={16} className="text-white" />
           </button>
         </div>
-        <p className="text-[10px] text-[rgba(255,255,255,0.2)] text-center mt-1.5">
+        <p className="text-[10px] text-[var(--color-text-disabled)] text-center mt-2">
           Enter to send · Shift+Enter for new line
         </p>
       </div>
