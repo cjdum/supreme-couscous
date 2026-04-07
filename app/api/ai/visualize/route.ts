@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimit, AI_RATE_LIMIT } from "@/lib/rate-limit";
 import { visualizerSchema } from "@/lib/validations";
 import { sanitize } from "@/lib/utils";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(request: Request) {
-  // Auth check
   const supabase = await createClient();
   const {
     data: { user },
@@ -18,7 +19,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Rate limiting
   const rl = rateLimit(`visualize:${user.id}`, AI_RATE_LIMIT);
   if (!rl.success) {
     return NextResponse.json(
@@ -30,7 +30,6 @@ export async function POST(request: Request) {
     );
   }
 
-  // Validate input
   let body: unknown;
   try {
     body = await request.json();
@@ -40,10 +39,7 @@ export async function POST(request: Request) {
 
   const result = visualizerSchema.safeParse(body);
   if (!result.success) {
-    return NextResponse.json(
-      { error: result.error.flatten().fieldErrors },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: result.error.flatten().fieldErrors }, { status: 400 });
   }
 
   const { car_id, prompt } = result.data;
@@ -52,12 +48,14 @@ export async function POST(request: Request) {
   // Verify car belongs to user
   const { data: carRaw } = await supabase
     .from("cars")
-    .select("make, model, year, trim, color")
+    .select("make, model, year, trim, color, horsepower, drivetrain")
     .eq("id", car_id)
     .eq("user_id", user.id)
     .maybeSingle();
+
   const car = carRaw as {
-    make: string; model: string; year: number; trim: string | null; color: string | null;
+    make: string; model: string; year: number; trim: string | null;
+    color: string | null; horsepower: number | null; drivetrain: string | null;
   } | null;
 
   if (!car) {
@@ -74,65 +72,71 @@ export async function POST(request: Request) {
   const mods = (modsRaw ?? []) as { name: string; category: string }[];
   const modList = mods.length
     ? mods.map((m) => `${m.name} (${m.category})`).join(", ")
-    : "stock";
+    : "stock configuration";
 
   const carLabel = `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ""}`;
   const colorLabel = car.color ?? "factory color";
 
   try {
-    // Ask Claude to generate an SVG illustration of the modified car
-    const message = await anthropic.messages.create({
+    // Step 1: Use Claude to craft the optimal DALL-E prompt from the user's description
+    const promptMessage = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 4000,
+      max_tokens: 400,
       messages: [
         {
           role: "user",
-          content: `You are an expert SVG automotive illustrator. Generate a clean, stylized SVG illustration of a modified car for a dark-themed web app.
+          content: `You are an expert at writing DALL-E 3 image generation prompts for automotive photography.
+
+Generate a single DALL-E 3 prompt for this car build visualization:
 
 Car: ${carLabel} in ${colorLabel}
-Current mods: ${modList}
-Desired new mods / look: ${sanitizedPrompt}
+Existing mods: ${modList}
+Requested look: ${sanitizedPrompt}
 
-Requirements:
-- viewBox="0 0 800 450"
-- Dark background (#09090b or #111)
-- Stylized side-profile or 3/4-angle car silhouette — use smooth bezier curves for the body
-- Reflect the desired mods visually: e.g. lowered stance, wide body, spoiler, custom wheels, exhaust tips, splitter
-- Color the car body to match or reflect requested color changes
-- Add subtle ground shadow and highlights for depth
-- Include a short text label at the bottom: car name + top 2-3 mods
-- Use the electric blue accent color #3b82f6 for glows, wheel highlights, or trim accents
-- Modern, premium aesthetic — minimalist but detailed
-- No external resources, no <image> tags, pure SVG shapes only
+Requirements for the prompt:
+- Photorealistic automotive photography style
+- Studio lighting or dramatic outdoor setting
+- Describe the car's specific modifications visually
+- Include stance, wheel style, body kit details from the user's request
+- Mention specific colors and finishes
+- Professional car photography composition (3/4 angle or side profile)
+- High detail, high contrast
+- NO text, NO watermarks, NO people
 
-Output ONLY the complete SVG element (starting with <svg and ending with </svg>). No explanation, no markdown, no code fences.`,
+Output ONLY the DALL-E prompt — no explanation, no quotes.`,
         },
       ],
     });
 
-    const svgContent =
-      message.content[0].type === "text" ? message.content[0].text.trim() : "";
+    const dallePrompt =
+      promptMessage.content[0].type === "text"
+        ? promptMessage.content[0].text.trim()
+        : `Professional automotive photography of a modified ${carLabel}, ${sanitizedPrompt}, dramatic lighting, high detail`;
 
-    if (!svgContent || !svgContent.startsWith("<svg")) {
-      throw new Error("Claude did not return a valid SVG");
+    // Step 2: Generate image with DALL-E 3
+    const imageResponse = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: dallePrompt,
+      n: 1,
+      size: "1792x1024",
+      quality: "hd",
+      style: "natural",
+    });
+
+    const imageUrl = imageResponse.data?.[0]?.url;
+    if (!imageUrl) {
+      throw new Error("DALL-E 3 did not return an image URL");
     }
 
-    // Encode the SVG as a base64 data URI so it can be stored in image_url
-    // and rendered with a standard <img> tag
-    const svgBase64 = Buffer.from(svgContent, "utf-8").toString("base64");
-    const imageUrl = `data:image/svg+xml;base64,${svgBase64}`;
-
-    // Also store a human-readable prompt summary
-    const imagePrompt = `SVG render: ${carLabel} — ${sanitizedPrompt}`;
-
-    // Save to database
+    // Step 3: Save to database
+    const imagePrompt = `${carLabel} — ${sanitizedPrompt}`;
     const { data: render, error: dbError } = await supabase
       .from("renders")
       .insert({
         car_id,
         user_id: user.id,
         user_prompt: sanitizedPrompt,
-        image_prompt: imagePrompt,
+        image_prompt: dallePrompt,
         image_url: imageUrl,
       })
       .select()
@@ -140,9 +144,25 @@ Output ONLY the complete SVG element (starting with <svg and ending with </svg>)
 
     if (dbError) throw dbError;
 
-    return NextResponse.json({ render });
+    return NextResponse.json({ render, imagePrompt });
   } catch (err) {
     console.error("Visualize error:", err);
+    const errMsg = err instanceof Error ? err.message : "Failed to generate visualization";
+
+    // Friendly errors for common issues
+    if (errMsg.includes("OPENAI_API_KEY") || errMsg.includes("api key")) {
+      return NextResponse.json(
+        { error: "Image generation is not configured. Add OPENAI_API_KEY to your environment." },
+        { status: 503 }
+      );
+    }
+    if (errMsg.includes("content_policy") || errMsg.includes("safety")) {
+      return NextResponse.json(
+        { error: "Your description was flagged by the content filter. Try describing the visual mods differently." },
+        { status: 422 }
+      );
+    }
+
     return NextResponse.json(
       { error: "Failed to generate visualization. Please try again." },
       { status: 500 }

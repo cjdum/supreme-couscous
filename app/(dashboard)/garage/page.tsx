@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, Wrench, Zap, TrendingUp, Award } from "lucide-react";
+import { ChevronRight, Wrench, Zap, TrendingUp, Award, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CarCard } from "@/components/garage/car-card";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
@@ -20,6 +20,7 @@ export default async function GaragePage() {
     .from("cars")
     .select("*")
     .eq("user_id", user!.id)
+    .order("is_primary", { ascending: false })
     .order("created_at", { ascending: false });
   const cars = (carsRaw ?? []) as CarType[];
 
@@ -47,8 +48,10 @@ export default async function GaragePage() {
     });
   }
 
-  const primaryCar = cars[0];
+  // Primary car: explicitly marked, fallback to first
+  const primaryCar = cars.find((c) => c.is_primary) ?? cars[0];
   const primaryStats = statsMap.get(primaryCar.id) ?? { count: 0, total: 0 };
+  const otherCars = cars.filter((c) => c.id !== primaryCar.id);
 
   const totalMods = Array.from(statsMap.values()).reduce((s, v) => s + v.count, 0);
   const totalInvested = Array.from(statsMap.values()).reduce((s, v) => s + v.total, 0);
@@ -63,7 +66,7 @@ export default async function GaragePage() {
   return (
     <div className="min-h-dvh">
       {/* ── Hero: Primary Car ── */}
-      <div className="relative w-full" style={{ height: "clamp(280px, 55vw, 420px)" }}>
+      <div className="relative w-full" style={{ height: "clamp(300px, 58vw, 460px)" }}>
         {primaryCar.cover_image_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -81,7 +84,7 @@ export default async function GaragePage() {
             }}
           >
             <div className="absolute inset-0 flex items-center justify-center">
-              <svg viewBox="0 0 200 90" width="180" height="80" fill="none" aria-hidden="true" style={{ opacity: 0.04 }}>
+              <svg viewBox="0 0 200 90" width="200" height="90" fill="none" aria-hidden="true" style={{ opacity: 0.04 }}>
                 <path d="M18 72l16-42h132l16 42H18z" stroke="white" strokeWidth="3" strokeLinejoin="round" />
                 <path d="M34 44l12-22h108l12 22H34z" stroke="white" strokeWidth="2" strokeLinejoin="round" fill="white" fillOpacity="0.03" />
                 <ellipse cx="50" cy="74" rx="10" ry="10" stroke="white" strokeWidth="3" />
@@ -91,8 +94,26 @@ export default async function GaragePage() {
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-transparent" />
+        {/* Gradient overlays */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
+
+        {/* Primary label */}
+        {cars.find((c) => c.is_primary) && (
+          <div className="absolute top-4 left-4">
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide"
+              style={{
+                backgroundColor: "rgba(251,191,36,0.12)",
+                border: "1px solid rgba(251,191,36,0.25)",
+                color: "#fbbf24",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <Star size={9} fill="currentColor" /> PRIMARY BUILD
+            </div>
+          </div>
+        )}
 
         {/* Car info overlay */}
         <div className="absolute bottom-0 left-0 right-0 px-5 pb-6">
@@ -101,7 +122,7 @@ export default async function GaragePage() {
               {primaryCar.nickname}
             </p>
           )}
-          <h1 className="text-3xl font-bold text-white leading-tight mb-0.5">
+          <h1 className="text-3xl font-bold text-white leading-tight mb-1">
             {primaryCar.year} {primaryCar.make} {primaryCar.model}
           </h1>
           {primaryCar.trim && (
@@ -125,6 +146,11 @@ export default async function GaragePage() {
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/10">
                 <Wrench size={10} className="text-[#60A5FA]" />
                 <span className="text-xs font-bold text-white">{primaryStats.count} mods</span>
+              </div>
+            )}
+            {primaryStats.total > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/10">
+                <span className="text-xs font-bold text-white">{formatCurrency(primaryStats.total)} invested</span>
               </div>
             )}
           </div>
@@ -219,26 +245,28 @@ export default async function GaragePage() {
           </Link>
         </div>
 
-        {/* All vehicles */}
-        {cars.length > 1 && (
+        {/* Other vehicles */}
+        {otherCars.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-3 pt-1">
-              <h2 className="text-sm font-bold">All Vehicles</h2>
+              <h2 className="text-sm font-bold text-[rgba(255,255,255,0.55)]">Other Vehicles</h2>
               <AddCarButton />
             </div>
             <div className="grid grid-cols-2 gap-2">
-              {cars.map((car) => (
+              {otherCars.map((car) => (
                 <CarCard
                   key={car.id}
                   car={car}
                   modCount={statsMap.get(car.id)?.count ?? 0}
                   totalSpent={statsMap.get(car.id)?.total ?? 0}
+                  isPrimary={false}
                 />
               ))}
             </div>
           </div>
         )}
 
+        {/* Single-car: add another as a card */}
         {cars.length === 1 && (
           <AddCarButton asCard label="Add another vehicle" />
         )}

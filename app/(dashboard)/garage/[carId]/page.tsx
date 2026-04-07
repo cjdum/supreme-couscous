@@ -11,7 +11,7 @@ import { CarDetailTabs } from "@/components/garage/car-detail-tabs";
 import { AiSuggestions } from "@/components/garage/ai-suggestions";
 import { VehicleSpecs } from "@/components/garage/vehicle-specs";
 import { SpendingChart } from "@/components/mods/spending-chart";
-import { CarPhotoManager } from "@/components/garage/car-photo-manager";
+import { CarGallery } from "@/components/garage/car-gallery";
 import type { Car, Mod, ModCategory } from "@/lib/supabase/types";
 
 interface Props {
@@ -275,7 +275,7 @@ export default async function CarDetailPage({ params }: Props) {
 
       {/* ── Main content ── */}
       <div className="px-4 pb-8 mt-5 space-y-6">
-        <CarPhotoManager carId={carId} currentPhotoUrl={car.cover_image_url} />
+        <CarGallery carId={carId} initialCoverUrl={car.cover_image_url} />
         <VehicleSpecs car={car} />
         <AiSuggestions carId={carId} />
         <CarDetailTabs installed={installed} wishlist={wishlist} carId={carId} />

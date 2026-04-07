@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Globe, Lock, Wrench } from "lucide-react";
+import { Globe, Lock, Wrench, Star } from "lucide-react";
 import type { Car } from "@/lib/supabase/types";
 import { formatCurrency } from "@/lib/utils";
+import { SetPrimaryButton } from "./set-primary-button";
 
 interface CarCardProps {
   car: Car;
   modCount?: number;
   totalSpent?: number;
+  isPrimary?: boolean;
 }
 
 const MAKE_COLORS: Record<string, string> = {
@@ -30,7 +32,7 @@ function getMakeColor(make: string): string {
   return MAKE_COLORS[make.toLowerCase()] ?? "#3b82f6";
 }
 
-export function CarCard({ car, modCount = 0, totalSpent = 0 }: CarCardProps) {
+export function CarCard({ car, modCount = 0, totalSpent = 0, isPrimary = false }: CarCardProps) {
   const accent = getMakeColor(car.make);
 
   return (
@@ -90,30 +92,43 @@ export function CarCard({ car, modCount = 0, totalSpent = 0 }: CarCardProps) {
       {/* Bottom-heavy gradient overlay — keeps text readable */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/92 via-black/25 to-black/5" />
 
-      {/* Top-left: privacy badge */}
-      <div className="absolute top-3 left-3">
-        <div
-          className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium"
-          style={{
-            backgroundColor: "rgba(0,0,0,0.55)",
-            backdropFilter: "blur(6px)",
-            color: car.is_public ? "#22c55e" : "#71717a",
-          }}
-        >
-          {car.is_public ? (
-            <><Globe size={9} /> Public</>
-          ) : (
-            <><Lock size={9} /> Private</>
-          )}
-        </div>
+      {/* Top-left: primary badge or privacy badge */}
+      <div className="absolute top-3 left-3 flex flex-col gap-1">
+        {isPrimary ? (
+          <div
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold"
+            style={{
+              backgroundColor: "rgba(251,191,36,0.15)",
+              backdropFilter: "blur(6px)",
+              color: "#fbbf24",
+              border: "1px solid rgba(251,191,36,0.25)",
+            }}
+          >
+            <Star size={9} fill="currentColor" /> Primary
+          </div>
+        ) : (
+          <div
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium"
+            style={{
+              backgroundColor: "rgba(0,0,0,0.55)",
+              backdropFilter: "blur(6px)",
+              color: car.is_public ? "#22c55e" : "#71717a",
+            }}
+          >
+            {car.is_public ? (
+              <><Globe size={9} /> Public</>
+            ) : (
+              <><Lock size={9} /> Private</>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Top-right: make color accent dot */}
-      {!car.cover_image_url && (
-        <div
-          className="absolute top-3 right-3 w-2 h-2 rounded-full opacity-70"
-          style={{ backgroundColor: accent }}
-        />
+      {/* Top-right: set primary button (non-primary cars only) */}
+      {!isPrimary && (
+        <div className="absolute top-3 right-3">
+          <SetPrimaryButton carId={car.id} />
+        </div>
       )}
 
       {/* Bottom content */}

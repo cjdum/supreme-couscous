@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Zap, ImageIcon, Download, Upload, X, Eye, ShoppingCart, ExternalLink } from "lucide-react";
+import { Sparkles, ImageIcon, Download, Upload, X, Eye, ShoppingCart, ExternalLink, Wand2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
@@ -51,6 +51,9 @@ function VisualizerContent() {
   const [activeTab, setActiveTab] = useState<"render" | "analyze">("render");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Expanded render view
+  const [expandedRender, setExpandedRender] = useState<Render | null>(null);
+
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -96,8 +99,10 @@ function VisualizerContent() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Generation failed");
 
-      setRenders((prev) => [json.render as Render, ...prev]);
+      const newRender = json.render as Render;
+      setRenders((prev) => [newRender, ...prev]);
       setPrompt("");
+      setExpandedRender(newRender);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -158,95 +163,185 @@ function VisualizerContent() {
     if (!render.image_url) return;
     const a = document.createElement("a");
     a.href = render.image_url;
-    a.download = `modvault-render-${render.id.slice(0, 8)}.svg`;
+    a.download = `modvault-render-${render.id.slice(0, 8)}.jpg`;
     a.click();
   }
 
+  const selectedCar = cars.find((c) => c.id === selectedCarId);
+
+  const promptSuggestions = selectedCar
+    ? [
+        `Wide body kit, deep-dish wheels, slammed on coilovers, matte black wrap`,
+        `Full track build — roll cage, racing livery, aero splitter and wing`,
+        `Clean JDM build — lowered, bronze wheels, tinted windows`,
+        `Carbon fiber aero, Vossen wheels, pearl white wrap`,
+      ]
+    : [];
+
   return (
     <div className="px-4 py-5 max-w-2xl mx-auto">
-      <div className="flex items-center gap-2 mb-2">
-        <Zap size={18} className="text-[var(--color-accent)]" />
+      <div className="flex items-center gap-2.5 mb-1">
+        <div className="w-8 h-8 rounded-[10px] bg-[rgba(59,130,246,0.15)] flex items-center justify-center">
+          <Wand2 size={15} className="text-[#60A5FA]" />
+        </div>
         <h1 className="text-xl font-bold">Visualizer</h1>
       </div>
-      <p className="text-sm text-[var(--color-text-secondary)] mb-5">
-        AI renders your build or analyzes a photo for mod suggestions.
+      <p className="text-sm text-[rgba(255,255,255,0.4)] mb-5 pl-[42px]">
+        Describe your dream build — DALL-E 3 renders it in photorealistic detail.
       </p>
 
       {/* Tab switcher */}
-      <div className="flex bg-[var(--color-bg-elevated)] rounded-[14px] p-1 mb-5 gap-1">
+      <div className="flex bg-[#1a1a1a] rounded-[14px] p-1 mb-5 gap-1">
         <button
           onClick={() => setActiveTab("render")}
           className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
             activeTab === "render"
-              ? "bg-[var(--color-accent)] text-white"
-              : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+              ? "bg-[#3B82F6] text-white shadow-sm"
+              : "text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.7)]"
           }`}
         >
-          <Zap size={13} />
-          Generate SVG Render
+          <Sparkles size={13} />
+          Generate Render
         </button>
         <button
           onClick={() => setActiveTab("analyze")}
           className={`flex-1 flex items-center justify-center gap-2 h-9 rounded-[10px] text-xs font-semibold transition-all cursor-pointer ${
             activeTab === "analyze"
-              ? "bg-[var(--color-accent)] text-white"
-              : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+              ? "bg-[#3B82F6] text-white shadow-sm"
+              : "text-[rgba(255,255,255,0.45)] hover:text-[rgba(255,255,255,0.7)]"
           }`}
         >
           <Eye size={13} />
-          Analyze a Photo
+          Analyze Photo
         </button>
       </div>
 
       {/* Render tab */}
       {activeTab === "render" && (
-        <div className="rounded-[18px] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5 mb-6">
-          {cars.length > 0 && (
-            <div className="mb-4">
-              <Select
-                label="Vehicle"
-                value={selectedCarId}
-                onChange={(e) => setSelectedCarId(e.target.value)}
-                options={cars.map((c) => ({
-                  value: c.id,
-                  label: `${c.year} ${c.make} ${c.model}${c.nickname ? ` (${c.nickname})` : ""}`,
-                }))}
-              />
-            </div>
-          )}
+        <div className="space-y-4 mb-6">
+          <div className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-5">
+            {cars.length > 0 && (
+              <div className="mb-4">
+                <Select
+                  label="Vehicle"
+                  value={selectedCarId}
+                  onChange={(e) => setSelectedCarId(e.target.value)}
+                  options={cars.map((c) => ({
+                    value: c.id,
+                    label: `${c.year} ${c.make} ${c.model}${c.nickname ? ` (${c.nickname})` : ""}`,
+                  }))}
+                />
+              </div>
+            )}
 
-          <Textarea
-            label="Describe your desired look"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Wide body kit, Vossen wheels, matte chalk wrap, lowered on KW coilovers, carbon fiber splitter and rear wing…"
-            rows={4}
-            hint="Be specific about stance, body mods, wheels, and color"
-          />
+            <Textarea
+              label="Describe your desired look"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Wide body kit, Vossen wheels, matte chalk wrap, lowered on KW coilovers, carbon fiber splitter and rear wing…"
+              rows={4}
+              hint="The more specific you are, the better the result"
+            />
 
-          {error && (
-            <div className="mt-3 rounded-[10px] bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.2)] px-3 py-2.5 text-xs text-[var(--color-danger)]" role="alert">
-              {error}
-            </div>
-          )}
+            {/* Quick suggestions */}
+            {promptSuggestions.length > 0 && !prompt && (
+              <div className="mt-3">
+                <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.25)] uppercase tracking-wider mb-2">Quick styles</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {promptSuggestions.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setPrompt(s)}
+                      className="text-[11px] px-2.5 py-1 rounded-lg bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-[rgba(255,255,255,0.4)] hover:border-[rgba(59,130,246,0.4)] hover:text-[rgba(255,255,255,0.7)] transition-all cursor-pointer"
+                    >
+                      {s.split(",")[0].trim()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          <Button className="w-full mt-4" onClick={handleGenerate} loading={loading} disabled={!selectedCarId || !prompt.trim()}>
-            <Zap size={14} />
-            {loading ? "Claude is generating…" : "Generate SVG Render"}
-          </Button>
+            {error && (
+              <div className="mt-3 rounded-[10px] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.15)] px-3 py-2.5 text-xs text-[#f87171]" role="alert">
+                {error}
+              </div>
+            )}
 
-          {loading && (
-            <p className="text-xs text-center text-[var(--color-text-muted)] mt-2">
-              Usually takes 10–20 seconds…
-            </p>
-          )}
+            <Button className="w-full mt-4" onClick={handleGenerate} loading={loading} disabled={!selectedCarId || !prompt.trim()}>
+              <Sparkles size={14} />
+              {loading ? "Generating with DALL-E 3…" : "Generate Render"}
+            </Button>
+
+            {loading && (
+              <p className="text-[11px] text-center text-[rgba(255,255,255,0.25)] mt-2">
+                DALL-E 3 is rendering your build — usually 15–30 seconds
+              </p>
+            )}
+          </div>
+
+          {/* Render Gallery */}
+          <div>
+            <h2 className="text-sm font-bold mb-3">Render Gallery</h2>
+            {loadingRenders ? (
+              <div className="space-y-3">
+                {[1, 2].map((i) => <div key={i} className="aspect-video skeleton rounded-[14px]" />)}
+              </div>
+            ) : renders.length === 0 ? (
+              <div className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[#111111] py-14 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-[#1a1a1a] flex items-center justify-center mx-auto mb-3">
+                  <ImageIcon size={20} className="text-[rgba(255,255,255,0.15)]" />
+                </div>
+                <p className="text-sm font-semibold text-[rgba(255,255,255,0.45)]">No renders yet</p>
+                <p className="text-xs text-[rgba(255,255,255,0.25)] mt-1">Describe your dream build above to generate your first render</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {renders.map((render) => (
+                  <div
+                    key={render.id}
+                    className="rounded-[16px] border border-[rgba(255,255,255,0.07)] bg-[#111111] overflow-hidden card-hover cursor-pointer"
+                    onClick={() => setExpandedRender(render)}
+                  >
+                    {render.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={render.image_url}
+                        alt={`AI render: ${render.user_prompt}`}
+                        className="w-full object-cover"
+                        style={{ aspectRatio: "16/9" }}
+                      />
+                    ) : (
+                      <div className="bg-[#1a1a1a] flex items-center justify-center" style={{ aspectRatio: "16/9" }}>
+                        <p className="text-xs text-[rgba(255,255,255,0.25)]">No image available</p>
+                      </div>
+                    )}
+                    <div className="flex items-start justify-between gap-3 p-3">
+                      <div className="min-w-0">
+                        <p className="text-xs text-[rgba(255,255,255,0.55)] leading-relaxed line-clamp-2">{render.user_prompt}</p>
+                        <p className="text-[10px] text-[rgba(255,255,255,0.25)] mt-1">{formatRelativeDate(render.created_at)}</p>
+                      </div>
+                      {render.image_url && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDownload(render); }}
+                          className="shrink-0 p-1.5 rounded-lg text-[rgba(255,255,255,0.3)] hover:text-[rgba(255,255,255,0.7)] hover:bg-[#1a1a1a] transition-colors cursor-pointer"
+                          aria-label="Download"
+                        >
+                          <Download size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* Analyze tab */}
       {activeTab === "analyze" && (
         <div className="space-y-4 mb-6">
-          <div className="rounded-[18px] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5">
+          <div className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-5">
             {cars.length > 0 && (
               <div className="mb-4">
                 <Select
@@ -264,18 +359,17 @@ function VisualizerContent() {
               </div>
             )}
 
-            {/* Upload zone */}
             {!uploadedPreview ? (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-[var(--color-border)] rounded-[14px] p-8 flex flex-col items-center gap-3 hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-muted)] transition-all cursor-pointer group"
+                className="w-full border-2 border-dashed border-[rgba(255,255,255,0.08)] rounded-[14px] p-8 flex flex-col items-center gap-3 hover:border-[#3B82F6] hover:bg-[rgba(59,130,246,0.04)] transition-all cursor-pointer group"
               >
-                <div className="w-12 h-12 rounded-2xl bg-[var(--color-bg-elevated)] flex items-center justify-center group-hover:bg-[var(--color-accent-muted)] transition-colors">
-                  <Upload size={20} className="text-[var(--color-text-muted)] group-hover:text-[var(--color-accent)]" />
+                <div className="w-12 h-12 rounded-2xl bg-[#1a1a1a] flex items-center justify-center group-hover:bg-[rgba(59,130,246,0.1)] transition-colors">
+                  <Upload size={20} className="text-[rgba(255,255,255,0.2)] group-hover:text-[#60A5FA] transition-colors" />
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-semibold">Upload a car photo</p>
-                  <p className="text-xs text-[var(--color-text-muted)] mt-0.5">JPG, PNG or WebP · Max 8MB</p>
+                  <p className="text-xs text-[rgba(255,255,255,0.3)] mt-0.5">JPG, PNG or WebP · Max 8MB</p>
                 </div>
               </button>
             ) : (
@@ -284,7 +378,7 @@ function VisualizerContent() {
                 <img src={uploadedPreview} alt="Uploaded car" className="w-full max-h-64 object-cover" />
                 <button
                   onClick={() => { setUploadedPreview(null); setUploadedImage(null); setAnalysis(null); }}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer"
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 flex items-center justify-center hover:bg-black/90 transition-colors cursor-pointer"
                 >
                   <X size={13} className="text-white" />
                 </button>
@@ -300,55 +394,44 @@ function VisualizerContent() {
             />
 
             {error && (
-              <div className="mt-3 rounded-[10px] bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.2)] px-3 py-2.5 text-xs text-[var(--color-danger)]">
+              <div className="mt-3 rounded-[10px] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.15)] px-3 py-2.5 text-xs text-[#f87171]">
                 {error}
               </div>
             )}
 
-            <Button
-              className="w-full mt-4"
-              onClick={handleAnalyze}
-              loading={analyzing}
-              disabled={!uploadedImage}
-            >
+            <Button className="w-full mt-4" onClick={handleAnalyze} loading={analyzing} disabled={!uploadedImage}>
               <Eye size={14} />
               {analyzing ? "Claude is analyzing…" : "Analyze Photo"}
             </Button>
           </div>
 
-          {/* Analysis results */}
           {analysis && (
-            <div className="rounded-[18px] border border-[var(--color-border)] bg-[var(--color-bg-card)] overflow-hidden animate-in">
-              {/* Vehicle info */}
-              <div className="px-5 py-4 border-b border-[var(--color-border)]">
-                <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-1">Detected Vehicle</p>
+            <div className="rounded-[18px] border border-[rgba(255,255,255,0.07)] bg-[#111111] overflow-hidden animate-in">
+              <div className="px-5 py-4 border-b border-[rgba(255,255,255,0.05)]">
+                <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider mb-1">Detected Vehicle</p>
                 <h3 className="text-base font-bold">{analysis.detected_vehicle}</h3>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-1">{analysis.overall_assessment}</p>
+                <p className="text-xs text-[rgba(255,255,255,0.5)] mt-1 leading-relaxed">{analysis.overall_assessment}</p>
               </div>
 
-              {/* Quick stats */}
-              <div className="grid grid-cols-3 divide-x divide-[var(--color-border)] border-b border-[var(--color-border)]">
-                <div className="px-3 py-3 text-center">
-                  <p className="text-[10px] text-[var(--color-text-muted)] mb-0.5">Color</p>
-                  <p className="text-xs font-semibold capitalize">{analysis.color || "—"}</p>
-                </div>
-                <div className="px-3 py-3 text-center">
-                  <p className="text-[10px] text-[var(--color-text-muted)] mb-0.5">Condition</p>
-                  <p className="text-xs font-semibold capitalize">{analysis.condition || "—"}</p>
-                </div>
-                <div className="px-3 py-3 text-center">
-                  <p className="text-[10px] text-[var(--color-text-muted)] mb-0.5">Stance</p>
-                  <p className="text-xs font-semibold capitalize truncate">{analysis.stance || "—"}</p>
-                </div>
+              <div className="grid grid-cols-3 divide-x divide-[rgba(255,255,255,0.05)] border-b border-[rgba(255,255,255,0.05)]">
+                {[
+                  { label: "Color", value: analysis.color },
+                  { label: "Condition", value: analysis.condition },
+                  { label: "Stance", value: analysis.stance },
+                ].map((item) => (
+                  <div key={item.label} className="px-3 py-3 text-center">
+                    <p className="text-[10px] text-[rgba(255,255,255,0.28)] mb-0.5">{item.label}</p>
+                    <p className="text-xs font-semibold capitalize">{item.value || "—"}</p>
+                  </div>
+                ))}
               </div>
 
-              {/* Visible mods */}
               {analysis.visible_mods?.length > 0 && (
-                <div className="px-5 py-3 border-b border-[var(--color-border)]">
-                  <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Visible Mods</p>
+                <div className="px-5 py-3 border-b border-[rgba(255,255,255,0.05)]">
+                  <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider mb-2">Visible Mods</p>
                   <div className="flex flex-wrap gap-1.5">
                     {analysis.visible_mods.map((mod, i) => (
-                      <span key={i} className="tag bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)]">
+                      <span key={i} className="tag bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-[rgba(255,255,255,0.5)]">
                         {mod}
                       </span>
                     ))}
@@ -356,20 +439,19 @@ function VisualizerContent() {
                 </div>
               )}
 
-              {/* Suggestions */}
               {analysis.suggestions?.length > 0 && (
                 <div className="px-5 py-4">
-                  <p className="text-[10px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">AI Suggestions</p>
+                  <p className="text-[10px] font-semibold text-[rgba(255,255,255,0.28)] uppercase tracking-wider mb-3">AI Suggestions</p>
                   <div className="space-y-3">
                     {analysis.suggestions.map((s, i) => (
-                      <div key={i} className="rounded-[14px] bg-[var(--color-bg-elevated)] border border-[var(--color-border)] p-3.5">
+                      <div key={i} className="rounded-[14px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] p-3.5">
                         <div className="flex items-start justify-between gap-2 mb-1.5">
                           <p className="text-sm font-semibold">{s.name}</p>
                           <span
                             className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0"
                             style={{
-                              background: s.priority === "high" ? "var(--color-danger-muted)" : s.priority === "medium" ? "var(--color-warning-muted)" : "rgba(235,235,245,0.08)",
-                              color: s.priority === "high" ? "var(--color-danger)" : s.priority === "medium" ? "var(--color-warning)" : "var(--color-text-muted)",
+                              background: s.priority === "high" ? "rgba(239,68,68,0.1)" : s.priority === "medium" ? "rgba(245,158,11,0.1)" : "rgba(255,255,255,0.06)",
+                              color: s.priority === "high" ? "#f87171" : s.priority === "medium" ? "#fbbf24" : "rgba(255,255,255,0.3)",
                             }}
                           >
                             {s.priority}
@@ -377,19 +459,19 @@ function VisualizerContent() {
                         </div>
                         <div className="flex items-center gap-2 mb-2">
                           <CategoryBadge category={s.category} className="text-[10px]" />
-                          <span className="text-[10px] text-[var(--color-text-muted)] font-medium">{s.estimated_cost}</span>
+                          <span className="text-[10px] text-[rgba(255,255,255,0.3)] font-medium">{s.estimated_cost}</span>
                         </div>
-                        <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed mb-2">{s.reason}</p>
+                        <p className="text-xs text-[rgba(255,255,255,0.45)] leading-relaxed mb-2">{s.reason}</p>
                         <div className="flex gap-2 flex-wrap">
                           {s.amazon_url && (
                             <a href={s.amazon_url} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[rgba(255,153,0,0.1)] border border-[rgba(255,153,0,0.2)] text-[10px] font-medium text-[#FF9900] hover:bg-[rgba(255,153,0,0.2)] transition-colors">
-                              <ShoppingCart size={10} /> Amazon <ExternalLink size={8} />
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[rgba(255,153,0,0.08)] border border-[rgba(255,153,0,0.15)] text-[10px] font-medium text-[#FF9900] hover:bg-[rgba(255,153,0,0.15)] transition-colors">
+                              <ShoppingCart size={9} /> Amazon <ExternalLink size={8} />
                             </a>
                           )}
                           {s.summit_url && (
                             <a href={s.summit_url} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[var(--color-bg-hover)] border border-[var(--color-border)] text-[10px] font-medium text-[var(--color-text-secondary)] hover:border-[var(--color-border-bright)] transition-colors">
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#1a1a1a] border border-[rgba(255,255,255,0.07)] text-[10px] font-medium text-[rgba(255,255,255,0.4)] hover:border-[rgba(255,255,255,0.15)] transition-colors">
                               Summit Racing <ExternalLink size={8} />
                             </a>
                           )}
@@ -404,56 +486,41 @@ function VisualizerContent() {
         </div>
       )}
 
-      {/* Renders gallery */}
-      {activeTab === "render" && (
+      {/* Lightbox */}
+      {expandedRender && (
         <>
-          <h2 className="text-sm font-bold mb-4">Render Gallery</h2>
-          {loadingRenders ? (
-            <div className="space-y-4">
-              {[1, 2].map((i) => <div key={i} className="aspect-video skeleton rounded-[14px]" />)}
+          <div
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setExpandedRender(null)}
+          >
+            <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => setExpandedRender(null)}
+                className="absolute -top-10 right-0 w-9 h-9 rounded-full bg-[#1a1a1a] border border-[rgba(255,255,255,0.1)] flex items-center justify-center hover:bg-[#222222] transition-colors cursor-pointer"
+              >
+                <X size={15} className="text-white" />
+              </button>
+              {expandedRender.image_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={expandedRender.image_url}
+                  alt={expandedRender.user_prompt}
+                  className="w-full rounded-[16px]"
+                />
+              )}
+              <div className="mt-3 flex items-start justify-between gap-3">
+                <p className="text-xs text-[rgba(255,255,255,0.45)] leading-relaxed flex-1">{expandedRender.user_prompt}</p>
+                {expandedRender.image_url && (
+                  <button
+                    onClick={() => handleDownload(expandedRender)}
+                    className="flex items-center gap-1.5 h-8 px-3 rounded-[8px] bg-[#1a1a1a] border border-[rgba(255,255,255,0.1)] text-xs text-[rgba(255,255,255,0.55)] hover:text-white hover:border-[rgba(255,255,255,0.2)] transition-all cursor-pointer flex-shrink-0"
+                  >
+                    <Download size={12} /> Download
+                  </button>
+                )}
+              </div>
             </div>
-          ) : renders.length === 0 ? (
-            <div className="text-center py-12 text-[var(--color-text-muted)]">
-              <ImageIcon size={30} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No renders yet</p>
-              <p className="text-xs mt-1 opacity-60">Your AI-generated renders will appear here</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {renders.map((render) => (
-                <div key={render.id} className="rounded-[16px] border border-[var(--color-border)] bg-[var(--color-bg-card)] overflow-hidden">
-                  {render.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={render.image_url}
-                      alt={`AI render: ${render.user_prompt}`}
-                      className="w-full"
-                      style={{ aspectRatio: "16/9", objectFit: "contain", background: "#000" }}
-                    />
-                  ) : (
-                    <div className="bg-[var(--color-bg-elevated)] flex items-center justify-center" style={{ aspectRatio: "16/9" }}>
-                      <p className="text-xs text-[var(--color-text-muted)]">No image</p>
-                    </div>
-                  )}
-                  <div className="flex items-start justify-between gap-3 p-3">
-                    <div className="min-w-0">
-                      <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed line-clamp-2">{render.user_prompt}</p>
-                      <p className="text-[10px] text-[var(--color-text-muted)] mt-1">{formatRelativeDate(render.created_at)}</p>
-                    </div>
-                    {render.image_url && (
-                      <button
-                        onClick={() => handleDownload(render)}
-                        className="shrink-0 p-1.5 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer"
-                        aria-label="Download SVG"
-                      >
-                        <Download size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          </div>
         </>
       )}
 

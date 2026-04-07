@@ -9,6 +9,22 @@ const createPostSchema = z.object({
   car_id: z.string().uuid().optional().nullable(),
 });
 
+type RawPost = {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  likes_count: number;
+  replies_count: number;
+  downvotes_count: number | null;
+  created_at: string;
+  car_id: string | null;
+  user_id: string;
+};
+
+const BASE_SELECT =
+  "id, title, content, category, likes_count, replies_count, downvotes_count, created_at, car_id, user_id";
+
 export async function GET(request: Request) {
   const supabase = await createClient();
   const { searchParams } = new URL(request.url);
@@ -17,31 +33,50 @@ export async function GET(request: Request) {
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 50);
   const offset = parseInt(searchParams.get("offset") ?? "0");
 
-  // Step 1: fetch posts (without profile join — no direct FK)
-  let query = supabase
-    .from("forum_posts")
-    .select("id, title, content, category, likes_count, replies_count, created_at, car_id, user_id")
-    .range(offset, offset + limit - 1);
+  let postsRaw: RawPost[] | null = null;
+  let fetchError: { message: string } | null = null;
 
-  if (category && category !== "all") {
-    query = query.eq("category", category);
-  }
+  const buildQuery = (applyCategoryFilter: boolean) => {
+    let q = supabase
+      .from("forum_posts")
+      .select(BASE_SELECT)
+      .range(offset, offset + limit - 1);
+    if (applyCategoryFilter && category && category !== "all") {
+      q = q.eq("category", category);
+    }
+    return q;
+  };
 
   if (sort === "top") {
-    query = query.order("likes_count", { ascending: false });
+    const q = buildQuery(true).order("likes_count", { ascending: false });
+    const { data, error } = await q;
+    postsRaw = (data ?? []) as RawPost[];
+    fetchError = error;
   } else if (sort === "hot") {
-    // hot = recent posts with high engagement; simple heuristic: sort by (likes+replies) desc, within last 7 days
-    query = query
-      .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+    // Hot = high engagement posts in last 30 days; fallback to all-time if empty
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: recent, error: e1 } = await buildQuery(true)
+      .gte("created_at", cutoff)
       .order("likes_count", { ascending: false });
+    fetchError = e1;
+
+    if (recent && recent.length > 0) {
+      postsRaw = recent as RawPost[];
+    } else {
+      // Fallback: all-time by likes
+      const { data: fallback, error: e2 } = await buildQuery(true).order("likes_count", { ascending: false });
+      postsRaw = (fallback ?? []) as RawPost[];
+      fetchError = e2;
+    }
   } else {
-    query = query.order("created_at", { ascending: false });
+    // new (default)
+    const { data, error } = await buildQuery(true).order("created_at", { ascending: false });
+    postsRaw = (data ?? []) as RawPost[];
+    fetchError = error;
   }
 
-  const { data: postsRaw, error: postsError } = await query;
-
-  if (postsError) {
-    return NextResponse.json({ error: postsError.message }, { status: 500 });
+  if (fetchError) {
+    return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
 
   const posts = postsRaw ?? [];
@@ -75,6 +110,7 @@ export async function GET(request: Request) {
   // Step 4: merge
   const merged = posts.map((post) => ({
     ...post,
+    downvotes_count: post.downvotes_count ?? 0,
     profiles: profileMap.get(post.user_id) ?? { username: "unknown", display_name: null, avatar_url: null },
     cars: post.car_id ? carMap.get(post.car_id) ?? null : null,
   }));

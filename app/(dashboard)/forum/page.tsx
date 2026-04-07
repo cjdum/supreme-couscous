@@ -57,7 +57,7 @@ const FLAIR_STYLES: Record<string, { bg: string; color: string }> = {
 };
 
 function scorePost(post: Post): number {
-  return post.likes_count - post.downvotes_count;
+  return post.likes_count - (post.downvotes_count ?? 0);
 }
 
 function AvatarInitial({ username }: { username: string }) {
@@ -224,9 +224,10 @@ export default function ForumPage() {
     } else {
       // If downvoted, remove downvote first
       if (isDownvoted) {
-        await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId);
         setDownvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
-        setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, p.downvotes_count - 1) } : p));
+        setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p));
       }
       // Add upvote
       await supabase.from("forum_likes").insert({ post_id: postId, user_id: currentUserId });
@@ -245,7 +246,7 @@ export default function ForumPage() {
       // Remove downvote
       await supabase.from("forum_downvotes").delete().eq("post_id", postId).eq("user_id", currentUserId);
       setDownvotedPosts((prev) => { const s = new Set(prev); s.delete(postId); return s; });
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, p.downvotes_count - 1) } : p));
+      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: Math.max(0, (p.downvotes_count ?? 0) - 1) } : p));
     } else {
       // If upvoted, remove upvote first
       if (isUpvoted) {
@@ -256,7 +257,7 @@ export default function ForumPage() {
       // Add downvote
       await supabase.from("forum_downvotes").insert({ post_id: postId, user_id: currentUserId });
       setDownvotedPosts((prev) => new Set(prev).add(postId));
-      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: p.downvotes_count + 1 } : p));
+      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, downvotes_count: (p.downvotes_count ?? 0) + 1 } : p));
     }
   }
 

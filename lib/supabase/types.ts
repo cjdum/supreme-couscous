@@ -57,6 +57,7 @@ export interface Database {
           nickname: string | null;
           cover_image_url: string | null;
           is_public: boolean;
+          is_primary: boolean;
           horsepower: number | null;
           torque: number | null;
           engine_size: string | null;
@@ -81,6 +82,7 @@ export interface Database {
           nickname?: string | null;
           cover_image_url?: string | null;
           is_public?: boolean;
+          is_primary?: boolean;
           horsepower?: number | null;
           torque?: number | null;
           engine_size?: string | null;
@@ -103,6 +105,7 @@ export interface Database {
           nickname?: string | null;
           cover_image_url?: string | null;
           is_public?: boolean;
+          is_primary?: boolean;
           horsepower?: number | null;
           torque?: number | null;
           engine_size?: string | null;
@@ -113,6 +116,30 @@ export interface Database {
           top_speed?: number | null;
           specs_ai_guessed?: boolean;
           updated_at?: string;
+        };
+      };
+      car_photos: {
+        Row: {
+          id: string;
+          car_id: string;
+          user_id: string;
+          url: string;
+          position: number;
+          is_cover: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          car_id: string;
+          user_id: string;
+          url: string;
+          position?: number;
+          is_cover?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          position?: number;
+          is_cover?: boolean;
         };
       };
       mods: {
@@ -300,6 +327,21 @@ export interface Database {
         };
         Update: never;
       };
+      forum_downvotes: {
+        Row: {
+          id: string;
+          user_id: string;
+          post_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          post_id: string;
+          created_at?: string;
+        };
+        Update: never;
+      };
     };
     Views: Record<string, { Row: Record<string, unknown> }>;
     Functions: Record<string, { Args: Record<string, unknown>; Returns: unknown }>;
@@ -313,6 +355,7 @@ export interface Database {
 // Convenience row types
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Car = Database["public"]["Tables"]["cars"]["Row"];
+export type CarPhoto = Database["public"]["Tables"]["car_photos"]["Row"];
 export type Mod = Database["public"]["Tables"]["mods"]["Row"];
 export type ModPhoto = Database["public"]["Tables"]["mod_photos"]["Row"];
 export type Render = Database["public"]["Tables"]["renders"]["Row"];
@@ -321,3 +364,4 @@ export type Comment = Database["public"]["Tables"]["comments"]["Row"];
 export type ForumPost = Database["public"]["Tables"]["forum_posts"]["Row"];
 export type ForumReply = Database["public"]["Tables"]["forum_replies"]["Row"];
 export type ForumLike = Database["public"]["Tables"]["forum_likes"]["Row"];
+export type ForumDownvote = Database["public"]["Tables"]["forum_downvotes"]["Row"];

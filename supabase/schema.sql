@@ -544,3 +544,48 @@ drop trigger if exists on_forum_downvote_change on forum_downvotes;
 create trigger on_forum_downvote_change
   after insert or delete on forum_downvotes
   for each row execute function update_forum_downvotes_count();
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v3: Primary Car + Car Photo Gallery
+-- Run this block in Supabase SQL Editor
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Add is_primary flag to cars (one primary car per user)
+alter table cars add column if not exists is_primary boolean not null default false;
+
+create index if not exists cars_is_primary_idx on cars(user_id, is_primary) where is_primary = true;
+
+-- ── car_photos ────────────────────────────────────────────────────────────────
+-- Stores multiple photos per car; position controls display order
+create table if not exists car_photos (
+  id         uuid primary key default uuid_generate_v4(),
+  car_id     uuid not null references cars(id) on delete cascade,
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  url        text not null,
+  position   int not null default 1,
+  is_cover   boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists car_photos_car_id_idx on car_photos(car_id);
+create index if not exists car_photos_position_idx on car_photos(car_id, position);
+
+alter table car_photos enable row level security;
+
+drop policy if exists "car_photos: owner all" on car_photos;
+create policy "car_photos: owner all"
+  on car_photos for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "car_photos: public car read" on car_photos;
+create policy "car_photos: public car read"
+  on car_photos for select
+  using (
+    exists (select 1 from cars c where c.id = car_photos.car_id and c.is_public = true)
+  );
+
+-- Increase car-covers bucket file size limit to 8MB for gallery photos
+update storage.buckets
+  set file_size_limit = 8388608
+  where id = 'car-covers';

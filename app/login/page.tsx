@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/garage";
+  const authError = searchParams.get("error");
 
   const [form, setForm] = useState<LoginInput>({ email: "", password: "" });
   const [errors, setErrors] = useState<Partial<LoginInput>>({});
@@ -80,7 +81,19 @@ function LoginForm() {
           <p className="text-sm text-[var(--color-text-secondary)]">Sign in to your garage</p>
         </div>
 
-        <div className="rounded-[22px] border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6 shadow-2xl">
+        <div className="rounded-[22px] border border-[rgba(255,255,255,0.07)] bg-[#111111] p-6 shadow-2xl">
+          {authError === "verification_failed" && (
+            <div className="rounded-[10px] bg-[rgba(245,158,11,0.1)] border border-[rgba(245,158,11,0.2)] px-4 py-3 text-sm text-[#fbbf24] mb-4" role="alert">
+              Your verification link expired or is invalid. Please{" "}
+              <Link href="/signup" className="underline font-medium">sign up again</Link>{" "}
+              or request a new link.
+            </div>
+          )}
+          {authError === "auth_callback_failed" && (
+            <div className="rounded-[10px] bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] px-4 py-3 text-sm text-[#f87171] mb-4" role="alert">
+              Sign-in failed. Please try again or contact support.
+            </div>
+          )}
           {/* Google OAuth */}
           <button
             type="button"
