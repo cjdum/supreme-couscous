@@ -3,13 +3,15 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
-  Users, Globe, Flame, MessageSquare, GalleryHorizontal,
-  Heart, ArrowUp, Trophy, Send, Plus, ChevronDown, Loader2,
+  Users, Globe, MessageSquare, GalleryHorizontal,
+  Heart, ArrowUp, Trophy, Send, Plus, ChevronDown, Loader2, ChevronRight,
 } from "lucide-react";
 import { PageContainer } from "@/components/ui/page-container";
 import { TradingCard } from "@/components/garage/trading-card";
+import { CardViewerModal } from "@/components/garage/card-viewer-modal";
 import { createClient } from "@/lib/supabase/client";
 import { formatRelativeDate } from "@/lib/utils";
+import type { MintedCard } from "@/lib/pixel-card";
 
 type Tab = "builds" | "cards" | "discussion";
 
@@ -71,6 +73,10 @@ export default function CommunityPage() {
   const [postTitle,    setPostTitle]    = useState("");
   const [postBody,     setPostBody]     = useState("");
   const [posting,      setPosting]      = useState(false);
+  const [expandedPost, setExpandedPost] = useState<string | null>(null);
+
+  /* ─── Card modal state ─────── */
+  const [viewingCard,  setViewingCard]  = useState<FeedCard | null>(null);
 
   /* ─── Load builds ──────────── */
   const loadBuilds = useCallback(async (sort: "recent" | "top") => {
@@ -154,6 +160,7 @@ export default function CommunityPage() {
     setPostTitle(""); setPostBody("");
     setPosts([]); // force reload
     loadPosts();
+    setExpandedPost(null);
     setPosting(false);
   }
 
@@ -315,13 +322,18 @@ export default function CommunityPage() {
             ) : (
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
-                gap: 28,
+                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                gap: 24,
                 justifyItems: "center",
               }}>
                 {feedCards.map((card) => (
                   <div key={card.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                    <Link href={`/c/${card.id}`} style={{ textDecoration: "none" }}>
+                    {/* Button opens modal — no navigation, no 3D tilt (avoids scroll-direction bug) */}
+                    <button
+                      onClick={() => setViewingCard(card)}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "block" }}
+                      aria-label={`View ${card.nickname} card`}
+                    >
                       <TradingCard
                         cardUrl={card.pixel_card_url}
                         nickname={card.nickname}
@@ -342,9 +354,8 @@ export default function CommunityPage() {
                         carLabel={`${card.car_snapshot.year} ${card.car_snapshot.make} ${card.car_snapshot.model}`}
                         scale={0.85}
                         idle
-                        interactive
                       />
-                    </Link>
+                    </button>
                     <p style={{ fontSize: 10, color: "var(--color-text-muted)", letterSpacing: "0.04em", textAlign: "center" }}>
                       @{card.username ?? "—"} · {card.car_snapshot.year} {card.car_snapshot.make} {card.car_snapshot.model}
                     </p>
@@ -425,67 +436,115 @@ export default function CommunityPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {posts.map((post) => (
-                  <Link key={post.id} href={`/forum/${post.id}`} style={{ textDecoration: "none" }}>
-                    <div
+                {posts.map((post) => {
+                  const isExpanded = expandedPost === post.id;
+                  return (
+                    <div key={post.id}
                       style={{
-                        padding: "14px 16px", borderRadius: 14,
-                        background: "var(--color-bg-card)", border: "1px solid var(--color-border)",
-                        cursor: "pointer", transition: "border-color 150ms ease",
+                        borderRadius: 14,
+                        background: "var(--color-bg-card)",
+                        border: `1px solid ${isExpanded ? "var(--color-border-bright)" : "var(--color-border)"}`,
+                        overflow: "hidden",
+                        transition: "border-color 150ms ease",
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--color-border-bright)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--color-border)")}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 4 }}>
-                            {post.title}
-                          </p>
+                      {/* Post header — click to expand */}
+                      <button
+                        onClick={() => setExpandedPost(isExpanded ? null : post.id)}
+                        style={{
+                          width: "100%", textAlign: "left", cursor: "pointer",
+                          padding: "14px 16px", background: "none", border: "none",
+                          display: "block",
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text-primary)", marginBottom: 4 }}>
+                              {post.title}
+                            </p>
+                            {post.content && !isExpanded && (
+                              <p style={{
+                                fontSize: 11, color: "var(--color-text-muted)", lineHeight: 1.5,
+                                overflow: "hidden", display: "-webkit-box",
+                                WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                              }}>
+                                {post.content}
+                              </p>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              <span style={{
+                                fontSize: 9, fontWeight: 800, letterSpacing: "0.12em",
+                                textTransform: "uppercase", padding: "3px 8px", borderRadius: 6,
+                                background: "var(--color-bg-elevated)", color: "var(--color-text-muted)",
+                              }}>
+                                {post.category}
+                              </span>
+                              <ChevronRight size={12} style={{
+                                color: "var(--color-text-muted)",
+                                transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                                transition: "transform 150ms ease",
+                              }} />
+                            </div>
+                            <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--color-text-muted)" }}>
+                              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                <ArrowUp size={10} /> {post.likes_count}
+                              </span>
+                              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                                <MessageSquare size={10} /> {post.replies_count}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>
+                            @{post.profiles.username}
+                          </span>
+                          <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>·</span>
+                          <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>
+                            {formatRelativeDate(post.created_at)}
+                          </span>
+                        </div>
+                      </button>
+
+                      {/* Expanded body */}
+                      {isExpanded && (
+                        <div style={{ padding: "0 16px 16px" }}>
                           {post.content && (
-                            <p style={{
-                              fontSize: 11, color: "var(--color-text-muted)", lineHeight: 1.5,
-                              overflow: "hidden", display: "-webkit-box",
-                              WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-                            }}>
+                            <p style={{ fontSize: 13, color: "var(--color-text-secondary)", lineHeight: 1.7, marginBottom: 12 }}>
                               {post.content}
                             </p>
                           )}
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
-                          <span style={{
-                            fontSize: 9, fontWeight: 800, letterSpacing: "0.12em",
-                            textTransform: "uppercase", padding: "3px 8px", borderRadius: 6,
-                            background: "var(--color-bg-elevated)", color: "var(--color-text-muted)",
+                          <div style={{
+                            paddingTop: 12, borderTop: "1px solid var(--color-border)",
+                            display: "flex", alignItems: "center", gap: 8,
                           }}>
-                            {post.category}
-                          </span>
-                          <div style={{ display: "flex", gap: 10, fontSize: 11, color: "var(--color-text-muted)" }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                              <ArrowUp size={10} /> {post.likes_count}
-                            </span>
-                            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                              <MessageSquare size={10} /> {post.replies_count}
+                            <MessageSquare size={11} style={{ color: "var(--color-text-muted)" }} />
+                            <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+                              {post.replies_count} {post.replies_count === 1 ? "reply" : "replies"}
                             </span>
                           </div>
                         </div>
-                      </div>
-                      <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>
-                          @{post.profiles.username}
-                        </span>
-                        <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>·</span>
-                        <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>
-                          {formatRelativeDate(post.created_at)}
-                        </span>
-                      </div>
+                      )}
                     </div>
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
         )}
       </PageContainer>
+      {/* Card viewer modal */}
+      {viewingCard && (
+        <CardViewerModal
+          cards={[viewingCard as unknown as MintedCard]}
+          carLabel={`${viewingCard.car_snapshot.year} ${viewingCard.car_snapshot.make} ${viewingCard.car_snapshot.model}`}
+          startIndex={0}
+          onClose={() => setViewingCard(null)}
+        />
+      )}
+
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

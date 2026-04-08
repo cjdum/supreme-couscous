@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Star, Flag, ShieldCheck, Swords, Sparkles, AlertTriangle, Loader2, Trophy, X } from "lucide-react";
+import { ThumbsUp, ThumbsDown, Flag, ShieldCheck, Swords, Sparkles, AlertTriangle, Loader2, Trophy, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { CardTrait } from "@/lib/supabase/types";
 
@@ -11,6 +11,7 @@ interface Battle {
   challenger_card_id: string;
   opponent_card_id: string;
   created_at: string;
+  opponent_label?: string | null;
 }
 
 interface MyCard {
@@ -41,18 +42,10 @@ interface Props {
   battles: Battle[];
 }
 
-const DIMENSIONS = ["cleanliness", "creativity", "execution", "presence"] as const;
-type Dimension = (typeof DIMENSIONS)[number];
-
 export function CardJudgePanel(props: Props) {
-  const [ratings, setRatings] = useState<Record<Dimension, number>>({
-    cleanliness: 0,
-    creativity: 0,
-    execution: 0,
-    presence: 0,
-  });
-  const [submittingRating, setSubmittingRating] = useState(false);
-  const [ratingMessage, setRatingMessage] = useState<string | null>(null);
+  const [voteState, setVoteState] = useState<"up" | "down" | null>(null);
+  const [voting, setVoting] = useState(false);
+  const [voteMessage, setVoteMessage] = useState<string | null>(null);
   const [signalMessage, setSignalMessage] = useState<string | null>(null);
 
   // Challenge state
@@ -66,6 +59,11 @@ export function CardJudgePanel(props: Props) {
 
   const isOwner = props.viewerUserId === props.cardOwnerId;
   const canChallenge = !!props.viewerUserId && !isOwner;
+
+  // Compute upvote/downvote counts from avgRating and ratingCount
+  const upvoteRatio = props.avgRating != null ? (props.avgRating - 1) / 4 : 0.5; // maps 1→0, 5→1
+  const upvotes = Math.round(props.ratingCount * upvoteRatio);
+  const downvotes = props.ratingCount - upvotes;
 
   const loadMyCards = useCallback(async () => {
     if (myCards.length) return;
@@ -113,26 +111,31 @@ export function CardJudgePanel(props: Props) {
     }
   }
 
-  async function submitRating() {
-    if (Object.values(ratings).some((v) => v < 1)) {
-      setRatingMessage("Set all four dimensions");
-      return;
-    }
-    setSubmittingRating(true);
-    setRatingMessage(null);
+  async function submitVote(vote: "up" | "down") {
+    if (isOwner || voting) return;
+    setVoting(true);
+    setVoteMessage(null);
+    const score = vote === "up" ? 5 : 1;
     try {
       const res = await fetch("/api/ratings/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ card_id: props.cardId, ...ratings }),
+        body: JSON.stringify({
+          card_id: props.cardId,
+          cleanliness: score,
+          creativity: score,
+          execution: score,
+          presence: score,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed");
-      setRatingMessage(`Thanks — your rating counts at ${json.weighted.toFixed(2)}/5`);
+      setVoteState(vote);
+      setVoteMessage(vote === "up" ? "Upvoted!" : "Downvoted.");
     } catch (err) {
-      setRatingMessage(err instanceof Error ? err.message : "Failed");
+      setVoteMessage(err instanceof Error ? err.message : "Failed");
     } finally {
-      setSubmittingRating(false);
+      setVoting(false);
     }
   }
 
@@ -189,53 +192,56 @@ export function CardJudgePanel(props: Props) {
       <div className="p-4 rounded-2xl" style={{ background: "rgba(15,12,30,0.6)", border: "1px solid rgba(168,85,247,0.22)" }}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Star size={14} style={{ color: "#fbbf24" }} />
-            <p className="text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: "#fbbf24" }}>Community rating</p>
+            <ThumbsUp size={14} style={{ color: "#30d158" }} />
+            <p className="text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: "rgba(200,180,240,0.7)" }}>Community rating</p>
           </div>
           <p className="text-xs font-mono" style={{ color: "rgba(200,180,240,0.6)" }}>
-            {props.avgRating != null ? `${props.avgRating.toFixed(2)}/5 · ${props.ratingCount}` : "No ratings yet"}
+            {props.ratingCount > 0 ? `${props.ratingCount} vote${props.ratingCount !== 1 ? "s" : ""}` : "No votes yet"}
           </p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-          {DIMENSIONS.map((dim) => (
-            <div key={dim}>
-              <p className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "rgba(200,180,240,0.55)" }}>{dim}</p>
-              <div className="flex gap-0.5 mt-1">
-                {[1, 2, 3, 4, 5].map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setRatings((r) => ({ ...r, [dim]: v }))}
-                    aria-label={`${dim} ${v}`}
-                    className="p-1"
-                  >
-                    <Star
-                      size={14}
-                      style={{
-                        color: v <= (ratings[dim] ?? 0) ? "#fbbf24" : "rgba(200,180,240,0.3)",
-                        fill: v <= (ratings[dim] ?? 0) ? "#fbbf24" : "transparent",
-                      }}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="flex items-center gap-3">
+          {/* Upvote button */}
+          <button
+            onClick={() => submitVote("up")}
+            disabled={voting || isOwner || voteState !== null}
+            className="flex items-center gap-2 h-12 px-5 rounded-xl text-[13px] font-bold border transition-all disabled:opacity-50"
+            style={{
+              background: voteState === "up" ? "rgba(48,209,88,0.2)" : "rgba(48,209,88,0.08)",
+              borderColor: voteState === "up" ? "rgba(48,209,88,0.7)" : "rgba(48,209,88,0.3)",
+              color: voteState === "up" ? "#30d158" : "rgba(48,209,88,0.75)",
+              boxShadow: voteState === "up" ? "0 0 12px rgba(48,209,88,0.25)" : "none",
+            }}
+          >
+            <ThumbsUp size={16} style={{ fill: voteState === "up" ? "#30d158" : "transparent" }} />
+            <span className="font-mono">{upvotes}</span>
+          </button>
+
+          {/* Downvote button */}
+          <button
+            onClick={() => submitVote("down")}
+            disabled={voting || isOwner || voteState !== null}
+            className="flex items-center gap-2 h-12 px-5 rounded-xl text-[13px] font-bold border transition-all disabled:opacity-50"
+            style={{
+              background: voteState === "down" ? "rgba(255,69,58,0.18)" : "rgba(255,69,58,0.06)",
+              borderColor: voteState === "down" ? "rgba(255,69,58,0.7)" : "rgba(255,69,58,0.28)",
+              color: voteState === "down" ? "#ff453a" : "rgba(255,69,58,0.65)",
+              boxShadow: voteState === "down" ? "0 0 12px rgba(255,69,58,0.2)" : "none",
+            }}
+          >
+            <ThumbsDown size={16} style={{ fill: voteState === "down" ? "#ff453a" : "transparent" }} />
+            <span className="font-mono">{downvotes}</span>
+          </button>
+
+          {voting && <Loader2 size={14} className="animate-spin" style={{ color: "rgba(200,180,240,0.5)" }} />}
         </div>
-        <button
-          onClick={submitRating}
-          disabled={submittingRating}
-          className="h-9 px-4 rounded-xl text-[11px] font-bold border"
-          style={{
-            background: "rgba(168,85,247,0.15)",
-            borderColor: "rgba(168,85,247,0.45)",
-            color: "#e9d5ff",
-          }}
-        >
-          Submit rating
-        </button>
-        {ratingMessage && (
-          <p className="mt-2 text-[11px]" style={{ color: ratingMessage.startsWith("Thanks") ? "#30d158" : "#ff9f0a" }}>
-            {ratingMessage}
+        {isOwner && (
+          <p className="mt-2 text-[10px]" style={{ color: "rgba(200,180,240,0.4)" }}>
+            You cannot vote on your own card.
+          </p>
+        )}
+        {voteMessage && (
+          <p className="mt-2 text-[11px]" style={{ color: voteMessage === "Upvoted!" ? "#30d158" : voteMessage === "Downvoted." ? "#ff9f0a" : "#ff453a" }}>
+            {voteMessage}
           </p>
         )}
       </div>
@@ -458,7 +464,7 @@ export function CardJudgePanel(props: Props) {
                     {new Date(b.created_at).toLocaleDateString()}
                   </span>
                   <span style={{ color: won ? "#30d158" : "#ff453a", fontWeight: 900 }}>
-                    {won ? "WIN" : "LOSS"} · {b.outcome.replace("_", " ")}
+                    {won ? "W" : "L"} vs {b.opponent_label ?? "Unknown"}
                   </span>
                 </li>
               );

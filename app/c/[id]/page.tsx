@@ -114,20 +114,45 @@ export default async function PublicCardPage({ params }: Props) {
       ? ratings.reduce((s, r) => s + Number(r.weighted_composite), 0) / ratings.length
       : null;
 
-  // Battle history (last 5)
+  // Battle history (last 5) — enriched with opponent card label
   const { data: battleRaw } = await supabase
     .from("card_battles")
     .select("id, outcome, challenger_card_id, opponent_card_id, created_at")
     .or(`challenger_card_id.eq.${id},opponent_card_id.eq.${id}`)
     .order("created_at", { ascending: false })
     .limit(5);
-  const battles = (battleRaw ?? []) as {
+  type RawBattle = {
     id: string;
     outcome: "win" | "loss" | "narrow_win" | "narrow_loss";
     challenger_card_id: string;
     opponent_card_id: string;
     created_at: string;
-  }[];
+  };
+  const rawBattles = (battleRaw ?? []) as RawBattle[];
+
+  // Fetch opponent card names
+  const opponentIds = rawBattles.map((b) =>
+    b.challenger_card_id === id ? b.opponent_card_id : b.challenger_card_id
+  );
+  const uniqueOpponentIds = [...new Set(opponentIds)];
+  const { data: opponentCardsRaw } = uniqueOpponentIds.length
+    ? await supabase
+        .from("pixel_cards")
+        .select("id, nickname, card_title")
+        .in("id", uniqueOpponentIds)
+    : { data: [] };
+  type OpCard = { id: string; nickname: string; card_title: string | null };
+  const opCardMap = new Map<string, OpCard>();
+  for (const c of (opponentCardsRaw ?? []) as OpCard[]) opCardMap.set(c.id, c);
+
+  const battles = rawBattles.map((b) => {
+    const oppId = b.challenger_card_id === id ? b.opponent_card_id : b.challenger_card_id;
+    const opp = opCardMap.get(oppId);
+    return {
+      ...b,
+      opponent_label: opp ? (opp.card_title ?? opp.nickname) : null,
+    };
+  });
 
   // Credibility signal counts (aggregate only — raw identities are RLS-gated)
   const { data: sigsRaw } = await supabase
@@ -214,17 +239,27 @@ export default async function PublicCardPage({ params }: Props) {
               MODVAULT
             </span>
           </Link>
-          <Link
-            href="/signup"
-            className="h-8 px-4 text-xs font-bold rounded-lg inline-flex items-center"
-            style={{
-              background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-              color: "#fff",
-              boxShadow: "0 4px 16px rgba(168,85,247,0.4)",
-            }}
-          >
-            Start your vault
-          </Link>
+          {viewerUserId ? (
+            <Link
+              href="/garage"
+              className="h-8 px-4 text-xs font-bold rounded-lg inline-flex items-center gap-1.5"
+              style={{ background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", color: "#e9d5ff" }}
+            >
+              ← My Vault
+            </Link>
+          ) : (
+            <Link
+              href="/signup"
+              className="h-8 px-4 text-xs font-bold rounded-lg inline-flex items-center"
+              style={{
+                background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+                color: "#fff",
+                boxShadow: "0 4px 16px rgba(168,85,247,0.4)",
+              }}
+            >
+              Start your vault
+            </Link>
+          )}
         </div>
       </nav>
 

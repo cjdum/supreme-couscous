@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Wrench, Award, GalleryHorizontal, MessageSquare } from "lucide-react";
+import { Wrench, Award, GalleryHorizontal, MessageSquare, Swords } from "lucide-react";
+import { HeroCardViewer } from "@/components/garage/hero-card-viewer";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { AddCarButton } from "@/components/garage/add-car-button";
@@ -7,7 +8,6 @@ import { GarageHero } from "@/components/garage/garage-hero";
 import { CarsRail } from "@/components/garage/cars-rail";
 import { BuildTimeline } from "@/components/garage/build-timeline";
 import { PageContainer } from "@/components/ui/page-container";
-import { TradingCard } from "@/components/garage/trading-card";
 import { QuickStatsWidget } from "@/components/garage/quick-stats-widget";
 import { calculateBuildScore } from "@/lib/build-score";
 import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
@@ -176,32 +176,8 @@ export default async function GaragePage() {
         <section className="mb-10">
           {primaryLatestCard ? (
             <div className="flex flex-col items-center gap-5">
-              {/* Floating card */}
-              <Link href={`/c/${primaryLatestCard.id}`} style={{ textDecoration: "none" }}>
-                <TradingCard
-                  cardUrl={primaryLatestCard.pixel_card_url}
-                  nickname={primaryLatestCard.nickname}
-                  generatedAt={primaryLatestCard.minted_at}
-                  hp={primaryLatestCard.hp}
-                  modCount={primaryLatestCard.mod_count}
-                  buildScore={primaryLatestCard.car_snapshot.build_score}
-                  vinVerified={primaryLatestCard.car_snapshot.vin_verified}
-                  cardNumber={primaryLatestCard.card_number}
-                  era={primaryLatestCard.era}
-                  rarity={primaryLatestCard.rarity}
-                  flavorText={primaryLatestCard.flavor_text}
-                  occasion={primaryLatestCard.occasion}
-                  mods={primaryLatestCard.car_snapshot.mods ?? []}
-                  modsDetail={primaryLatestCard.car_snapshot.mods_detail}
-                  torque={primaryLatestCard.car_snapshot.torque ?? null}
-                  zeroToSixty={primaryLatestCard.car_snapshot.zero_to_sixty ?? null}
-                  totalInvested={primaryLatestCard.car_snapshot.total_invested ?? null}
-                  carLabel={primaryCarLabel}
-                  scale={1.0}
-                  idle
-                  interactive
-                />
-              </Link>
+              {/* Click opens modal viewer — no navigation away */}
+              <HeroCardViewer card={primaryLatestCard} carLabel={primaryCarLabel} scale={1.0} />
               <div className="text-center">
                 <p
                   style={{
@@ -305,15 +281,26 @@ export default async function GaragePage() {
 
               <Link
                 href="/cards"
-                className="col-span-2 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
               >
                 <div>
                   <p className="text-sm font-bold text-[var(--color-text-primary)]">My Cards</p>
                   <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
-                    {userCards.length === 0 ? "None minted yet — go to Mint" : `${userCards.length} minted`}
+                    {userCards.length === 0 ? "None minted yet" : `${userCards.length} minted`}
                   </p>
                 </div>
                 <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
+              </Link>
+
+              <Link
+                href="/battles"
+                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Battles</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Challenge builds</p>
+                </div>
+                <Swords size={20} className="text-[#ef4444] group-hover:scale-110 transition-transform flex-shrink-0" />
               </Link>
             </div>
           </div>
