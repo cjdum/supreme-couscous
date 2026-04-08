@@ -77,23 +77,13 @@ export default async function MintPage() {
                 style={{ textDecoration: "none" }}
               >
                 <div
-                  className="group flex items-center gap-4 p-4 rounded-2xl transition-all"
+                  className="group flex items-center gap-4 p-4 rounded-2xl transition-all duration-200 hover:-translate-y-px hover:border-purple-500/60"
                   style={{
                     background: car.is_primary
                       ? "linear-gradient(135deg, rgba(123,79,212,0.1) 0%, rgba(168,85,247,0.06) 100%)"
                       : "var(--color-bg-card)",
                     border: `1px solid ${car.is_primary ? "rgba(123,79,212,0.35)" : "var(--color-border)"}`,
                     cursor: "pointer",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(123,79,212,0.6)";
-                    (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.borderColor = car.is_primary
-                      ? "rgba(123,79,212,0.35)"
-                      : "var(--color-border)";
-                    (e.currentTarget as HTMLDivElement).style.transform = "";
                   }}
                 >
                   {/* Cover photo or brand icon */}
