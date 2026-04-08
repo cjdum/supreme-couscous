@@ -108,7 +108,7 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
         position: "fixed",
         inset: 0,
         zIndex: 9990,
-        background: "rgba(3,3,10,0.96)",
+        background: "var(--color-bg-glass)",
         backdropFilter: "blur(14px)",
         display: "flex",
         alignItems: "center",
@@ -151,8 +151,9 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           max-width: 460px;
           padding: 22px 24px;
           border-radius: 18px;
-          background: rgba(255,255,255,0.035);
-          border: 1px solid rgba(255,255,255,0.08);
+          background: var(--mv-panel-bg);
+          border: 1px solid var(--mv-panel-border);
+          color: var(--mv-panel-text);
           max-height: 78vh;
           overflow-y: auto;
           backdrop-filter: blur(8px);
@@ -182,8 +183,8 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           width: max-content;
           padding: 8px 12px;
           border-radius: 8px;
-          background: rgba(12,10,22,0.98);
-          color: rgba(220,210,255,0.95);
+          background: var(--mv-panel-bg-solid);
+          color: var(--mv-panel-text);
           font-family: ui-monospace, monospace;
           font-size: 10px;
           line-height: 1.5;
@@ -191,8 +192,8 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           white-space: normal;
           text-align: center;
           text-transform: none;
-          border: 1px solid rgba(123,79,212,0.5);
-          box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+          border: 1px solid var(--mv-panel-border-bright);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.35);
           opacity: 0;
           pointer-events: none;
           transition: opacity 0.15s ease, transform 0.15s ease;
@@ -205,7 +206,7 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           left: 50%;
           transform: translateX(-50%);
           border: 5px solid transparent;
-          border-top-color: rgba(12,10,22,0.98);
+          border-top-color: var(--mv-panel-bg-solid);
         }
         .cv-tip:hover .cv-tip-body,
         .cv-tip:focus-within .cv-tip-body {

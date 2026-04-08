@@ -102,12 +102,12 @@ export function ModInsights({ mods, cars }: ModInsightsProps) {
   if (insights.installedCount === 0) {
     return (
       <div className="rounded-2xl p-8 text-center mt-8" style={{
-        background: "rgba(15,12,30,0.5)",
-        border: "1px solid rgba(168,85,247,0.2)",
+        background: "var(--mv-panel-bg)",
+        border: "1px solid var(--mv-panel-border)",
       }}>
-        <Wrench className="mx-auto mb-3" size={24} style={{ color: "rgba(200,180,240,0.4)" }} />
+        <Wrench className="mx-auto mb-3" size={24} style={{ color: "var(--mv-panel-text-dim)" }} />
         <p className="text-sm font-bold text-white mb-1">No mods logged yet</p>
-        <p className="text-xs" style={{ color: "rgba(200,180,240,0.55)" }}>
+        <p className="text-xs" style={{ color: "var(--mv-panel-text-muted)" }}>
           Start logging mods in your garage to see cost insights.
         </p>
       </div>
@@ -174,7 +174,7 @@ export function ModInsights({ mods, cars }: ModInsightsProps) {
             <p className="text-2xl font-black" style={{ color: "#f5d76e" }}>
               {formatCurrency(insights.biggest.cost ?? 0)}
             </p>
-            <p className="text-[10px] mt-1" style={{ color: "rgba(200,180,240,0.55)" }}>
+            <p className="text-[10px] mt-1" style={{ color: "var(--mv-panel-text-muted)" }}>
               {getCategoryLabel(insights.biggest.category)}
             </p>
           </div>
@@ -183,15 +183,15 @@ export function ModInsights({ mods, cars }: ModInsightsProps) {
         <div
           className="rounded-2xl p-5"
           style={{
-            background: "rgba(15,12,30,0.5)",
-            border: "1px solid rgba(168,85,247,0.22)",
+            background: "var(--mv-panel-bg)",
+            border: "1px solid var(--mv-panel-border)",
           }}
         >
           <div className="flex items-center gap-2 mb-3">
             <PieIcon size={14} style={{ color: "#c084fc" }} />
             <p
               className="text-[10px] font-bold uppercase"
-              style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.15em", color: "rgba(200,180,240,0.7)" }}
+              style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.15em", color: "var(--mv-panel-text-soft)" }}
             >
               Wishlist pipeline
             </p>
@@ -199,7 +199,7 @@ export function ModInsights({ mods, cars }: ModInsightsProps) {
           <p className="text-2xl font-black text-white mb-1">
             {insights.wishlistCount} {insights.wishlistCount === 1 ? "item" : "items"}
           </p>
-          <p className="text-sm" style={{ color: "rgba(200,180,240,0.7)" }}>
+          <p className="text-sm" style={{ color: "var(--mv-panel-text-soft)" }}>
             {formatCurrency(insights.wishlistCost)} projected
           </p>
         </div>
@@ -210,13 +210,13 @@ export function ModInsights({ mods, cars }: ModInsightsProps) {
         <div
           className="rounded-2xl p-5 mb-6"
           style={{
-            background: "rgba(15,12,30,0.5)",
-            border: "1px solid rgba(168,85,247,0.2)",
+            background: "var(--mv-panel-bg)",
+            border: "1px solid var(--mv-panel-border)",
           }}
         >
           <p
             className="text-[10px] font-bold uppercase mb-4"
-            style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.15em", color: "rgba(200,180,240,0.7)" }}
+            style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.15em", color: "var(--mv-panel-text-soft)" }}
           >
             Spend by category
           </p>
@@ -231,11 +231,11 @@ export function ModInsights({ mods, cars }: ModInsightsProps) {
                       <span style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
                       {getCategoryLabel(cat as ModCategory)}
                     </span>
-                    <span className="text-xs" style={{ color: "rgba(200,180,240,0.6)", fontFamily: "ui-monospace, monospace" }}>
+                    <span className="text-xs" style={{ color: "var(--mv-panel-text-muted)", fontFamily: "ui-monospace, monospace" }}>
                       {formatCurrency(data.total)} · {data.count}
                     </span>
                   </div>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(168,85,247,0.1)" }}>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--mv-accent-tint)" }}>
                     <div
                       style={{
                         width: `${pct}%`,
@@ -257,13 +257,13 @@ export function ModInsights({ mods, cars }: ModInsightsProps) {
       <div
         className="rounded-2xl p-5"
         style={{
-          background: "rgba(15,12,30,0.5)",
-          border: "1px solid rgba(168,85,247,0.2)",
+          background: "var(--mv-panel-bg)",
+          border: "1px solid var(--mv-panel-border)",
         }}
       >
         <p
           className="text-[10px] font-bold uppercase mb-4"
-          style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.15em", color: "rgba(200,180,240,0.7)" }}
+          style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.15em", color: "var(--mv-panel-text-soft)" }}
         >
           Last 12 months spend
         </p>
@@ -279,7 +279,7 @@ export function ModInsights({ mods, cars }: ModInsightsProps) {
                     background:
                       b.spent > 0
                         ? "linear-gradient(180deg, #a855f7 0%, #7b4fd4 100%)"
-                        : "rgba(168,85,247,0.18)",
+                        : "var(--mv-panel-border)",
                     boxShadow: b.spent > 0 ? "0 0 8px rgba(168,85,247,0.35)" : "none",
                   }}
                   title={`${b.label}: ${formatCurrency(b.spent)} (${b.count} mod${b.count === 1 ? "" : "s"})`}
@@ -288,7 +288,7 @@ export function ModInsights({ mods, cars }: ModInsightsProps) {
                   className="text-[9px]"
                   style={{
                     fontFamily: "ui-monospace, monospace",
-                    color: "rgba(200,180,240,0.45)",
+                    color: "var(--mv-panel-text-dim)",
                     letterSpacing: "0.05em",
                   }}
                 >
@@ -320,8 +320,8 @@ function StatCard({
     <div
       className="rounded-2xl p-4"
       style={{
-        background: "rgba(15,12,30,0.55)",
-        border: "1px solid rgba(168,85,247,0.22)",
+        background: "var(--mv-panel-bg)",
+        border: "1px solid var(--mv-panel-border)",
       }}
     >
       <div className="flex items-center gap-2 mb-2" style={{ color: accent }}>
@@ -335,7 +335,7 @@ function StatCard({
       </div>
       <p className="text-xl font-black text-white leading-tight">{value}</p>
       {sub && (
-        <p className="text-[10px] mt-1" style={{ color: "rgba(200,180,240,0.55)" }}>
+        <p className="text-[10px] mt-1" style={{ color: "var(--mv-panel-text-muted)" }}>
           {sub}
         </p>
       )}

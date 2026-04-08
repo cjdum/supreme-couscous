@@ -70,8 +70,8 @@ export function MilestonesGrid({ milestones }: MilestonesGridProps) {
         <div
           className="flex items-center gap-1 p-1 rounded-xl"
           style={{
-            background: "rgba(15,12,30,0.55)",
-            border: "1px solid rgba(168,85,247,0.22)",
+            background: "var(--mv-panel-bg)",
+            border: "1px solid var(--mv-panel-border)",
           }}
         >
           {(["all", "earned", "locked"] as const).map((mode) => {
@@ -83,9 +83,9 @@ export function MilestonesGrid({ milestones }: MilestonesGridProps) {
                 style={{
                   padding: "6px 12px",
                   borderRadius: 8,
-                  background: active ? "rgba(168,85,247,0.22)" : "transparent",
-                  border: active ? "1px solid rgba(168,85,247,0.55)" : "1px solid transparent",
-                  color: active ? "#e9d5ff" : "rgba(200,180,240,0.55)",
+                  background: active ? "var(--mv-panel-border)" : "transparent",
+                  border: active ? "1px solid var(--mv-panel-border-bright)" : "1px solid transparent",
+                  color: active ? "var(--mv-accent-text)" : "var(--mv-panel-text-muted)",
                   fontFamily: "ui-monospace, monospace",
                   fontSize: 10,
                   fontWeight: 700,
@@ -104,7 +104,7 @@ export function MilestonesGrid({ milestones }: MilestonesGridProps) {
       {/* Progress bar */}
       <div
         className="h-2 rounded-full overflow-hidden mb-6"
-        style={{ background: "rgba(168,85,247,0.12)" }}
+        style={{ background: "var(--mv-accent-tint)" }}
       >
         <div
           style={{
@@ -127,8 +127,8 @@ export function MilestonesGrid({ milestones }: MilestonesGridProps) {
               key={m.id}
               className="rounded-2xl p-4 relative overflow-hidden"
               style={{
-                background: m.earned ? colors.bg : "rgba(15,12,30,0.5)",
-                border: `1px solid ${m.earned ? colors.border : "rgba(168,85,247,0.14)"}`,
+                background: m.earned ? colors.bg : "var(--mv-panel-bg)",
+                border: `1px solid ${m.earned ? colors.border : "var(--mv-panel-border)"}`,
                 boxShadow: m.earned ? `0 0 18px ${colors.glow}` : "none",
                 opacity: m.earned ? 1 : 0.7,
               }}
@@ -138,14 +138,14 @@ export function MilestonesGrid({ milestones }: MilestonesGridProps) {
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{
-                    background: m.earned ? `${colors.bg}` : "rgba(5,5,12,0.6)",
-                    border: `1px solid ${m.earned ? colors.border : "rgba(168,85,247,0.18)"}`,
+                    background: m.earned ? `${colors.bg}` : "var(--mv-panel-bg)",
+                    border: `1px solid ${m.earned ? colors.border : "var(--mv-panel-border)"}`,
                   }}
                 >
                   {m.earned ? (
                     <Icon size={18} style={{ color: colors.text }} />
                   ) : (
-                    <Lock size={14} style={{ color: "rgba(200,180,240,0.35)" }} />
+                    <Lock size={14} style={{ color: "var(--mv-panel-text-dim)" }} />
                   )}
                 </div>
                 <span
@@ -158,8 +158,8 @@ export function MilestonesGrid({ milestones }: MilestonesGridProps) {
                     padding: "2px 6px",
                     borderRadius: 4,
                     background: m.earned ? colors.bg : "rgba(15,12,30,0.6)",
-                    border: `1px solid ${m.earned ? colors.border : "rgba(168,85,247,0.15)"}`,
-                    color: m.earned ? colors.text : "rgba(200,180,240,0.35)",
+                    border: `1px solid ${m.earned ? colors.border : "var(--mv-panel-border)"}`,
+                    color: m.earned ? colors.text : "var(--mv-panel-text-dim)",
                   }}
                 >
                   {m.tier}
@@ -170,7 +170,7 @@ export function MilestonesGrid({ milestones }: MilestonesGridProps) {
               <p
                 className="text-[13px] font-black leading-tight mb-1"
                 style={{
-                  color: m.earned ? "#fff" : "rgba(220,210,250,0.65)",
+                  color: m.earned ? "#fff" : "var(--mv-panel-text-soft)",
                 }}
               >
                 {m.title}
@@ -178,7 +178,7 @@ export function MilestonesGrid({ milestones }: MilestonesGridProps) {
               <p
                 className="text-[10px] leading-snug"
                 style={{
-                  color: "rgba(200,180,240,0.55)",
+                  color: "var(--mv-panel-text-muted)",
                   fontFamily: "ui-monospace, monospace",
                   letterSpacing: "0.02em",
                 }}
@@ -190,13 +190,13 @@ export function MilestonesGrid({ milestones }: MilestonesGridProps) {
               {!m.earned && m.progress != null && m.progress > 0 && (
                 <div
                   className="mt-3 h-1 rounded-full overflow-hidden"
-                  style={{ background: "rgba(168,85,247,0.1)" }}
+                  style={{ background: "var(--mv-accent-tint)" }}
                 >
                   <div
                     style={{
                       width: `${Math.min(100, m.progress * 100)}%`,
                       height: "100%",
-                      background: "rgba(168,85,247,0.55)",
+                      background: "var(--mv-panel-border-bright)",
                       transition: "width 400ms ease",
                     }}
                   />

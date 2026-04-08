@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Wrench, Zap, Award, Plus, GalleryHorizontal } from "lucide-react";
+import { Wrench, Zap, Award, GalleryHorizontal, MessageSquare, BarChart2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { AddCarButton } from "@/components/garage/add-car-button";
@@ -194,17 +194,16 @@ export default async function GaragePage() {
           </section>
         )}
 
-        {/* ── Quick actions ── */}
+        {/* ── Quick actions — six distinct, meaningful shortcuts ── */}
         {(() => {
           const primaryCardCount = cardsByCarId.get(primaryCar.id)?.length ?? 0;
           return (
             <section className="mt-10">
-              {/* 2-col grid: Mint card spans full width on mobile, left col on desktop */}
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
 
                 {/* PRIMARY: Mint a Card — purple, spans 2 cols on mobile */}
                 <Link
-                  href={`/garage/${primaryCar.id}`}
+                  href={`/garage/${primaryCar.id}?action=mint`}
                   className="col-span-2 lg:col-span-1 rounded-2xl p-5 flex items-center justify-between active:scale-[0.98] transition-all group"
                   style={{
                     background: "linear-gradient(135deg, #5a2da0 0%, #7b4fd4 50%, #a855f7 100%)",
@@ -216,25 +215,37 @@ export default async function GaragePage() {
                     <p className="text-sm font-bold text-white">
                       {primaryCardCount === 0 ? "Mint a Card" : "Mint Another Card"}
                     </p>
-                    <p className="text-[11px] text-white/60 mt-0.5">
+                    <p className="text-[11px] text-white/70 mt-0.5">
                       {primaryCardCount === 0
                         ? "Freeze this build forever"
                         : `${primaryCardCount} card${primaryCardCount !== 1 ? "s" : ""} minted`}
                     </p>
                   </div>
-                  <GalleryHorizontal size={22} className="text-white/70 group-hover:scale-110 transition-transform flex-shrink-0" />
+                  <GalleryHorizontal size={22} className="text-white/80 group-hover:scale-110 transition-transform flex-shrink-0" />
                 </Link>
 
-                {/* Manage Build */}
+                {/* Add a Mod */}
                 <Link
-                  href={`/garage/${primaryCar.id}`}
+                  href={`/garage/${primaryCar.id}#mods`}
                   className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
                 >
                   <div>
-                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Manage Build</p>
-                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Log mods &amp; track</p>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Add a Mod</p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Log an install</p>
                   </div>
                   <Wrench size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
+                </Link>
+
+                {/* AI Chat */}
+                <Link
+                  href={`/chat?carId=${primaryCar.id}`}
+                  className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Ask VAULT AI</p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">What&apos;s next?</p>
+                  </div>
+                  <MessageSquare size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
                 </Link>
 
                 {/* AI Render */}
@@ -249,28 +260,30 @@ export default async function GaragePage() {
                   <Zap size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
                 </Link>
 
+                {/* My Cards */}
+                <Link
+                  href="/cards"
+                  className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)]">My Cards</p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                      {userCards.length} minted
+                    </p>
+                  </div>
+                  <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
+                </Link>
+
                 {/* Stats */}
                 <Link
                   href="/stats"
                   className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
                 >
                   <div>
-                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Analytics</p>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Stats</p>
                     <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Build insights</p>
                   </div>
-                  <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
-                </Link>
-
-                {/* Profile */}
-                <Link
-                  href="/profile"
-                  className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-                >
-                  <div>
-                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Profile</p>
-                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Score &amp; badges</p>
-                  </div>
-                  <Plus size={20} className="text-[var(--color-text-muted)] group-hover:scale-110 transition-transform flex-shrink-0" />
+                  <BarChart2 size={20} className="text-[var(--color-accent-bright)] group-hover:scale-110 transition-transform flex-shrink-0" />
                 </Link>
 
               </div>

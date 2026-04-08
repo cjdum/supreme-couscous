@@ -75,6 +75,25 @@
   --z-modal: 50;
   --z-toast: 60;
   --z-tooltip: 70;
+
+  /* ── MODVAULT panel tokens (theme-aware). Used by pixel-card-themed UI
+     (stats cards, toolbars, modals, milestones). Light theme overrides below. ── */
+  --mv-panel-bg:             rgba(15,12,30,0.55);
+  --mv-panel-bg-solid:       rgba(15,12,30,0.88);
+  --mv-panel-bg-deep:        #0b0b14;
+  --mv-panel-border:         rgba(168,85,247,0.22);
+  --mv-panel-border-bright:  rgba(168,85,247,0.40);
+  --mv-panel-text:           #ffffff;
+  --mv-panel-text-soft:      rgba(220,210,250,0.88);
+  --mv-panel-text-muted:     rgba(200,180,240,0.55);
+  --mv-panel-text-dim:       rgba(200,180,240,0.35);
+  --mv-accent-tint:          rgba(168,85,247,0.12);
+  --mv-accent-tint-strong:   rgba(168,85,247,0.22);
+  --mv-accent-text:          #e9d5ff;
+  --mv-gold-text:            #f5d76e;
+  --mv-overlay-fade:         rgba(0,0,0,0.88);
+  --mv-overlay-fade-soft:    rgba(0,0,0,0.35);
+  --mv-overlay-bg:           #05050c;
 }
 
 @layer base {
@@ -96,6 +115,24 @@
     --color-text-disabled: #bbbbbb;
 
     --color-accent-muted: rgba(59, 130, 246, 0.08);
+
+    /* ── MODVAULT panel tokens — light theme override ── */
+    --mv-panel-bg:            rgba(255,255,255,0.92);
+    --mv-panel-bg-solid:      rgba(247,247,248,0.97);
+    --mv-panel-bg-deep:       #ffffff;
+    --mv-panel-border:        rgba(10,10,10,0.10);
+    --mv-panel-border-bright: rgba(10,10,10,0.22);
+    --mv-panel-text:          #0a0a0a;
+    --mv-panel-text-soft:     rgba(10,10,10,0.82);
+    --mv-panel-text-muted:    rgba(10,10,10,0.55);
+    --mv-panel-text-dim:      rgba(10,10,10,0.38);
+    --mv-accent-tint:         rgba(123,79,212,0.09);
+    --mv-accent-tint-strong:  rgba(123,79,212,0.18);
+    --mv-accent-text:         #6d28d9;
+    --mv-gold-text:           #b7861c;
+    --mv-overlay-fade:        rgba(255,255,255,0.92);
+    --mv-overlay-fade-soft:   rgba(255,255,255,0.45);
+    --mv-overlay-bg:          #f5f5f7;
   }
 
   :root[data-theme="light"] body {
@@ -148,6 +185,71 @@
       #ffffff 100%
     );
   }
+
+  :root[data-theme="light"] body {
+    background-color: #f5f5f7 !important;
+  }
+
+  /* ── Light-mode pass: force the stock .glass + .glass-card surfaces to use
+     the theme-aware background so panels aren't invisible on white. ── */
+  :root[data-theme="light"] .glass-card {
+    background-color: var(--color-bg-card) !important;
+  }
+
+  /* ── Scrollbar tint for light ── */
+  :root[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.15);
+  }
+  :root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.28);
+  }
+
+  /* ── Tailwind-arbitrary rgba colors that some components use inline.
+     Force them to fall back to theme tokens so text stays readable. ── */
+  :root[data-theme="light"] .bg-\[rgba\(251\,191\,36\,0\.18\)\] {
+    background-color: rgba(251, 191, 36, 0.15) !important;
+  }
+
+  /* ── Hero gradient fades — the garage hero hardcodes black fades that would
+     be invisible on white. Override to-from-white in light mode. ── */
+  :root[data-theme="light"] .from-black,
+  :root[data-theme="light"] .via-black,
+  :root[data-theme="light"] .to-black {
+    --tw-gradient-from: #f5f5f7 var(--tw-gradient-from-position) !important;
+    --tw-gradient-via:  #f5f5f7 var(--tw-gradient-via-position) !important;
+    --tw-gradient-to:   #f5f5f7 var(--tw-gradient-to-position) !important;
+  }
+  :root[data-theme="light"] [class*="from-black\\/"],
+  :root[data-theme="light"] [class*="via-black\\/"],
+  :root[data-theme="light"] [class*="to-black\\/"] {
+    --tw-gradient-from: rgba(245,245,247,0.9) var(--tw-gradient-from-position) !important;
+    --tw-gradient-via:  rgba(245,245,247,0.6) var(--tw-gradient-via-position) !important;
+    --tw-gradient-to:   rgba(245,245,247,0.0) var(--tw-gradient-to-position) !important;
+  }
+
+  /* ── MODVAULT panel utility classes — use these in components so theming
+     works automatically. ── */
+  .mv-panel {
+    background-color: var(--mv-panel-bg);
+    border: 1px solid var(--mv-panel-border);
+    color: var(--mv-panel-text);
+  }
+  .mv-panel-solid {
+    background-color: var(--mv-panel-bg-solid);
+    border: 1px solid var(--mv-panel-border);
+    color: var(--mv-panel-text);
+  }
+  .mv-panel-bright {
+    background-color: var(--mv-panel-bg);
+    border: 1px solid var(--mv-panel-border-bright);
+    color: var(--mv-panel-text);
+  }
+  .mv-text        { color: var(--mv-panel-text); }
+  .mv-text-soft   { color: var(--mv-panel-text-soft); }
+  .mv-text-muted  { color: var(--mv-panel-text-muted); }
+  .mv-text-dim    { color: var(--mv-panel-text-dim); }
+  .mv-text-accent { color: var(--mv-accent-text); }
+  .mv-text-gold   { color: var(--mv-gold-text); }
 
   * {
     box-sizing: border-box;

@@ -139,21 +139,30 @@ export function StatsVehicleIntelligence({ cars, mods }: Props) {
   const wishlistWeight = wishlistImpacts.reduce((s, m) => s + m.impact.weight, 0);
   const wishlistCost = wishlist.reduce((s, m) => s + (m.cost ?? 0), 0);
 
-  const stockHp = selectedCar?.horsepower
-    ? selectedCar.horsepower - totalHpGain
-    : null;
-  const stockTorque = selectedCar?.torque
-    ? selectedCar.torque - totalTorqueGain
-    : null;
-  const stockWeight = selectedCar?.curb_weight
-    ? selectedCar.curb_weight - totalWeightChange
-    : null;
+  // STOCK baseline always comes from the dedicated stock_* columns first,
+  // never derived by subtracting mod gains from the user's current figure
+  // (that math only works when the user already updated `horsepower` after
+  // installing mods, which most people don't). If stock_* is missing, we
+  // treat the current-spec field as the stock value — both the same number
+  // is safer than showing a lower-than-stock figure.
+  const stockHp     = selectedCar?.stock_horsepower ?? selectedCar?.horsepower     ?? null;
+  const stockTorque = selectedCar?.stock_torque     ?? selectedCar?.torque         ?? null;
+  const stockWeight = selectedCar?.stock_curb_weight ?? selectedCar?.curb_weight   ?? null;
 
-  const currentHp = selectedCar?.horsepower ?? null;
-  const currentTorque = selectedCar?.torque ?? null;
-  const currentWeight = selectedCar?.curb_weight ?? null;
+  // CURRENT is the larger of (user-reported horsepower) or (stock + mod gains).
+  // This way, if the user manually logged a dyno sheet it wins; otherwise we
+  // derive it cleanly from stock + estimated mod gains.
+  const currentHp = stockHp != null
+    ? Math.max(selectedCar?.horsepower ?? 0, stockHp + totalHpGain)
+    : selectedCar?.horsepower ?? null;
+  const currentTorque = stockTorque != null
+    ? Math.max(selectedCar?.torque ?? 0, stockTorque + totalTorqueGain)
+    : selectedCar?.torque ?? null;
+  const currentWeight = stockWeight != null
+    ? (selectedCar?.curb_weight ?? stockWeight + totalWeightChange)
+    : selectedCar?.curb_weight ?? null;
 
-  const projectedHp = currentHp != null ? currentHp + wishlistHp : null;
+  const projectedHp     = currentHp     != null ? currentHp     + wishlistHp     : null;
   const projectedTorque = currentTorque != null ? currentTorque + wishlistTorque : null;
   const projectedWeight = currentWeight != null ? currentWeight + wishlistWeight : null;
 

@@ -87,7 +87,7 @@ export function CompareCardsModal({ cards, carLabels, onClose }: CompareCardsMod
           </div>
           <div>
             <h2 className="text-lg font-black tracking-tight text-white">Compare cards</h2>
-            <p className="text-xs" style={{ color: "rgba(200,180,240,0.55)" }}>
+            <p className="text-xs" style={{ color: "var(--mv-panel-text-muted)" }}>
               Pick any two cards to see how they stack up
             </p>
           </div>
@@ -135,8 +135,8 @@ export function CompareCardsModal({ cards, carLabels, onClose }: CompareCardsMod
           <div
             className="mt-8 rounded-2xl p-5"
             style={{
-              background: "rgba(15,12,30,0.7)",
-              border: "1px solid rgba(168,85,247,0.25)",
+              background: "var(--mv-panel-bg-solid)",
+              border: "1px solid var(--mv-panel-border)",
               backdropFilter: "blur(8px)",
             }}
           >
@@ -146,7 +146,7 @@ export function CompareCardsModal({ cards, carLabels, onClose }: CompareCardsMod
                 fontFamily: "ui-monospace, monospace",
                 letterSpacing: "0.2em",
                 textTransform: "uppercase",
-                color: "rgba(200,180,240,0.5)",
+                color: "var(--mv-panel-text-muted)",
               }}
             >
               Head-to-head
@@ -158,7 +158,7 @@ export function CompareCardsModal({ cards, carLabels, onClose }: CompareCardsMod
             </div>
 
             {/* Card labels footer */}
-            <div className="mt-4 flex items-center justify-between gap-4 text-[10px]" style={{ color: "rgba(200,180,240,0.55)", fontFamily: "ui-monospace, monospace", letterSpacing: "0.08em" }}>
+            <div className="mt-4 flex items-center justify-between gap-4 text-[10px]" style={{ color: "var(--mv-panel-text-muted)", fontFamily: "ui-monospace, monospace", letterSpacing: "0.08em" }}>
               <span className="truncate">← {cardLabel(left)}</span>
               <span className="truncate text-right">{cardLabel(right)} →</span>
             </div>
@@ -232,11 +232,11 @@ function DiffRow({ label, left, right, winner }: Row) {
       <div
         className="p-3"
         style={{
-          background: leftWin ? "rgba(168,85,247,0.12)" : "rgba(5,5,12,0.7)",
+          background: leftWin ? "rgba(168,85,247,0.12)" : "var(--mv-panel-bg)",
           fontFamily: "ui-monospace, monospace",
         }}
       >
-        <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "rgba(200,180,240,0.5)" }}>
+        <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--mv-panel-text-muted)" }}>
           {label}
         </p>
         <p
@@ -250,11 +250,11 @@ function DiffRow({ label, left, right, winner }: Row) {
       <div
         className="p-3 text-right"
         style={{
-          background: rightWin ? "rgba(168,85,247,0.12)" : "rgba(5,5,12,0.7)",
+          background: rightWin ? "rgba(168,85,247,0.12)" : "var(--mv-panel-bg)",
           fontFamily: "ui-monospace, monospace",
         }}
       >
-        <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "rgba(200,180,240,0.5)" }}>
+        <p className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--mv-panel-text-muted)" }}>
           {label}
         </p>
         <p
@@ -292,10 +292,10 @@ function CardSlot({ selectedId, cards, carLabels, onSelect }: CardSlotProps) {
         style={{
           appearance: "none",
           WebkitAppearance: "none",
-          background: "rgba(15,12,30,0.7)",
-          border: "1px solid rgba(168,85,247,0.3)",
+          background: "var(--mv-panel-bg-solid)",
+          border: "1px solid var(--mv-panel-border-bright)",
           borderRadius: 10,
-          color: "#e9d5ff",
+          color: "var(--mv-accent-text)",
           fontFamily: "ui-monospace, monospace",
           fontSize: 11,
           fontWeight: 700,
@@ -309,7 +309,7 @@ function CardSlot({ selectedId, cards, carLabels, onSelect }: CardSlotProps) {
         {cards.map((c) => {
           const lbl = (c.car_id && carLabels[c.car_id]) || `${c.car_snapshot.year} ${c.car_snapshot.make} ${c.car_snapshot.model}`;
           return (
-            <option key={c.id} value={c.id} style={{ background: "#13072b", color: "#e9d5ff" }}>
+            <option key={c.id} value={c.id} style={{ background: "#13072b", color: "var(--mv-accent-text)" }}>
               {lbl} · {c.nickname}{c.card_number ? ` · #${String(c.card_number).padStart(4, "0")}` : ""}
             </option>
           );

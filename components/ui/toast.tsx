@@ -121,19 +121,19 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
   return (
     <div
       role="status"
-      className="pointer-events-auto flex items-start gap-3 p-4 rounded-2xl backdrop-blur-xl"
+      className="pointer-events-auto flex items-start gap-3 p-4 rounded-2xl backdrop-blur-xl mv-panel-solid"
       style={{
-        background: `linear-gradient(135deg, rgba(12,10,22,0.92) 0%, rgba(18,15,30,0.92) 100%), ${colors.bg}`,
-        border: `1px solid ${colors.border}`,
-        boxShadow: "0 20px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04) inset",
+        borderColor: colors.border,
+        backgroundImage: `linear-gradient(135deg, var(--mv-panel-bg-solid), var(--mv-panel-bg-solid)), ${colors.bg}`,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.04) inset",
         animation: "tPop 260ms cubic-bezier(0.34,1.56,0.64,1)",
       }}
     >
       <Icon size={18} style={{ color: colors.icon, flexShrink: 0, marginTop: 1 }} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-white leading-snug">{toast.message}</p>
+        <p className="text-sm font-bold mv-text leading-snug">{toast.message}</p>
         {toast.description && (
-          <p className="text-xs text-[rgba(220,210,250,0.7)] mt-0.5 leading-snug">{toast.description}</p>
+          <p className="text-xs mv-text-soft mt-0.5 leading-snug">{toast.description}</p>
         )}
       </div>
       {toast.undo && (
@@ -142,13 +142,12 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
             try { await toast.undo?.(); } catch {}
             onDismiss();
           }}
-          className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider"
+          className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider mv-text-accent"
           style={{
             fontFamily: "ui-monospace, monospace",
             letterSpacing: "0.1em",
-            background: "rgba(168,85,247,0.2)",
-            border: "1px solid rgba(168,85,247,0.5)",
-            color: "#e9d5ff",
+            background: "var(--mv-accent-tint-strong)",
+            border: "1px solid var(--mv-panel-border-bright)",
             cursor: "pointer",
           }}
         >
@@ -159,7 +158,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       <button
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="flex-shrink-0 text-[rgba(200,180,240,0.5)] hover:text-white transition-colors"
+        className="flex-shrink-0 mv-text-dim hover:mv-text transition-colors"
       >
         <X size={14} />
       </button>

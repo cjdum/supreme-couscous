@@ -124,33 +124,65 @@ const SCENE_PRESETS: ScenePreset[] = [
     id: "track",
     label: "Track Day",
     icon: "🏁",
-    description: "On a race circuit, aggressive angle",
+    description: "Apex of a racing circuit corner",
     buildPrompt: () =>
-      "On a racing circuit at the apex of a corner, curbs visible under the wheels, tire smoke curling from the rear, aggressive low 3/4 angle from the outside of the turn, track atmosphere, cinematic motorsport photography, overcast dramatic lighting.",
+      "On a racing circuit at the apex of a corner, red-and-white curbs visible under the wheels, tire smoke curling from the rear, aggressive low 3/4 angle from the outside of the turn, track atmosphere, cinematic motorsport photography, overcast dramatic lighting.",
+  },
+  {
+    id: "drag",
+    label: "Drag Strip",
+    icon: "🛣️",
+    description: "Christmas tree lights, launching",
+    buildPrompt: () =>
+      "Launching from the starting line of a drag strip, front wheels lifting slightly, burnout smoke billowing from the rear tires, Christmas tree lights glowing in the foreground, head-on low perspective, NHRA motorsport photography, sharp focus, golden hour.",
   },
   {
     id: "city-night",
-    label: "City Night",
+    label: "Neon Night",
     icon: "🌆",
-    description: "Under city lights at night",
+    description: "Wet streets, neon reflections",
     buildPrompt: () =>
-      "Parked on a wet urban street at night, neon signs and skyscraper lights reflecting on the paint, moody JDM atmosphere, shallow depth of field, cinematic Tokyo/LA nightlife vibe, 3/4 front angle.",
+      "Parked on a wet urban street at night, neon signs and skyscraper lights reflecting off the wet asphalt and paint, moody cyberpunk Tokyo/LA atmosphere, shallow depth of field, cinematic nightlife vibe, 3/4 front angle.",
   },
   {
     id: "canyon",
     label: "Canyon Run",
     icon: "🏔️",
-    description: "Mountain road, golden hour",
+    description: "Mountain switchback, golden hour",
     buildPrompt: () =>
       "Carving through a switchback on a mountain canyon road at golden hour, warm sunlight raking across the bodywork, valley vistas in the background, dramatic long lens compression, automotive editorial photography.",
   },
   {
+    id: "car-meet",
+    label: "Car Meet",
+    icon: "🚗",
+    description: "Underground parking garage meet",
+    buildPrompt: () =>
+      "Centered in a dim underground parking garage at night, surrounded by blurred enthusiast cars and soft fluorescent lighting, pop-up car-meet atmosphere, shallow depth of field isolating the subject, editorial automotive photography, cinematic film grain.",
+  },
+  {
     id: "studio",
-    label: "Studio Shot",
+    label: "Studio",
     icon: "📸",
-    description: "Clean studio background",
+    description: "Clean studio hero shot",
     buildPrompt: () =>
       "Professional automotive studio shoot on a seamless dark grey backdrop with soft overhead rim lighting, perfect reflections on the paint, magazine cover quality, razor-sharp focus, 3/4 front hero angle.",
+  },
+  {
+    id: "snow",
+    label: "Snow Run",
+    icon: "❄️",
+    description: "Fresh snow, alpine forest",
+    buildPrompt: () =>
+      "Kicking up fresh powder on a snow-covered alpine forest road, snowflakes in mid-air around the car, dramatic pine tree backdrop, crisp cold winter light, long exposure motion blur on the ground, cinematic rally photography.",
+  },
+  {
+    id: "desert",
+    label: "Desert Dune",
+    icon: "🏜️",
+    description: "Golden sand, sunset glow",
+    buildPrompt: () =>
+      "Parked on a cracked salt flat / desert dune at sunset, long shadows stretching across the sand, warm golden sky with cloud bands, heat shimmer in the distance, cinematic automotive editorial photography, wide angle.",
   },
 ];
 

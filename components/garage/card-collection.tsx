@@ -282,9 +282,9 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
               style={{
                 padding: "6px 12px",
                 borderRadius: 20,
-                background: eraFilter === "all" ? "rgba(168,85,247,0.2)" : "rgba(15,12,30,0.55)",
+                background: eraFilter === "all" ? "rgba(168,85,247,0.2)" : "var(--mv-panel-bg)",
                 border: `1px solid ${eraFilter === "all" ? "rgba(168,85,247,0.55)" : "rgba(168,85,247,0.15)"}`,
-                color: eraFilter === "all" ? "#e9d5ff" : "rgba(200,180,240,0.55)",
+                color: eraFilter === "all" ? "var(--mv-accent-text)" : "var(--mv-panel-text-muted)",
                 fontFamily: "ui-monospace, monospace",
                 fontSize: 10,
                 fontWeight: 800,
@@ -308,9 +308,9 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                   style={{
                     padding: "6px 12px",
                     borderRadius: 20,
-                    background: active ? style.bg : "rgba(15,12,30,0.55)",
+                    background: active ? style.bg : "var(--mv-panel-bg)",
                     border: `1px solid ${active ? style.border : "rgba(168,85,247,0.15)"}`,
-                    color: active ? style.text : "rgba(200,180,240,0.55)",
+                    color: active ? style.text : "var(--mv-panel-text-muted)",
                     fontFamily: "ui-monospace, monospace",
                     fontSize: 10,
                     fontWeight: 800,
@@ -340,9 +340,9 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                   gap: 6,
                   padding: "8px 14px",
                   borderRadius: 10,
-                  background: "rgba(15,12,30,0.65)",
-                  border: "1px solid rgba(168,85,247,0.3)",
-                  color: "#e9d5ff",
+                  background: "var(--mv-panel-bg-solid)",
+                  border: "1px solid var(--mv-panel-border-bright)",
+                  color: "var(--mv-accent-text)",
                   fontFamily: "ui-monospace, monospace",
                   fontSize: 11,
                   fontWeight: 700,
@@ -364,7 +364,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
               htmlFor="cc-sort"
               style={{
                 fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase",
-                color: "rgba(200,180,240,0.55)", fontWeight: 800,
+                color: "var(--mv-panel-text-muted)", fontWeight: 800,
               }}
             >
               Sort by
@@ -372,8 +372,8 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
             <div
               className="relative"
               style={{
-                background: "rgba(15,12,30,0.65)",
-                border: "1px solid rgba(168,85,247,0.3)",
+                background: "var(--mv-panel-bg-solid)",
+                border: "1px solid var(--mv-panel-border-bright)",
                 borderRadius: 10,
                 boxShadow: "0 0 14px rgba(168,85,247,0.12)",
               }}
@@ -388,7 +388,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                   MozAppearance: "none",
                   background: "transparent",
                   border: "none",
-                  color: "#e9d5ff",
+                  color: "var(--mv-accent-text)",
                   fontFamily: "ui-monospace, monospace",
                   fontSize: 11,
                   fontWeight: 700,
@@ -400,7 +400,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                 }}
               >
                 {SORT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value} style={{ background: "#13072b", color: "#e9d5ff" }}>
+                  <option key={opt.value} value={opt.value} style={{ background: "#13072b", color: "var(--mv-accent-text)" }}>
                     {opt.label}
                   </option>
                 ))}

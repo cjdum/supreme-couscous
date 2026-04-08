@@ -124,11 +124,25 @@ export function GarageHero({
           <EmptyHeroState carId={car.id} />
         )}
 
-        {/* Soft top fade so the top nav/back button has contrast */}
-        <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none z-[2]" />
+        {/* Soft top fade so the top nav/back button has contrast — theme aware */}
+        <div
+          className="absolute inset-x-0 top-0 h-32 pointer-events-none z-[2]"
+          style={{
+            background:
+              "linear-gradient(to bottom, var(--mv-overlay-fade) 0%, var(--mv-overlay-fade-soft) 35%, transparent 100%)",
+          }}
+        />
 
-        {/* Bottom gradient — covers the bottom 40% of the screen, transparent → black */}
-        <div className="absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none z-[2]" />
+        {/* Bottom gradient — covers the bottom 40% of the screen. Fades to
+            solid page background so the hero blends into the page cleanly in
+            both dark and light themes. */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-[40%] pointer-events-none z-[2]"
+          style={{
+            background:
+              "linear-gradient(to top, var(--color-bg) 0%, var(--mv-overlay-fade) 40%, transparent 100%)",
+          }}
+        />
 
         {/* Top right: Edit + Share */}
         {heroImage && (
@@ -136,7 +150,12 @@ export function GarageHero({
             <button
               type="button"
               onClick={() => setSharing(true)}
-              className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-full bg-black/55 backdrop-blur-xl border border-white/15 text-[11px] font-bold text-white hover:bg-black/75 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-full backdrop-blur-xl text-[11px] font-bold transition-colors cursor-pointer"
+              style={{
+                background: "var(--mv-panel-bg-solid)",
+                border: "1px solid var(--mv-panel-border-bright)",
+                color: "var(--color-text-primary)",
+              }}
               aria-label="Share build"
             >
               <Share2 size={12} />
@@ -145,7 +164,12 @@ export function GarageHero({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-full bg-black/55 backdrop-blur-xl border border-white/15 text-[11px] font-bold text-white hover:bg-black/75 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-full backdrop-blur-xl text-[11px] font-bold transition-colors cursor-pointer"
+              style={{
+                background: "var(--mv-panel-bg-solid)",
+                border: "1px solid var(--mv-panel-border-bright)",
+                color: "var(--color-text-primary)",
+              }}
               aria-label="Edit car"
             >
               <Edit2 size={11} />
@@ -182,22 +206,31 @@ export function GarageHero({
           >
             <div className="min-w-0 max-w-3xl">
               {car.nickname && (
-                <p className="text-[11px] sm:text-xs font-bold text-[#60A5FA] mb-2 tracking-[0.25em] uppercase truncate">
+                <p
+                  className="text-[11px] sm:text-xs font-bold mb-2 tracking-[0.25em] uppercase truncate"
+                  style={{ color: "var(--color-accent-bright)" }}
+                >
                   {car.nickname}
                 </p>
               )}
               <h1
-                className="text-3xl sm:text-5xl lg:text-6xl font-black text-white leading-[0.95] tracking-tight break-words"
-                style={{ textShadow: "0 4px 32px rgba(0,0,0,0.85)" }}
+                className="text-3xl sm:text-5xl lg:text-6xl font-black leading-[0.95] tracking-tight break-words"
+                style={{
+                  color: "var(--color-text-primary)",
+                  textShadow: "0 4px 32px var(--mv-overlay-fade)",
+                }}
               >
                 {car.year} {car.make}
                 <br />
-                <span className="text-white/90">{car.model}</span>
+                <span style={{ color: "var(--color-text-primary)", opacity: 0.92 }}>{car.model}</span>
               </h1>
               {car.trim && (
                 <p
-                  className="text-sm sm:text-base font-medium text-white/65 mt-2 sm:mt-3 truncate"
-                  style={{ textShadow: "0 2px 16px rgba(0,0,0,0.85)" }}
+                  className="text-sm sm:text-base font-medium mt-2 sm:mt-3 truncate"
+                  style={{
+                    color: "var(--color-text-secondary)",
+                    textShadow: "0 2px 16px var(--mv-overlay-fade)",
+                  }}
                 >
                   {car.trim}
                 </p>
@@ -234,26 +267,28 @@ export function GarageHero({
 function EmptyHeroState({ carId }: { carId: string }) {
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center z-[1]">
-      {/* Subtle radial backdrop */}
+      {/* Subtle radial backdrop — theme aware */}
       <div
         className="absolute inset-0"
         style={{
           background: `radial-gradient(ellipse at 50% 50%, rgba(59,130,246,0.08) 0%, transparent 60%),
-                       linear-gradient(180deg, #050505 0%, #000 100%)`,
+                       var(--color-bg)`,
         }}
       />
       <div className="relative z-10 text-center px-6">
         <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] flex items-center justify-center">
           <Camera size={28} className="text-[var(--color-text-muted)]" />
         </div>
-        <h2 className="text-xl sm:text-2xl font-black tracking-tight">Add a real photo</h2>
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[var(--color-text-primary)]">
+          Add a real photo
+        </h2>
         <p className="text-sm text-[var(--color-text-muted)] mt-2 max-w-sm mx-auto">
           Upload a shot of your actual car — that&apos;s what makes the garage feel real.
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 mt-6">
           <Link
             href={`/garage/${carId}#photos`}
-            className="inline-flex items-center gap-2 min-h-[44px] px-6 py-3.5 rounded-full bg-white text-black text-sm font-bold hover:bg-white/90 transition-all active:scale-95 shadow-[0_8px_32px_rgba(255,255,255,0.18)]"
+            className="inline-flex items-center gap-2 min-h-[44px] px-6 py-3.5 rounded-full bg-[var(--color-accent)] text-white text-sm font-bold hover:bg-[var(--color-accent-hover)] transition-all active:scale-95 glow-accent"
           >
             <Camera size={15} />
             Upload photo
@@ -261,7 +296,7 @@ function EmptyHeroState({ carId }: { carId: string }) {
           </Link>
           <Link
             href={`/visualizer?carId=${carId}`}
-            className="inline-flex items-center gap-2 min-h-[44px] px-5 py-3 rounded-full bg-white/5 border border-white/10 text-white/70 text-xs font-bold hover:bg-white/10 transition-all"
+            className="inline-flex items-center gap-2 min-h-[44px] px-5 py-3 rounded-full bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)] text-xs font-bold hover:bg-[var(--color-bg-hover)] transition-all"
           >
             <Zap size={13} />
             Or try an AI render
