@@ -23,7 +23,7 @@ export const DEFAULT_PREFS: Preferences = {
   currency: "USD",
   theme: "dark",
   emailNotifications: true,
-  sidebarSide: "right",
+  sidebarSide: "left",
 };
 
 const KEY = "modvault.prefs.v1";

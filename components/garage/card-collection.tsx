@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { CardViewerModal } from "./card-viewer-modal";
@@ -26,37 +26,28 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
   const [view, setView] = useState<ViewState | null>(null);
   // Refs for each car's scroll container (keyed by car key)
   const scrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  // Non-passive wheel listeners so we can preventDefault when scrolling horizontally
-  const wheelHandlers = useRef<Map<string, (e: WheelEvent) => void>>(new Map());
+  // Refs for each focusable card button (keyed by card.id) — used for keyboard focus ring + scroll-into-view
+  const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  // Currently "selected" card for keyboard navigation
+  const [focusedId, setFocusedId] = useState<string | null>(null);
 
-  function makeScrollRef(key: string) {
+  function setScrollRef(key: string) {
     return (el: HTMLDivElement | null) => {
-      // Clean up previous listener for this key
-      const prev = scrollRefs.current.get(key);
-      const prevHandler = wheelHandlers.current.get(key);
-      if (prev && prevHandler) prev.removeEventListener("wheel", prevHandler);
-
-      if (el) {
-        scrollRefs.current.set(key, el);
-        const handler = (e: WheelEvent) => {
-          // Only intercept pure vertical scroll (not diagonal / trackpad horizontal)
-          if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-          const atLeft  = el.scrollLeft <= 0;
-          const atRight = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
-          const goRight = e.deltaY > 0;
-          if ((goRight && !atRight) || (!goRight && !atLeft)) {
-            e.preventDefault(); // block page scroll
-            el.scrollBy({ left: e.deltaY, behavior: "auto" });
-          }
-        };
-        wheelHandlers.current.set(key, handler);
-        el.addEventListener("wheel", handler, { passive: false });
-      } else {
-        scrollRefs.current.delete(key);
-        wheelHandlers.current.delete(key);
-      }
+      if (el) scrollRefs.current.set(key, el);
+      else scrollRefs.current.delete(key);
     };
   }
+
+  function setCardRef(id: string) {
+    return (el: HTMLButtonElement | null) => {
+      if (el) cardRefs.current.set(id, el);
+      else cardRefs.current.delete(id);
+    };
+  }
+
+  // Flat ordered list of all card ids in display order (across all car groups)
+  // Populated during render below. Used for keyboard navigation.
+  const flatOrderRef = useRef<string[]>([]);
 
   // Group cards by car_id, maintain a stable car order (first appearance, sorted by oldest mint)
   const { groups, carOrder } = useMemo(() => {
@@ -92,6 +83,70 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
     }
     return m;
   }, [groups]);
+
+  // Build ordered flat list of displayed card ids (same order we render below)
+  // Display order: oldest → newest (left = oldest, right = newest)
+  const flatIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const key of carOrder) {
+      const group = groups.get(key) ?? [];
+      const displayGroup = [...group].sort(
+        (a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime(),
+      );
+      for (const c of displayGroup) ids.push(c.id);
+    }
+    return ids;
+  }, [carOrder, groups]);
+
+  // Keep flatOrderRef in sync (used for any outside handlers)
+  flatOrderRef.current = flatIds;
+
+  // Initialize focused card
+  useEffect(() => {
+    if (focusedId == null && flatIds.length > 0) setFocusedId(flatIds[0]);
+    else if (focusedId && !flatIds.includes(focusedId) && flatIds.length > 0) {
+      setFocusedId(flatIds[0]);
+    }
+  }, [flatIds, focusedId]);
+
+  // Scroll focused card into view horizontally (smooth, block: nearest)
+  useEffect(() => {
+    if (!focusedId) return;
+    const el = cardRefs.current.get(focusedId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  }, [focusedId]);
+
+  // Keyboard navigation (only active when no modal is open)
+  useEffect(() => {
+    if (view) return; // modal takes over
+    function onKey(e: KeyboardEvent) {
+      // Ignore if the user is typing into an input/textarea/contenteditable
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      if (!flatOrderRef.current.length) return;
+      const idx = focusedId ? flatOrderRef.current.indexOf(focusedId) : -1;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        const next = flatOrderRef.current[Math.min(flatOrderRef.current.length - 1, Math.max(0, idx + 1))];
+        if (next) setFocusedId(next);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const prev = flatOrderRef.current[Math.max(0, idx - 1)];
+        if (prev) setFocusedId(prev);
+      } else if (e.key === "Enter" || e.key === " ") {
+        if (focusedId) {
+          e.preventDefault();
+          const card = cards.find((c) => c.id === focusedId);
+          if (card) openViewer(card);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedId, view, cards]);
 
   if (cards.length === 0) return null;
 
@@ -142,9 +197,9 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
         <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
           {carOrder.map((key) => {
             const group = groups.get(key)!;
-            // Display newest → oldest
-            const displayGroup = [...group].sort((a, b) => new Date(b.minted_at).getTime() - new Date(a.minted_at).getTime());
-            const sample = displayGroup[0];
+            // Display oldest → newest (left = oldest, right = latest)
+            const displayGroup = [...group].sort((a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime());
+            const sample = displayGroup[displayGroup.length - 1];
             const snap = sample.car_snapshot;
             const carLabel = (sample.car_id && carLabels[sample.car_id]) || `${snap.year} ${snap.make} ${snap.model}`;
             const totalEditions = group.length;
@@ -206,7 +261,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
 
                 {/* Cards horizontal scroll for this car */}
                 <div
-                  ref={makeScrollRef(key)}
+                  ref={setScrollRef(key)}
                   className="cc-scroll"
                   style={{
                     display: "flex",
@@ -226,20 +281,34 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                       month: "short", day: "numeric", year: "numeric",
                     });
 
+                    const isFocused = focusedId === card.id;
                     return (
                       <button
                         key={card.id}
-                        onClick={() => openViewer(card)}
+                        ref={setCardRef(card.id)}
+                        onClick={() => {
+                          setFocusedId(card.id);
+                          openViewer(card);
+                        }}
+                        onMouseEnter={() => setFocusedId(card.id)}
                         style={{
                           cursor: "pointer",
                           display: "flex",
                           flexDirection: "column",
                           alignItems: "center",
                           background: "transparent",
-                          border: "none",
-                          padding: 0,
+                          border: "2px solid",
+                          borderColor: isFocused ? "rgba(168,85,247,0.95)" : "transparent",
+                          borderRadius: 18,
+                          padding: "10px 8px 8px",
                           gap: 6,
                           flexShrink: 0,
+                          boxShadow: isFocused
+                            ? "0 0 0 4px rgba(168,85,247,0.18), 0 0 24px rgba(168,85,247,0.35)"
+                            : "none",
+                          transition: "border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease",
+                          transform: isFocused ? "translateY(-2px)" : "translateY(0)",
+                          outline: "none",
                         }}
                       >
                         <TradingCard
@@ -263,7 +332,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                           carLabel={carLabel}
                           scale={0.6}
                           idle
-                          interactive={false}
+                          interactive
                         />
 
                         {/* Era badge + card# */}

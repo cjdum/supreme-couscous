@@ -363,7 +363,7 @@ export default function SettingsPage() {
               Sidebar position
             </label>
             <SegmentedControl<SidebarSide>
-              value={prefs.sidebarSide ?? "right"}
+              value={prefs.sidebarSide ?? "left"}
               onChange={(v) => updatePref("sidebarSide", v)}
               options={[
                 { value: "left", label: "Left" },

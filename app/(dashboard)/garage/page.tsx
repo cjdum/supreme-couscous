@@ -161,7 +161,7 @@ export default async function GaragePage() {
       />
 
       {/* ── Stats + Build Score ── */}
-      <PageContainer maxWidth="5xl" className="mt-10">
+      <PageContainer maxWidth="7xl" className="mt-10">
         <GarageStats
           buildScore={buildScore.score}
           buildLevel={buildScore.level}

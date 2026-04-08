@@ -41,7 +41,7 @@ export default async function CardsPage() {
 
   return (
     <div className="min-h-dvh animate-fade">
-      <PageContainer maxWidth="5xl" className="pt-10 pb-16">
+      <PageContainer maxWidth="7xl" className="pt-10 pb-16">
         {/* Single clean page heading (no duplicate section title below) */}
         <div className="flex items-start justify-between gap-4 mb-8 flex-wrap">
           <div className="flex items-center gap-3">

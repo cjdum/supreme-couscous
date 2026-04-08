@@ -324,9 +324,12 @@ export function TradingCard({
                   zIndex: 2,
                   lineHeight: 0,
                 }}>
+                {/* Source images are square (512×512). Render as 192×192 square
+                    so nothing is cropped. `contain` is a safety net in case a
+                    future generator returns a non-square aspect. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cardUrl} alt={nickname} width={240} height={180}
-                  style={{ width: 240, height: 180, objectFit: "cover", imageRendering: "pixelated", display: "block" }}
+                <img src={cardUrl} alt={nickname} width={192} height={192}
+                  style={{ width: 192, height: 192, objectFit: "contain", imageRendering: "pixelated", display: "block", background: "#0a0a18" }}
                 />
                 </div>
                 {vinVerified && (
@@ -423,7 +426,7 @@ export function TradingCard({
               </div>
             </div>
 
-            {/* ══════════ BACK FACE — MODVAULT branding only ══════════ */}
+            {/* ══════════ BACK FACE — Pokemon-style MODVAULT ══════════ */}
             <div style={{
               position: "absolute",
               inset: 0,
@@ -431,97 +434,59 @@ export function TradingCard({
               WebkitBackfaceVisibility: "hidden",
               transform: "rotateY(180deg)",
               borderRadius: 14,
-              border: `2px solid ${eraStyle.border}`,
-              boxShadow: `0 0 22px ${eraStyle.glow}, 0 10px 36px rgba(0,0,0,0.75)`,
-              backgroundColor: "#0b0b14",
+              border: `2px solid ${CARD_BORDER_COLOR}`,
+              boxShadow: `0 0 22px rgba(123,79,212,0.35), 0 10px 36px rgba(0,0,0,0.75)`,
+              // Deep purple solid background like a Pokemon card back
+              backgroundColor: "#1a0f3d",
               backgroundImage: [
-                "radial-gradient(circle, rgba(123,79,212,0.12) 1px, transparent 1px)",
-                `radial-gradient(ellipse at 50% 50%, ${eraStyle.bg} 0%, transparent 65%)`,
-                "linear-gradient(158deg, #0a0a18 0%, #0f0d1c 55%, #090910 100%)",
+                "radial-gradient(ellipse at 50% 50%, rgba(168,85,247,0.28) 0%, transparent 62%)",
+                "linear-gradient(135deg, #1e1246 0%, #2a1858 40%, #1a0f3d 100%)",
               ].join(", "),
-              backgroundSize: "18px 18px, 100% 100%, 100% 100%",
               display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center",
               overflow: "hidden",
             }}>
-              {/* Decorative era borders */}
+              {/* Decorative inner border */}
               <div aria-hidden="true" style={{
-                position: "absolute", inset: 6,
-                border: `1px solid ${eraStyle.border}`,
-                borderRadius: 10, opacity: 0.55, pointerEvents: "none",
+                position: "absolute", inset: 8,
+                border: `2px solid rgba(168,85,247,0.35)`,
+                borderRadius: 10, pointerEvents: "none",
               }} />
               <div aria-hidden="true" style={{
-                position: "absolute", inset: 10,
-                border: `1px dashed ${eraStyle.border}`,
-                borderRadius: 7, opacity: 0.28, pointerEvents: "none",
+                position: "absolute", inset: 14,
+                border: `1px solid rgba(200,180,240,0.12)`,
+                borderRadius: 6, pointerEvents: "none",
               }} />
 
-              {/* Centered MODVAULT wordmark + logo */}
+              {/* Centered: big MODVAULT logo + wordmark — Pokemon style */}
               <div style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 18,
                 position: "relative", zIndex: 2,
               }}>
-                {/* Car icon */}
+                {/* Big logo mark */}
                 <div style={{
-                  width: 52, height: 52, borderRadius: 14,
-                  background: "rgba(123,79,212,0.18)",
-                  border: `1px solid ${eraStyle.border}`,
+                  width: 96, height: 96, borderRadius: 24,
+                  background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+                  border: "3px solid rgba(255,255,255,0.18)",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: `0 0 16px ${eraStyle.glow}`,
+                  boxShadow: "0 0 32px rgba(168,85,247,0.6), inset 0 2px 12px rgba(255,255,255,0.15)",
                 }}>
-                  <svg width="24" height="24" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 9l2-5h6l2 5H2z" stroke={eraStyle.text} strokeWidth="1.5" strokeLinejoin="round" />
-                    <circle cx="4.5" cy="10" r="1" fill={eraStyle.text} />
-                    <circle cx="9.5" cy="10" r="1" fill={eraStyle.text} />
+                  <svg width="52" height="52" viewBox="0 0 14 14" fill="none">
+                    <path d="M2 9l2-5h6l2 5H2z" stroke="white" strokeWidth="1.3" strokeLinejoin="round" />
+                    <circle cx="4.5" cy="10" r="1" fill="white" />
+                    <circle cx="9.5" cy="10" r="1" fill="white" />
                   </svg>
                 </div>
 
-                {/* Wordmark */}
-                <div style={{ textAlign: "center" }}>
-                  <p style={{
-                    fontFamily: "ui-monospace, monospace", fontSize: 14, fontWeight: 900,
-                    letterSpacing: "0.28em", textTransform: "uppercase",
-                    color: eraStyle.text, margin: "0 0 3px",
-                  }}>
-                    MODVAULT
-                  </p>
-                  <p style={{
-                    fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 700,
-                    letterSpacing: "0.2em", textTransform: "uppercase",
-                    color: "rgba(160,140,200,0.5)", margin: 0,
-                  }}>
-                    PIXEL CARD
-                  </p>
-                </div>
-
-                {/* Era indicator */}
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  padding: "3px 12px", borderRadius: 20,
-                  background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
-                  boxShadow: `0 0 8px ${eraStyle.glow}`,
-                  marginTop: 2,
+                {/* MODVAULT wordmark */}
+                <p style={{
+                  fontFamily: "ui-monospace, monospace", fontSize: 22, fontWeight: 900,
+                  letterSpacing: "0.32em", textTransform: "uppercase",
+                  color: "#fff", margin: 0,
+                  textShadow: "0 0 18px rgba(168,85,247,0.8), 0 2px 4px rgba(0,0,0,0.5)",
                 }}>
-                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: eraStyle.text }} />
-                  <span style={{
-                    fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900,
-                    letterSpacing: "0.2em", textTransform: "uppercase" as const,
-                    color: eraStyle.text,
-                  }}>
-                    {era} Era
-                  </span>
-                </div>
-
-                {/* Card number */}
-                {cardNumber != null && (
-                  <p style={{
-                    fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 700,
-                    color: "rgba(200,180,240,0.4)", letterSpacing: "0.15em",
-                    margin: "2px 0 0",
-                  }}>
-                    #{fmt(cardNumber)}
-                  </p>
-                )}
+                  MODVAULT
+                </p>
               </div>
 
               {/* Invisible flip-back button — tap anywhere to flip back */}

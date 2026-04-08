@@ -24,13 +24,13 @@ const NAV_ITEMS = [
 export function SidebarNav({ username }: SidebarNavProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [side, setSide] = useState<"left" | "right">("right");
+  const [side, setSide] = useState<"left" | "right">("left");
 
   useEffect(() => {
     const prefs = loadPreferences();
-    setSide(prefs.sidebarSide ?? "right");
+    setSide(prefs.sidebarSide ?? "left");
     function onStorage(e: StorageEvent) {
-      if (e.key?.includes("modvault")) setSide(loadPreferences().sidebarSide ?? "right");
+      if (e.key?.includes("modvault")) setSide(loadPreferences().sidebarSide ?? "left");
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);

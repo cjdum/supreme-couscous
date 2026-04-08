@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 interface PageContainerProps {
   children: React.ReactNode;
   className?: string;
-  /** Maximum content width — defaults to max-w-6xl */
+  /** Maximum content width — defaults to max-w-7xl */
   maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl" | "6xl" | "7xl" | "full";
   /** Disable bottom padding (for pages with their own custom layout) */
   noBottomPad?: boolean;
@@ -30,13 +30,13 @@ const MAX_W = {
 export function PageContainer({
   children,
   className,
-  maxWidth = "6xl",
+  maxWidth = "7xl",
   noBottomPad = false,
 }: PageContainerProps) {
   return (
     <div
       className={cn(
-        "px-4 sm:px-6 lg:px-8 mx-auto w-full",
+        "px-4 sm:px-6 lg:px-10 xl:px-12 mx-auto w-full",
         MAX_W[maxWidth],
         // Reserve room for the mobile bottom nav so content doesn't end up
         // hidden behind it. Desktop has a sidebar, so no extra space needed.

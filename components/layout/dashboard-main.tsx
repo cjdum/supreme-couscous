@@ -9,17 +9,17 @@ import { loadPreferences } from "@/lib/preferences";
  * left or right padding so content doesn't sit under the fixed sidebar.
  */
 export function DashboardMain({ children }: { children: React.ReactNode }) {
-  const [side, setSide] = useState<"left" | "right">("right");
+  const [side, setSide] = useState<"left" | "right">("left");
 
   useEffect(() => {
     const prefs = loadPreferences();
-    setSide(prefs.sidebarSide ?? "right");
+    setSide(prefs.sidebarSide ?? "left");
 
     // Re-read when the preference changes (e.g. toggled in settings)
     function onStorage(e: StorageEvent) {
       if (e.key?.includes("modvault")) {
         const p = loadPreferences();
-        setSide(p.sidebarSide ?? "right");
+        setSide(p.sidebarSide ?? "left");
       }
     }
     window.addEventListener("storage", onStorage);

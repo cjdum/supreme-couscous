@@ -114,7 +114,48 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
       <style>{`
         @keyframes cvFadeIn  { from { opacity: 0 } to { opacity: 1 } }
         @keyframes cvSlideUp { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
-        .cv-panel { animation: cvSlideUp 0.32s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        .cv-panel {
+          animation: cvSlideUp 0.32s cubic-bezier(0.34,1.56,0.64,1) forwards;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 32px;
+          max-width: 1180px;
+          width: 100%;
+          cursor: default;
+        }
+        .cv-card-col {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+        }
+        .cv-desc-col {
+          flex: 1 1 420px;
+          min-width: 0;
+          max-width: 460px;
+          padding: 22px 24px;
+          border-radius: 18px;
+          background: rgba(255,255,255,0.035);
+          border: 1px solid rgba(255,255,255,0.08);
+          max-height: 78vh;
+          overflow-y: auto;
+          backdrop-filter: blur(8px);
+        }
+        @media (max-width: 960px) {
+          .cv-panel {
+            flex-direction: column;
+            gap: 20px;
+            padding-top: 6vh;
+            padding-bottom: 4vh;
+          }
+          .cv-desc-col {
+            max-height: 40vh;
+            width: 100%;
+            max-width: 460px;
+          }
+        }
 
         /* Hover tooltip — CSS only, no click state */
         .cv-tip { position: relative; display: inline-flex; }
@@ -190,26 +231,15 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
         </div>
       )}
 
-      {/* Main panel — column layout: card on top, description below */}
+      {/* Main panel — horizontal on desktop, stacked on mobile */}
       <div
         className="cv-panel"
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 20,
-          maxWidth: 420,
-          width: "100%",
-          cursor: "default",
-          paddingTop: "8vh",
-          paddingBottom: "8vh",
-        }}
       >
-        {/* Card section: peek cards + nav arrows + current card */}
-        <div style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {/* Card column: peek cards + nav arrows + current card */}
+        <div className="cv-card-col">
 
           {/* Peek: previous card (left, angled back) */}
           {prevCard && (
@@ -260,8 +290,16 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
             </button>
           )}
 
-          {/* Current card */}
-          <div style={{ position: "relative", zIndex: 1 }}>
+          {/* Current card — tap anywhere to flip */}
+          <div
+            style={{ position: "relative", zIndex: 1, cursor: "pointer" }}
+            onClick={(e) => {
+              // Let inner buttons (share, flip, back-face tap) handle their own clicks;
+              // they all call stopPropagation, so this only fires on empty card surface.
+              e.stopPropagation();
+              setFlipped((f) => !f);
+            }}
+          >
             <TradingCard
               cardUrl={card.pixel_card_url}
               nickname={card.nickname}
@@ -341,16 +379,8 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           )}
         </div>
 
-        {/* Description panel below card */}
-        <div style={{
-          width: "100%",
-          padding: "18px 20px",
-          borderRadius: 16,
-          background: "rgba(255,255,255,0.028)",
-          border: "1px solid rgba(255,255,255,0.07)",
-          maxHeight: "38vh",
-          overflowY: "auto",
-        }}>
+        {/* Description panel — right column on desktop, below on mobile */}
+        <div className="cv-desc-col">
           {/* Car label */}
           <h2 style={{ fontFamily: "ui-monospace, monospace", fontSize: 13, fontWeight: 900, color: "rgba(240,230,255,0.9)", letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 6px" }}>
             {carLabel}
