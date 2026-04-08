@@ -426,7 +426,7 @@ export function TradingCard({
               </div>
             </div>
 
-            {/* ══════════ BACK FACE — Pokemon-style MODVAULT ══════════ */}
+            {/* ══════════ BACK FACE — Textured MODVAULT card back ══════════ */}
             <div style={{
               position: "absolute",
               inset: 0,
@@ -435,58 +435,118 @@ export function TradingCard({
               transform: "rotateY(180deg)",
               borderRadius: 14,
               border: `2px solid ${CARD_BORDER_COLOR}`,
-              boxShadow: `0 0 22px rgba(123,79,212,0.35), 0 10px 36px rgba(0,0,0,0.75)`,
-              // Deep purple solid background like a Pokemon card back
-              backgroundColor: "#1a0f3d",
-              backgroundImage: [
-                "radial-gradient(ellipse at 50% 50%, rgba(168,85,247,0.28) 0%, transparent 62%)",
-                "linear-gradient(135deg, #1e1246 0%, #2a1858 40%, #1a0f3d 100%)",
-              ].join(", "),
+              boxShadow: `0 0 22px rgba(123,79,212,0.45), 0 10px 36px rgba(0,0,0,0.75)`,
+              // Opaque deep-purple base — solid first so no bleed-through ever.
+              backgroundColor: "#13072b",
               display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center",
               overflow: "hidden",
+              isolation: "isolate",
             }}>
-              {/* Decorative inner border */}
+              {/* Layer 1: diagonal crosshatch base texture */}
               <div aria-hidden="true" style={{
-                position: "absolute", inset: 8,
-                border: `2px solid rgba(168,85,247,0.35)`,
+                position: "absolute", inset: 0, zIndex: 0,
+                backgroundColor: "#13072b",
+                backgroundImage: [
+                  "repeating-linear-gradient(45deg, rgba(168,85,247,0.10) 0 2px, transparent 2px 10px)",
+                  "repeating-linear-gradient(-45deg, rgba(168,85,247,0.08) 0 2px, transparent 2px 10px)",
+                  "radial-gradient(ellipse at 50% 50%, rgba(168,85,247,0.35) 0%, transparent 70%)",
+                  "linear-gradient(180deg, #1c0d3d 0%, #13072b 50%, #0a0418 100%)",
+                ].join(", "),
+              }} />
+
+              {/* Layer 2: tiled tiny MODVAULT logo stamps */}
+              <div aria-hidden="true" style={{
+                position: "absolute", inset: 0, zIndex: 1,
+                opacity: 0.12,
+                backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><g fill='none' stroke='%23e9d5ff' stroke-width='1.2' stroke-linejoin='round'><path d='M6 18l4-10h8l4 10z'/></g><circle cx='10' cy='19.5' r='1.6' fill='%23e9d5ff'/><circle cx='18' cy='19.5' r='1.6' fill='%23e9d5ff'/></svg>\")",
+                backgroundSize: "28px 28px",
+                backgroundRepeat: "repeat",
+              }} />
+
+              {/* Layer 3: decorative corner borders */}
+              <div aria-hidden="true" style={{
+                position: "absolute", inset: 6, zIndex: 2,
+                border: "2px solid rgba(168,85,247,0.55)",
                 borderRadius: 10, pointerEvents: "none",
+                boxShadow: "inset 0 0 14px rgba(168,85,247,0.2)",
               }} />
               <div aria-hidden="true" style={{
-                position: "absolute", inset: 14,
-                border: `1px solid rgba(200,180,240,0.12)`,
+                position: "absolute", inset: 12, zIndex: 2,
+                border: "1px dashed rgba(245,215,110,0.28)",
                 borderRadius: 6, pointerEvents: "none",
               }} />
 
-              {/* Centered: big MODVAULT logo + wordmark — Pokemon style */}
+              {/* Layer 4: corner diamonds */}
+              {[
+                { top: 14, left: 14 }, { top: 14, right: 14 },
+                { bottom: 14, left: 14 }, { bottom: 14, right: 14 },
+              ].map((pos, i) => (
+                <div key={i} aria-hidden="true" style={{
+                  position: "absolute", zIndex: 2,
+                  width: 6, height: 6,
+                  background: "rgba(245,215,110,0.55)",
+                  transform: "rotate(45deg)",
+                  ...pos,
+                }} />
+              ))}
+
+              {/* Centered: big MODVAULT logo + wordmark */}
               <div style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 18,
-                position: "relative", zIndex: 2,
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 20,
+                position: "relative", zIndex: 3,
               }}>
-                {/* Big logo mark */}
+                {/* Circular frame around logo */}
                 <div style={{
-                  width: 96, height: 96, borderRadius: 24,
-                  background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-                  border: "3px solid rgba(255,255,255,0.18)",
+                  width: 118, height: 118, borderRadius: "50%",
+                  background: "radial-gradient(circle, rgba(26,11,58,0.95) 0%, rgba(19,7,43,0.98) 100%)",
+                  border: "2px solid rgba(245,215,110,0.55)",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: "0 0 32px rgba(168,85,247,0.6), inset 0 2px 12px rgba(255,255,255,0.15)",
+                  boxShadow: "0 0 30px rgba(168,85,247,0.5), inset 0 0 20px rgba(168,85,247,0.3), 0 0 0 4px rgba(168,85,247,0.15)",
+                  position: "relative",
                 }}>
-                  <svg width="52" height="52" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 9l2-5h6l2 5H2z" stroke="white" strokeWidth="1.3" strokeLinejoin="round" />
-                    <circle cx="4.5" cy="10" r="1" fill="white" />
-                    <circle cx="9.5" cy="10" r="1" fill="white" />
-                  </svg>
+                  {/* Inner ring */}
+                  <div aria-hidden="true" style={{
+                    position: "absolute", inset: 6,
+                    borderRadius: "50%",
+                    border: "1px solid rgba(168,85,247,0.6)",
+                  }} />
+                  {/* Big logo mark */}
+                  <div style={{
+                    width: 78, height: 78, borderRadius: 20,
+                    background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+                    border: "2px solid rgba(255,255,255,0.22)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "inset 0 2px 10px rgba(255,255,255,0.2), 0 4px 14px rgba(0,0,0,0.4)",
+                    position: "relative",
+                    zIndex: 1,
+                  }}>
+                    <svg width="44" height="44" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 9l2-5h6l2 5H2z" stroke="white" strokeWidth="1.3" strokeLinejoin="round" />
+                      <circle cx="4.5" cy="10" r="1" fill="white" />
+                      <circle cx="9.5" cy="10" r="1" fill="white" />
+                    </svg>
+                  </div>
                 </div>
 
                 {/* MODVAULT wordmark */}
-                <p style={{
-                  fontFamily: "ui-monospace, monospace", fontSize: 22, fontWeight: 900,
-                  letterSpacing: "0.32em", textTransform: "uppercase",
-                  color: "#fff", margin: 0,
-                  textShadow: "0 0 18px rgba(168,85,247,0.8), 0 2px 4px rgba(0,0,0,0.5)",
-                }}>
-                  MODVAULT
-                </p>
+                <div style={{ textAlign: "center" }}>
+                  <p style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 19, fontWeight: 900,
+                    letterSpacing: "0.34em", textTransform: "uppercase",
+                    color: "#fff", margin: "0 0 4px",
+                    textShadow: "0 0 18px rgba(168,85,247,0.9), 0 2px 4px rgba(0,0,0,0.6)",
+                  }}>
+                    MODVAULT
+                  </p>
+                  <p style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 700,
+                    letterSpacing: "0.38em", textTransform: "uppercase",
+                    color: "rgba(245,215,110,0.7)", margin: 0,
+                  }}>
+                    · Pixel Card ·
+                  </p>
+                </div>
               </div>
 
               {/* Invisible flip-back button — tap anywhere to flip back */}

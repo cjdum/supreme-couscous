@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Sparkles, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { CardViewerModal } from "./card-viewer-modal";
 import { ERA_COLORS, safeEra } from "@/lib/pixel-card";
@@ -22,8 +22,35 @@ interface ViewState {
   startIndex: number;
 }
 
+type SortMode = "newest" | "oldest" | "number-desc" | "number-asc";
+
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "number-asc", label: "Card # ↑" },
+  { value: "number-desc", label: "Card # ↓" },
+];
+
 export function CardCollection({ cards, carLabels, hideSectionHeader = false }: CardCollectionProps) {
   const [view, setView] = useState<ViewState | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
+
+  const sortGroup = useCallback(
+    (group: MintedCard[]): MintedCard[] => {
+      const copy = [...group];
+      switch (sortMode) {
+        case "newest":
+          return copy.sort((a, b) => new Date(b.minted_at).getTime() - new Date(a.minted_at).getTime());
+        case "oldest":
+          return copy.sort((a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime());
+        case "number-asc":
+          return copy.sort((a, b) => (a.card_number ?? Infinity) - (b.card_number ?? Infinity));
+        case "number-desc":
+          return copy.sort((a, b) => (b.card_number ?? -Infinity) - (a.card_number ?? -Infinity));
+      }
+    },
+    [sortMode],
+  );
   // Refs for each car's scroll container (keyed by car key)
   const scrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   // Refs for each focusable card button (keyed by card.id) — used for keyboard focus ring + scroll-into-view
@@ -85,18 +112,15 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
   }, [groups]);
 
   // Build ordered flat list of displayed card ids (same order we render below)
-  // Display order: oldest → newest (left = oldest, right = newest)
+  // Display order honors the selected sortMode.
   const flatIds = useMemo(() => {
     const ids: string[] = [];
     for (const key of carOrder) {
       const group = groups.get(key) ?? [];
-      const displayGroup = [...group].sort(
-        (a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime(),
-      );
-      for (const c of displayGroup) ids.push(c.id);
+      for (const c of sortGroup(group)) ids.push(c.id);
     }
     return ids;
-  }, [carOrder, groups]);
+  }, [carOrder, groups, sortGroup]);
 
   // Keep flatOrderRef in sync (used for any outside handlers)
   flatOrderRef.current = flatIds;
@@ -153,8 +177,9 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
   function openViewer(card: MintedCard) {
     const key = card.car_id ?? `orphan:${card.id}`;
     const group = groups.get(key) ?? [card];
-    // Sort oldest → newest so edition numbers match array index + 1
-    const sorted = [...group].sort((a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime());
+    // IMPORTANT: use the same sort order as the grid so the modal's prev/next
+    // peek cards match what the user sees behind them.
+    const sorted = sortGroup(group);
     const startIndex = sorted.findIndex((c) => c.id === card.id);
     const label = card.car_id ? carLabels[card.car_id] : null;
     const snap = card.car_snapshot;
@@ -190,6 +215,54 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
           </div>
         )}
 
+        {/* ── Sort selector ─────────────────────────────────────────── */}
+        <div
+          className="flex items-center justify-end mb-6 gap-2 flex-wrap"
+        >
+          <div
+            className="flex items-center gap-1.5 text-[var(--color-text-muted)]"
+            style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" }}
+          >
+            <ArrowUpDown size={11} />
+            Sort
+          </div>
+          <div
+            className="flex items-center gap-1 p-1 rounded-xl"
+            style={{
+              background: "rgba(15,12,30,0.55)",
+              border: "1px solid rgba(168,85,247,0.22)",
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            {SORT_OPTIONS.map((opt) => {
+              const active = sortMode === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setSortMode(opt.value)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    background: active ? "rgba(168,85,247,0.2)" : "transparent",
+                    border: active ? "1px solid rgba(168,85,247,0.55)" : "1px solid transparent",
+                    color: active ? "#e9d5ff" : "rgba(200,180,240,0.55)",
+                    fontFamily: "ui-monospace, monospace",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    cursor: "pointer",
+                    transition: "all 150ms ease",
+                    boxShadow: active ? "0 0 12px rgba(168,85,247,0.25)" : "none",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* ── Cards grouped by car, each with a section header ─────────── */}
         <style>{`
           .cc-scroll::-webkit-scrollbar { display: none; }
@@ -197,9 +270,12 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
         <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
           {carOrder.map((key) => {
             const group = groups.get(key)!;
-            // Display oldest → newest (left = oldest, right = latest)
-            const displayGroup = [...group].sort((a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime());
-            const sample = displayGroup[displayGroup.length - 1];
+            // Display order honors the selected sortMode
+            const displayGroup = sortGroup(group);
+            // Sample newest card for the header label
+            const sample = [...group].sort(
+              (a, b) => new Date(b.minted_at).getTime() - new Date(a.minted_at).getTime(),
+            )[0];
             const snap = sample.car_snapshot;
             const carLabel = (sample.car_id && carLabels[sample.car_id]) || `${snap.year} ${snap.make} ${snap.model}`;
             const totalEditions = group.length;

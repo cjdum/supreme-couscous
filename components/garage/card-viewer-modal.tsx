@@ -130,6 +130,12 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           align-items: center;
           justify-content: center;
           position: relative;
+          /* Constrain width to the main card + a small gutter so peek cards
+             clip before they can cross into the description panel. */
+          width: 360px;
+          max-width: 100%;
+          overflow: hidden;
+          padding: 20px 0;
         }
         .cv-desc-col {
           flex: 1 1 420px;
@@ -241,15 +247,16 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
         {/* Card column: peek cards + nav arrows + current card */}
         <div className="cv-card-col">
 
-          {/* Peek: previous card (left, angled back) */}
+          {/* Peek: previous card (tucked behind, mostly hidden) */}
           {prevCard && (
             <div style={{
               position: "absolute",
-              right: "calc(50% + 144px)",
+              right: "calc(50% + 90px)",
               top: "50%",
-              transform: "translateY(-50%) rotate(-8deg) scale(0.75)",
+              transform: "translateY(-50%) rotate(-10deg) scale(0.62)",
               transformOrigin: "right center",
-              opacity: 0.7,
+              opacity: 0.4,
+              filter: "blur(1px)",
               pointerEvents: "none",
               zIndex: 0,
             }}>
@@ -347,15 +354,16 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
             </button>
           )}
 
-          {/* Peek: next card (right, angled back) */}
+          {/* Peek: next card (tucked behind, mostly hidden) */}
           {nextCard && (
             <div style={{
               position: "absolute",
-              left: "calc(50% + 144px)",
+              left: "calc(50% + 90px)",
               top: "50%",
-              transform: "translateY(-50%) rotate(8deg) scale(0.75)",
+              transform: "translateY(-50%) rotate(10deg) scale(0.62)",
               transformOrigin: "left center",
-              opacity: 0.7,
+              opacity: 0.4,
+              filter: "blur(1px)",
               pointerEvents: "none",
               zIndex: 0,
             }}>
