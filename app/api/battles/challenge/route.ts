@@ -77,8 +77,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Cannot battle yourself" }, { status: 400 });
   }
 
-  // Authenticity gate
-  if ((challenger.authenticity_confidence ?? 0) < 30) {
+  // Authenticity gate — only block if we have an explicit low score (null = unknown = OK)
+  if (challenger.authenticity_confidence !== null && challenger.authenticity_confidence < 30) {
     return NextResponse.json(
       { error: "Challenger card authenticity is too low to battle" },
       { status: 403 },

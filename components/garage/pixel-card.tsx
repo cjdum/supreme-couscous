@@ -78,7 +78,6 @@ export function PixelCard(props: PixelCardProps) {
     if (!props.autoMint) return;
     if (autoMintFiredRef.current) return;
     if (eligLoading) return;         // wait until we know eligibility
-    if (!eligibility?.eligible) return;
     autoMintFiredRef.current = true;
     setOccasionInput("");
     setError(null);
