@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Star, Flag, ShieldCheck, Swords, Sparkles, AlertTriangle } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Star, Flag, ShieldCheck, Swords, Sparkles, AlertTriangle, Loader2, Trophy, X } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import type { CardTrait } from "@/lib/supabase/types";
 
 interface Battle {
@@ -12,8 +13,18 @@ interface Battle {
   created_at: string;
 }
 
+interface MyCard {
+  id: string;
+  nickname: string;
+  card_title: string | null;
+  pixel_card_url: string;
+  car_snapshot: { year: number; make: string; model: string };
+}
+
 interface Props {
   cardId: string;
+  cardOwnerId: string;
+  viewerUserId: string | null;
   cardTitle: string;
   archetype: string | null;
   authenticityConfidence: number | null;
@@ -43,6 +54,64 @@ export function CardJudgePanel(props: Props) {
   const [submittingRating, setSubmittingRating] = useState(false);
   const [ratingMessage, setRatingMessage] = useState<string | null>(null);
   const [signalMessage, setSignalMessage] = useState<string | null>(null);
+
+  // Challenge state
+  const [challengeOpen, setChallengeOpen] = useState(false);
+  const [myCards, setMyCards] = useState<MyCard[]>([]);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [challenging, setChallenging] = useState(false);
+  const [battleResult, setBattleResult] = useState<{ outcome: string; scoreC: number; scoreO: number } | null>(null);
+  const [battleError, setBattleError] = useState<string | null>(null);
+
+  const isOwner = props.viewerUserId === props.cardOwnerId;
+  const canChallenge = !!props.viewerUserId && !isOwner;
+
+  const loadMyCards = useCallback(async () => {
+    if (myCards.length) return;
+    setCardsLoading(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("pixel_cards")
+      .select("id, nickname, card_title, pixel_card_url, car_snapshot")
+      .eq("user_id", props.viewerUserId!)
+      .order("minted_at", { ascending: false })
+      .limit(20);
+    setMyCards((data ?? []) as unknown as MyCard[]);
+    setCardsLoading(false);
+  }, [myCards.length, props.viewerUserId]);
+
+  async function handleOpenChallenge() {
+    setChallengeOpen(true);
+    setBattleResult(null);
+    setBattleError(null);
+    setSelectedCardId(null);
+    loadMyCards();
+  }
+
+  async function handleChallenge() {
+    if (!selectedCardId || challenging) return;
+    setChallenging(true);
+    setBattleError(null);
+    try {
+      const res = await fetch("/api/battles/challenge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challenger_card_id: selectedCardId, opponent_card_id: props.cardId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed");
+      setBattleResult({
+        outcome: json.outcome,
+        scoreC: json.breakdown.challenger,
+        scoreO: json.breakdown.opponent,
+      });
+    } catch (err) {
+      setBattleError(err instanceof Error ? err.message : "Battle failed");
+    } finally {
+      setChallenging(false);
+    }
+  }
 
   async function submitRating() {
     if (Object.values(ratings).some((v) => v < 1)) {
@@ -262,14 +331,122 @@ export function CardJudgePanel(props: Props) {
 
       {/* Battles */}
       <div className="p-4 rounded-2xl" style={{ background: "rgba(15,12,30,0.6)", border: "1px solid rgba(168,85,247,0.22)" }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Swords size={14} style={{ color: "#ff453a" }} />
-          <p className="text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: "rgba(200,180,240,0.7)" }}>
-            Battle record · {props.battleWins}W {props.battleLosses}L
-          </p>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Swords size={14} style={{ color: "#ff453a" }} />
+            <p className="text-[11px] font-black uppercase tracking-[0.12em]" style={{ color: "rgba(200,180,240,0.7)" }}>
+              Battles · {props.battleWins}W {props.battleLosses}L
+            </p>
+          </div>
+          {canChallenge && !challengeOpen && !battleResult && (
+            <button
+              onClick={handleOpenChallenge}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-[0.1em] cursor-pointer transition-all"
+              style={{
+                background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.35)",
+                color: "#ff453a",
+              }}
+            >
+              <Swords size={11} /> Challenge
+            </button>
+          )}
         </div>
-        {props.battles.length === 0 ? (
-          <p className="text-[11px] italic" style={{ color: "rgba(200,180,240,0.4)" }}>No battles yet.</p>
+
+        {/* Challenge picker */}
+        {challengeOpen && !battleResult && (
+          <div style={{ marginBottom: 12 }}>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(200,180,240,0.5)" }}>
+                Pick your card
+              </p>
+              <button onClick={() => setChallengeOpen(false)} style={{ color: "rgba(200,180,240,0.4)", cursor: "pointer", background: "none", border: "none" }}>
+                <X size={13} />
+              </button>
+            </div>
+            {cardsLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 size={18} style={{ color: "rgba(200,180,240,0.4)", animation: "spin 1s linear infinite" }} />
+              </div>
+            ) : myCards.length === 0 ? (
+              <p className="text-[11px] italic" style={{ color: "rgba(200,180,240,0.4)" }}>
+                You need a minted card to battle.
+              </p>
+            ) : (
+              <div className="space-y-1.5 mb-3">
+                {myCards.map((c) => {
+                  const label = c.card_title ?? c.nickname;
+                  const sublabel = `${c.car_snapshot.year} ${c.car_snapshot.make} ${c.car_snapshot.model}`;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedCardId(c.id)}
+                      className="w-full flex items-center gap-2.5 p-2.5 rounded-lg text-left cursor-pointer transition-all"
+                      style={{
+                        background: selectedCardId === c.id ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${selectedCardId === c.id ? "rgba(239,68,68,0.5)" : "rgba(255,255,255,0.08)"}`,
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={c.pixel_card_url} alt={label} style={{ width: 28, height: 38, borderRadius: 3, objectFit: "cover", flexShrink: 0 }} />
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: "rgba(230,220,255,0.9)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</p>
+                        <p style={{ fontSize: 9, color: "rgba(200,180,240,0.45)", marginTop: 1 }}>{sublabel}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {battleError && (
+              <p className="text-[11px] mb-2" style={{ color: "#ff453a" }}>{battleError}</p>
+            )}
+            <button
+              onClick={handleChallenge}
+              disabled={!selectedCardId || challenging}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-[0.1em] cursor-pointer transition-all disabled:opacity-40"
+              style={{
+                background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.45)",
+                color: "#ff453a",
+              }}
+            >
+              {challenging ? <Loader2 size={13} className="animate-spin" /> : <Swords size={13} />}
+              {challenging ? "Battling…" : "Fight!"}
+            </button>
+          </div>
+        )}
+
+        {/* Battle result */}
+        {battleResult && (
+          <div
+            className="mb-3 p-3 rounded-xl text-center"
+            style={{
+              background: battleResult.outcome.startsWith("win") ? "rgba(48,209,88,0.08)" : "rgba(255,69,58,0.08)",
+              border: `1px solid ${battleResult.outcome.startsWith("win") ? "rgba(48,209,88,0.3)" : "rgba(255,69,58,0.3)"}`,
+            }}
+          >
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <Trophy size={14} style={{ color: battleResult.outcome.startsWith("win") ? "#30d158" : "#ff453a" }} />
+              <p style={{ fontSize: 13, fontWeight: 900, color: battleResult.outcome.startsWith("win") ? "#30d158" : "#ff453a", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                {battleResult.outcome.replace("_", " ")}
+              </p>
+            </div>
+            <p style={{ fontSize: 10, color: "rgba(200,180,240,0.6)", fontFamily: "ui-monospace, monospace" }}>
+              {battleResult.scoreC.toFixed(1)} vs {battleResult.scoreO.toFixed(1)}
+            </p>
+            <button
+              onClick={() => { setBattleResult(null); setChallengeOpen(false); }}
+              className="mt-2 text-[10px] cursor-pointer"
+              style={{ color: "rgba(200,180,240,0.4)", background: "none", border: "none" }}
+            >
+              dismiss
+            </button>
+          </div>
+        )}
+
+        {props.battles.length === 0 && !challengeOpen && !battleResult ? (
+          <p className="text-[11px] italic" style={{ color: "rgba(200,180,240,0.4)" }}>
+            {canChallenge ? "No battles yet — challenge this card!" : "No battles yet."}
+          </p>
         ) : (
           <ul className="space-y-1.5">
             {props.battles.map((b) => {
@@ -289,6 +466,7 @@ export function CardJudgePanel(props: Props) {
           </ul>
         )}
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </section>
   );
 }

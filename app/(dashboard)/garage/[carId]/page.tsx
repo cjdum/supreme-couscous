@@ -21,6 +21,7 @@ import type { MintedCard } from "@/lib/pixel-card";
 
 interface Props {
   params: Promise<{ carId: string }>;
+  searchParams: Promise<{ action?: string }>;
 }
 
 export async function generateMetadata({ params }: Props) {
@@ -35,8 +36,9 @@ export async function generateMetadata({ params }: Props) {
   return { title: car ? `${car.year} ${car.make} ${car.model} — MODVAULT` : "Car" };
 }
 
-export default async function CarDetailPage({ params }: Props) {
+export default async function CarDetailPage({ params, searchParams }: Props) {
   const { carId } = await params;
+  const { action } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -337,6 +339,7 @@ export default async function CarDetailPage({ params }: Props) {
             cardCount={cardCount}
             trim={car.trim}
             color={car.color}
+            autoMint={action === "mint"}
           />
           <VehicleSpecs car={car} />
 

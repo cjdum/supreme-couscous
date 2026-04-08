@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, Unlock, Sparkles, Camera, Loader2, CheckCircle2, ArrowRight, X } from "lucide-react";
 import { haptic } from "@/lib/haptics";
@@ -20,6 +20,8 @@ interface PixelCardProps {
   /** If missing, mint is blocked with a clear message */
   trim?: string | null;
   color?: string | null;
+  /** When true, auto-opens the mint flow on first render (used from /mint page) */
+  autoMint?: boolean;
 }
 
 type MintState = "idle" | "occasion" | "generating" | "review" | "minting" | "ceremony";
@@ -69,6 +71,19 @@ export function PixelCard(props: PixelCardProps) {
     const interval = setInterval(fetchEligibility, 10_000);
     return () => clearInterval(interval);
   }, [fetchEligibility]);
+
+  // Auto-open mint flow when ?action=mint is in the URL (from /mint picker page)
+  const autoMintFiredRef = useRef(false);
+  useEffect(() => {
+    if (!props.autoMint) return;
+    if (autoMintFiredRef.current) return;
+    if (eligLoading) return;         // wait until we know eligibility
+    if (!eligibility?.eligible) return;
+    autoMintFiredRef.current = true;
+    setOccasionInput("");
+    setError(null);
+    setMintState("occasion");
+  }, [props.autoMint, eligLoading, eligibility]);
 
   // ── Ceremony overlay (freshly minted) ───────────────────────────────────
   if (mintState === "ceremony" && freshCard) {

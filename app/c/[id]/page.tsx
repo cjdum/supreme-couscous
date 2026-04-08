@@ -54,6 +54,10 @@ export default async function PublicCardPage({ params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
 
+  // Get current viewer (optional — page is public)
+  const { data: { user: viewerUser } } = await supabase.auth.getUser();
+  const viewerUserId = viewerUser?.id ?? null;
+
   const { data: cardRaw } = await supabase
     .from("pixel_cards")
     .select("*")
@@ -445,6 +449,8 @@ export default async function PublicCardPage({ params }: Props) {
             {/* ── Card Judge panel — ratings, flags, traits, battles, breakdown ── */}
             <CardJudgePanel
               cardId={card.id}
+              cardOwnerId={card.user_id}
+              viewerUserId={viewerUserId}
               cardTitle={cardTitle ?? card.nickname}
               archetype={archetype}
               authenticityConfidence={authenticity}
