@@ -12,6 +12,8 @@ interface CardCollectionProps {
   cards: MintedCard[];
   /** Map of car_id → "YYYY Make Model" label (for cards whose car still exists) */
   carLabels: Record<string, string>;
+  /** Hide the "Collection" section header — used on the /cards page which has its own page title */
+  hideSectionHeader?: boolean;
 }
 
 interface ViewState {
@@ -20,7 +22,7 @@ interface ViewState {
   startIndex: number;
 }
 
-export function CardCollection({ cards, carLabels }: CardCollectionProps) {
+export function CardCollection({ cards, carLabels, hideSectionHeader = false }: CardCollectionProps) {
   const [view, setView] = useState<ViewState | null>(null);
 
   // Group cards by car_id, maintain a stable car order (first appearance, sorted by oldest mint)
@@ -87,16 +89,18 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
         />
       )}
 
-      <section className="mt-14">
-        <div className="flex items-center gap-2 mb-6">
-          <Sparkles size={15} className="text-[#f5d76e]" />
-          <div>
-            <h2 className="text-base font-bold tracking-tight">Collection</h2>
-            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-              {cards.length} permanent {cards.length === 1 ? "card" : "cards"} minted
-            </p>
+      <section className={hideSectionHeader ? "" : "mt-14"}>
+        {!hideSectionHeader && (
+          <div className="flex items-center gap-2 mb-6">
+            <Sparkles size={15} className="text-[#f5d76e]" />
+            <div>
+              <h2 className="text-base font-bold tracking-tight text-[var(--color-text-primary)]">Collection</h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                {cards.length} permanent {cards.length === 1 ? "card" : "cards"} minted
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ── Cards grouped by car, each with a section header ─────────── */}
         <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
@@ -111,29 +115,35 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
 
             return (
               <div key={key}>
-                {/* Car section header */}
-                <div style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  marginBottom: "1rem",
-                  paddingBottom: "0.5rem",
-                  borderBottom: "1px solid rgba(123,79,212,0.18)",
-                }}>
+                {/* Car section header — uses CSS vars so it works in light mode too */}
+                <div
+                  className="flex items-center justify-between pb-2 mb-4 border-b border-[rgba(123,79,212,0.22)]"
+                >
                   <div>
-                    <h3 style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, fontWeight: 900, color: "rgba(200,180,240,0.85)", letterSpacing: "0.12em", textTransform: "uppercase", margin: 0 }}>
+                    <h3
+                      className="text-[var(--color-text-primary)] m-0"
+                      style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, fontWeight: 900, letterSpacing: "0.12em", textTransform: "uppercase" }}
+                    >
                       {carLabel}
                     </h3>
-                    <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, color: "rgba(160,140,200,0.4)", letterSpacing: "0.08em", margin: "2px 0 0" }}>
+                    <p
+                      className="text-[var(--color-text-muted)]"
+                      style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, letterSpacing: "0.08em", margin: "2px 0 0" }}
+                    >
                       {totalEditions} {totalEditions === 1 ? "card" : "cards"}
                     </p>
                   </div>
                 </div>
 
-                {/* Cards grid for this car */}
+                {/* Cards horizontal scroll for this car */}
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+                    display: "flex",
                     gap: "1.5rem",
+                    overflowX: "auto",
+                    paddingBottom: "0.75rem",
+                    WebkitOverflowScrolling: "touch",
+                    scrollbarWidth: "thin",
                   }}
                 >
                   {displayGroup.map((card) => {
@@ -158,6 +168,7 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
                           border: "none",
                           padding: 0,
                           gap: 6,
+                          flexShrink: 0,
                         }}
                       >
                         <TradingCard
@@ -173,6 +184,10 @@ export function CardCollection({ cards, carLabels }: CardCollectionProps) {
                           flavorText={card.flavor_text}
                           occasion={card.occasion}
                           mods={cardSnap.mods ?? []}
+                          modsDetail={cardSnap.mods_detail}
+                          torque={cardSnap.torque ?? null}
+                          zeroToSixty={cardSnap.zero_to_sixty ?? null}
+                          totalInvested={cardSnap.total_invested ?? null}
                           edition={totalEditions > 1 ? edition : null}
                           carLabel={carLabel}
                           scale={0.6}

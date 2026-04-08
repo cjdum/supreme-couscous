@@ -26,8 +26,6 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
   const [idx, setIdx] = useState(Math.max(0, Math.min(initial, cards.length - 1)));
   const [copied, setCopied] = useState(false);
   const [flipped, setFlipped] = useState(false);
-  const [eraTooltip, setEraTooltip] = useState(false);
-  const [editionTooltip, setEditionTooltip] = useState(false);
 
   // Swipe gesture state
   const touchStartX = useRef<number | null>(null);
@@ -44,8 +42,6 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
   // Reset flip when switching cards
   useEffect(() => {
     setFlipped(false);
-    setEraTooltip(false);
-    setEditionTooltip(false);
   }, [idx]);
 
   // Keyboard controls
@@ -124,6 +120,48 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
         @keyframes cvFadeIn  { from { opacity: 0 } to { opacity: 1 } }
         @keyframes cvSlideUp { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
         .cv-panel { animation: cvSlideUp 0.32s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+
+        /* Hover tooltip — CSS only, no click state */
+        .cv-tip { position: relative; display: inline-flex; }
+        .cv-tip .cv-tip-body {
+          position: absolute;
+          bottom: calc(100% + 8px);
+          left: 50%;
+          transform: translateX(-50%) translateY(4px);
+          max-width: 200px;
+          width: max-content;
+          padding: 8px 12px;
+          border-radius: 8px;
+          background: rgba(12,10,22,0.98);
+          color: rgba(220,210,255,0.95);
+          font-family: ui-monospace, monospace;
+          font-size: 10px;
+          line-height: 1.5;
+          letter-spacing: 0.02em;
+          white-space: normal;
+          text-align: center;
+          text-transform: none;
+          border: 1px solid rgba(123,79,212,0.5);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.15s ease, transform 0.15s ease;
+          z-index: 999;
+        }
+        .cv-tip .cv-tip-body::after {
+          content: "";
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          border: 5px solid transparent;
+          border-top-color: rgba(12,10,22,0.98);
+        }
+        .cv-tip:hover .cv-tip-body,
+        .cv-tip:focus-within .cv-tip-body {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
       `}</style>
 
       {/* Close button */}
@@ -196,19 +234,22 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
 
           {/* Card stack with peek */}
           <div style={{ position: "relative" }}>
-            {/* Peek: previous card edge (left side) */}
+            {/* Peek: previous card edge (left side) — only renders if real card exists */}
             {prevCard && (
               <div style={{
                 position: "absolute",
-                left: -52,
+                left: -60,
                 top: "50%",
-                transform: "translateY(-50%) scale(0.82) rotateY(12deg)",
+                transform: "translateY(-50%) scale(0.82) rotateY(14deg)",
                 transformOrigin: "right center",
-                opacity: 0.22,
+                opacity: 0.55,
                 pointerEvents: "none",
                 zIndex: 0,
                 overflow: "hidden",
-                width: 60,
+                width: 72,
+                borderRadius: "16px 0 0 16px",
+                // Solid opaque background behind the peek card so there's no see-through
+                backgroundColor: "#0b0b14",
               }}>
                 <TradingCard
                   cardUrl={prevCard.pixel_card_url}
@@ -244,6 +285,10 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
                 flavorText={card.flavor_text}
                 occasion={card.occasion}
                 mods={snap.mods ?? []}
+                modsDetail={snap.mods_detail}
+                torque={snap.torque ?? null}
+                zeroToSixty={snap.zero_to_sixty ?? null}
+                totalInvested={snap.total_invested ?? null}
                 edition={cards.length > 1 ? edition : null}
                 carLabel={carLabel}
                 scale={1.1}
@@ -256,36 +301,42 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
               />
             </div>
 
-            {/* Peek: next card edge (right side) */}
+            {/* Peek: next card edge (right side) — only renders if real card exists */}
             {nextCard && (
               <div style={{
                 position: "absolute",
-                right: -52,
+                right: -60,
                 top: "50%",
-                transform: "translateY(-50%) scale(0.82) rotateY(-12deg)",
+                transform: "translateY(-50%) scale(0.82) rotateY(-14deg)",
                 transformOrigin: "left center",
-                opacity: 0.22,
+                opacity: 0.55,
                 pointerEvents: "none",
                 zIndex: 0,
                 overflow: "hidden",
-                width: 60,
+                width: 72,
+                borderRadius: "0 16px 16px 0",
+                // Solid opaque background behind the peek card so there's no see-through
+                backgroundColor: "#0b0b14",
               }}>
-                <TradingCard
-                  cardUrl={nextCard.pixel_card_url}
-                  nickname={nextCard.nickname}
-                  generatedAt={nextCard.minted_at}
-                  hp={nextCard.hp}
-                  modCount={nextCard.mod_count}
-                  buildScore={nextCard.car_snapshot.build_score}
-                  era={nextCard.era}
-                  flavorText={nextCard.flavor_text}
-                  occasion={nextCard.occasion}
-                  mods={nextCard.car_snapshot.mods ?? []}
-                  carLabel={carLabel}
-                  scale={1.1}
-                  idle={false}
-                  interactive={false}
-                />
+                {/* Shift the clipped card so the RIGHT edge is what peeks in */}
+                <div style={{ marginLeft: -248 }}>
+                  <TradingCard
+                    cardUrl={nextCard.pixel_card_url}
+                    nickname={nextCard.nickname}
+                    generatedAt={nextCard.minted_at}
+                    hp={nextCard.hp}
+                    modCount={nextCard.mod_count}
+                    buildScore={nextCard.car_snapshot.build_score}
+                    era={nextCard.era}
+                    flavorText={nextCard.flavor_text}
+                    occasion={nextCard.occasion}
+                    mods={nextCard.car_snapshot.mods ?? []}
+                    carLabel={carLabel}
+                    scale={1.1}
+                    idle={false}
+                    interactive={false}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -326,34 +377,21 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
 
           {/* Edition + card number + era row */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-            {/* Edition number with tooltip */}
+            {/* Edition number with hover tooltip */}
             {cards.length > 1 && (
-              <div style={{ position: "relative" }}>
-                <button
-                  onClick={() => setEditionTooltip((v) => !v)}
-                  onBlur={() => setEditionTooltip(false)}
-                  style={{
-                    background: "none", border: "none", cursor: "pointer", padding: 0,
-                    fontFamily: "ui-monospace, monospace", fontSize: 10,
-                    color: "rgba(200,180,240,0.55)", letterSpacing: "0.15em",
-                    textDecoration: "underline dotted rgba(200,180,240,0.3)",
-                  }}
-                >
+              <span className="cv-tip" tabIndex={0}>
+                <span style={{
+                  fontFamily: "ui-monospace, monospace", fontSize: 10,
+                  color: "rgba(200,180,240,0.55)", letterSpacing: "0.15em",
+                  textDecoration: "underline dotted rgba(200,180,240,0.3)",
+                  cursor: "help",
+                }}>
                   Edition {edition} of {cards.length}
-                </button>
-                {editionTooltip && (
-                  <div style={{
-                    position: "absolute", bottom: "calc(100% + 6px)", left: 0,
-                    width: 220, padding: "8px 10px", borderRadius: 10,
-                    background: "rgba(12,10,22,0.98)", border: "1px solid rgba(123,79,212,0.35)",
-                    fontFamily: "ui-monospace, monospace", fontSize: 9,
-                    color: "rgba(200,185,230,0.75)", lineHeight: 1.6, zIndex: 100,
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
-                  }}>
-                    This is print #{edition} of all {cards.length} cards ever minted in this garage for this car.
-                  </div>
-                )}
-              </div>
+                </span>
+                <span className="cv-tip-body">
+                  This is print #{edition} of all {cards.length} cards ever minted in this garage for this car.
+                </span>
+              </span>
             )}
 
             {card.card_number != null && (
@@ -367,37 +405,26 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
               </div>
             )}
 
-            {/* Era badge with tooltip */}
-            <div style={{ position: "relative" }}>
-              <button
-                onClick={() => setEraTooltip((v) => !v)}
-                onBlur={() => setEraTooltip(false)}
-                style={{
-                  background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
-                  borderRadius: 20, cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 5,
-                  padding: "3px 10px",
-                  boxShadow: `0 0 8px ${eraStyle.glow}`,
-                }}
-              >
-                <div style={{ width: 5, height: 5, borderRadius: "50%", background: eraStyle.text }} />
+            {/* Era badge with hover tooltip */}
+            <span className="cv-tip" tabIndex={0}>
+              <span style={{
+                background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
+                borderRadius: 20, cursor: "help",
+                display: "inline-flex", alignItems: "center", gap: 5,
+                padding: "3px 10px",
+                boxShadow: `0 0 8px ${eraStyle.glow}`,
+              }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: eraStyle.text, display: "inline-block" }} />
                 <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: eraStyle.text }}>
                   {era} Era
                 </span>
-              </button>
-              {eraTooltip && (
-                <div style={{
-                  position: "absolute", bottom: "calc(100% + 6px)", left: 0,
-                  width: 240, padding: "8px 10px", borderRadius: 10,
-                  background: "rgba(12,10,22,0.98)", border: `1px solid ${eraStyle.border}`,
-                  fontFamily: "ui-monospace, monospace", fontSize: 9,
-                  color: "rgba(200,185,230,0.75)", lineHeight: 1.6, zIndex: 100,
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
-                }}>
-                  <span style={{ color: eraStyle.text, fontWeight: 900 }}>{era} Era</span> — {ERA_DESCRIPTIONS[era]}
-                </div>
-              )}
-            </div>
+              </span>
+              <span className="cv-tip-body">
+                <strong style={{ color: eraStyle.text, fontWeight: 900 }}>{era} Era</strong>
+                <br />
+                {ERA_DESCRIPTIONS[era]}
+              </span>
+            </span>
           </div>
 
           {/* Mint date */}

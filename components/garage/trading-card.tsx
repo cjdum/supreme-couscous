@@ -17,7 +17,11 @@ export interface TradingCardData {
   flavorText?: string | null;
   occasion?: string | null;
   mods?: string[];
+  modsDetail?: { name: string; cost: number | null; category?: string }[];
   edition?: number | null;
+  torque?: number | null;
+  zeroToSixty?: number | null;
+  totalInvested?: number | null;
 }
 
 interface TradingCardProps extends TradingCardData {
@@ -47,24 +51,14 @@ const PIXEL_TEXTURE = [
   "repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 4px)",
 ].join(", ");
 
-// 15×15 decorative QR-style grid for card back
-const DECO = [
-  1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,
-  1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,
-  1,0,1,1,1,0,1,0,1,0,1,1,1,0,1,
-  1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
-  1,0,1,1,1,0,1,0,1,0,1,1,1,0,1,
-  1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,
-  1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,
-  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-  1,1,1,0,1,0,1,0,0,1,1,1,1,1,1,
-  0,0,1,0,0,1,0,0,0,1,0,0,0,0,1,
-  0,1,0,1,1,0,1,0,0,1,0,1,1,0,1,
-  1,0,0,0,0,1,0,0,0,1,0,1,1,0,1,
-  0,1,1,0,1,0,1,0,0,1,0,0,0,0,1,
-  0,0,1,0,0,1,0,0,0,1,1,1,1,1,1,
-  1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,
-];
+// Short one-line era descriptions for the back-of-card footer.
+const ERA_SHORT: Record<string, string> = {
+  Dawn:   "The birth of car culture. Raw machines, open roads.",
+  Chrome: "Polished age of chrome & tailfins. Style over all.",
+  Turbo:  "Forced induction. Power, boost, wastegate song.",
+  Neon:   "The digital era. Underglow, ECU, night streets.",
+  Apex:   "The pinnacle. Track-focused. Lap times are sacred.",
+};
 
 function fmt(n: number): string {
   return String(n).padStart(4, "0");
@@ -83,7 +77,11 @@ export function TradingCard({
   flavorText,
   occasion,
   mods = [],
+  modsDetail,
   edition,
+  torque,
+  zeroToSixty,
+  totalInvested,
   carLabel,
   scale = 1,
   idle = true,
@@ -127,11 +125,11 @@ export function TradingCard({
       rafRef.current = 0;
       if (!outerRef.current || !pointerRef.current.over) return;
       const { x, y } = pointerRef.current;
-      // ±8 deg max, scale 1.02 on hover — centered pivot
-      const rx = (y - 0.5) * -16; // maps 0-1 → -8..+8
-      const ry = (x - 0.5) * 16;
+      // ±6 deg max, scale 1.02 on hover — centered pivot
+      const rx = (y - 0.5) * -12; // maps 0-1 → -6..+6
+      const ry = (x - 0.5) * 12;
       outerRef.current.style.transform = `perspective(900px) scale(${scale * 1.02}) rotateX(${rx}deg) rotateY(${ry}deg)`;
-      // Soft white glare — 8% opacity radial following mouse
+      // Soft white glare — low opacity radial following mouse
       if (shimmerRef.current) {
         shimmerRef.current.style.background = `radial-gradient(circle at ${x * 100}% ${y * 100}%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 40%, transparent 70%)`;
         shimmerRef.current.style.opacity = "1";
@@ -157,13 +155,15 @@ export function TradingCard({
     if (!interactive) return;
     pointerRef.current.over = false;
     if (outerRef.current) {
-      // Smooth return: override transition just for this snap-back
+      // Smooth snap-back. Keep the transform set to the base `scale(${scale})`
+      // permanently — never clear the inline transform, which would otherwise
+      // cause a 1-frame flash of "no transform" and a visible jolt.
       outerRef.current.style.transition = "transform 300ms cubic-bezier(0.23,1,0.32,1)";
-      outerRef.current.style.transform = `perspective(900px) scale(${scale}) rotateX(0deg) rotateY(0deg)`;
+      outerRef.current.style.transform = `scale(${scale})`;
       setTimeout(() => {
         if (outerRef.current) {
-          outerRef.current.style.transition = "";
-          outerRef.current.style.transform = "";
+          // Reset transition to the 80ms default so the next hover feels responsive.
+          outerRef.current.style.transition = "transform 80ms ease";
         }
       }, 310);
     }
@@ -251,8 +251,10 @@ export function TradingCard({
               height: CARD_H,
               position: "relative",
               transformStyle: "preserve-3d",
+              WebkitTransformStyle: "preserve-3d",
               transition: "transform 0.65s cubic-bezier(0.4,0,0.2,1)",
               transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
+              isolation: "isolate",
             }}
           >
 
@@ -262,10 +264,14 @@ export function TradingCard({
               inset: 0,
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",
+              transform: "rotateY(0deg)",
               borderRadius: 14,
               border: `2px solid ${CARD_BORDER_COLOR}`,
               boxShadow: `0 0 22px ${eraStyle.glow}, 0 0 6px ${CARD_BORDER_GLOW}, 0 10px 36px rgba(0,0,0,0.75)`,
-              background: `${PIXEL_TEXTURE}, linear-gradient(158deg, #0e0e1c 0%, #110f1d 55%, #09090f 100%)`,
+              // Solid opaque base color FIRST to prevent any transparency bleed,
+              // textures layered on top.
+              backgroundColor: "#0b0b14",
+              backgroundImage: `${PIXEL_TEXTURE}, linear-gradient(158deg, #0e0e1c 0%, #110f1d 55%, #09090f 100%)`,
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -316,10 +322,21 @@ export function TradingCard({
                 overflow: "hidden",
               }}>
                 <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 50% 65%, ${eraStyle.glow} 0%, transparent 68%)`, pointerEvents: "none" }} />
+                {/* 2px era-colored border around the pixel art image */}
+                <div style={{
+                  position: "relative",
+                  padding: 2,
+                  border: `2px solid ${eraStyle.border}`,
+                  borderRadius: 6,
+                  background: "rgba(0,0,0,0.35)",
+                  boxShadow: `0 0 8px ${eraStyle.glow}`,
+                  zIndex: 2,
+                }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cardUrl} alt={nickname} width={240} height={180}
-                  style={{ width: 240, height: 180, objectFit: "contain", imageRendering: "pixelated", position: "relative", zIndex: 2 }}
+                <img src={cardUrl} alt={nickname} width={232} height={172}
+                  style={{ width: 232, height: 172, objectFit: "contain", imageRendering: "pixelated", display: "block" }}
                 />
+                </div>
                 {vinVerified && (
                   <div style={{ position: "absolute", top: 8, right: 8, display: "flex", alignItems: "center", gap: 3, padding: "3px 7px", borderRadius: 5, background: "rgba(245,215,110,0.12)", border: "1px solid rgba(245,215,110,0.5)", zIndex: 5 }}>
                     <ShieldCheck size={8} style={{ color: CARD_GOLD }} />
@@ -352,25 +369,28 @@ export function TradingCard({
                 </div>
               </div>
 
-              {/* STATS */}
+              {/* STATS — HP / Torque / 0-60 / Mods / Invested (dashes when missing) */}
               <div style={{
                 height: STATS_H, flexShrink: 0,
                 background: "rgba(7,7,14,0.78)",
-                padding: "8px 14px 4px",
+                padding: "8px 10px 4px",
                 display: "flex", flexDirection: "column", gap: 6,
               }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 4 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 2 }}>
                   {[
-                    { label: "PWR",   value: hp != null ? String(hp) : "—" },
+                    { label: "HP",    value: hp != null ? String(hp) : "—" },
+                    { label: "TRQ",   value: torque != null ? String(torque) : "—" },
+                    { label: "0-60",  value: zeroToSixty != null ? zeroToSixty.toFixed(1) + "s" : "—" },
                     { label: "MODS",  value: modCount != null ? String(modCount) : "—" },
-                    { label: "SCORE", value: buildScore != null ? String(buildScore) : "—" },
-                    { label: "MINT",  value: mintDate },
+                    { label: "SPENT", value: totalInvested != null && totalInvested > 0
+                                              ? "$" + (totalInvested >= 1000 ? (totalInvested / 1000).toFixed(1) + "k" : String(totalInvested))
+                                              : "—" },
                   ].map(({ label, value }) => (
                     <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 6, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "rgba(160,140,200,0.38)" }}>
+                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 6, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "rgba(160,140,200,0.4)" }}>
                         {label}
                       </span>
-                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 13, fontWeight: 900, color: "rgba(238,228,255,0.92)", letterSpacing: "-0.01em" }}>
+                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, fontWeight: 900, color: "rgba(238,228,255,0.94)", letterSpacing: "-0.01em" }}>
                         {value}
                       </span>
                     </div>
@@ -419,96 +439,197 @@ export function TradingCard({
               WebkitBackfaceVisibility: "hidden",
               transform: "rotateY(180deg)",
               borderRadius: 14,
-              border: `2px solid ${CARD_BORDER_COLOR}`,
+              border: `2px solid ${eraStyle.border}`,
               boxShadow: `0 0 22px ${eraStyle.glow}, 0 10px 36px rgba(0,0,0,0.75)`,
-              background: `${PIXEL_TEXTURE}, linear-gradient(158deg, #0a0a18 0%, #0f0d1c 55%, #090910 100%)`,
-              display: "flex", flexDirection: "column", overflow: "hidden", alignItems: "center",
+              // Solid opaque base first — prevents bleed-through on flip
+              backgroundColor: "#0b0b14",
+              backgroundImage: `${PIXEL_TEXTURE}, radial-gradient(ellipse at 50% 20%, ${eraStyle.bg} 0%, transparent 60%), linear-gradient(158deg, #0a0a18 0%, #0f0d1c 55%, #090910 100%)`,
+              display: "flex", flexDirection: "column", overflow: "hidden",
             }}>
-              {/* Back header */}
-              <div style={{ width: "100%", height: 44, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(5,5,12,0.88)", borderBottom: `1px solid rgba(123,79,212,0.2)`, flexShrink: 0 }}>
-                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, fontWeight: 900, letterSpacing: "0.35em", color: CARD_BORDER_COLOR, textTransform: "uppercase" as const }}>
-                  MODVAULT
+              {/* Decorative pixel border — inset 6px from outer border */}
+              <div aria-hidden="true" style={{
+                position: "absolute",
+                inset: 6,
+                border: `1px dashed ${eraStyle.border}`,
+                borderRadius: 10,
+                pointerEvents: "none",
+              }} />
+              <div aria-hidden="true" style={{
+                position: "absolute",
+                inset: 9,
+                border: `1px solid ${eraStyle.border}`,
+                borderRadius: 8,
+                opacity: 0.45,
+                pointerEvents: "none",
+              }} />
+
+              {/* Top: car make/model/year centered, prominent */}
+              <div style={{
+                padding: "18px 16px 8px",
+                textAlign: "center",
+                flexShrink: 0,
+                position: "relative",
+                zIndex: 2,
+              }}>
+                {yearStr && (
+                  <p style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 700,
+                    color: "rgba(200,180,240,0.45)", letterSpacing: "0.28em",
+                    margin: 0, textTransform: "uppercase",
+                  }}>
+                    {yearStr}
+                  </p>
+                )}
+                <p style={{
+                  fontFamily: "ui-monospace, monospace", fontSize: 14, fontWeight: 900,
+                  color: eraStyle.text, letterSpacing: "0.1em",
+                  margin: "2px 0 0", textTransform: "uppercase",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  padding: "0 8px",
+                }}>
+                  {nameStr}
+                </p>
+              </div>
+
+              {/* Edition # + mint date row */}
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                padding: "0 16px 6px", flexShrink: 0, position: "relative", zIndex: 2,
+                flexWrap: "wrap",
+              }}>
+                {cardNumber != null && (
+                  <div style={{
+                    padding: "3px 10px", borderRadius: 6,
+                    background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
+                    fontFamily: "ui-monospace, monospace", fontSize: 11, fontWeight: 900,
+                    color: eraStyle.text, letterSpacing: "0.15em",
+                  }}>
+                    #{fmt(cardNumber)}
+                  </div>
+                )}
+                <span style={{
+                  fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700,
+                  color: "rgba(200,180,240,0.55)", letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                }}>
+                  {mintDate}
                 </span>
               </div>
 
-              {/* Decorative pixel grid */}
-              <div style={{ padding: "10px 0 8px", flexShrink: 0 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(15, 5px)", gridTemplateRows: "repeat(15, 5px)", gap: 1.5 }}>
-                  {DECO.map((cell, i) => (
-                    <div key={i} style={{
-                      width: 5, height: 5, borderRadius: 0.5,
-                      background: cell ? `${CARD_BORDER_COLOR}85` : "rgba(255,255,255,0.04)",
-                    }} />
-                  ))}
-                </div>
-              </div>
-
-              {/* Era + card number */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexShrink: 0 }}>
-                <div style={{ padding: "3px 10px", borderRadius: 20, background: eraStyle.bg, border: `1px solid ${eraStyle.border}`, fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900, color: eraStyle.text, letterSpacing: "0.2em", textTransform: "uppercase" as const }}>
-                  {era}
-                </div>
-                {cardNumber != null && (
-                  <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 700, color: "rgba(200,180,240,0.55)", letterSpacing: "0.15em" }}>
-                    #{fmt(cardNumber)}
-                  </span>
-                )}
-              </div>
-
-              {/* Mint date + car identity */}
-              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, color: "rgba(200,180,240,0.4)", textAlign: "center", letterSpacing: "0.1em", marginBottom: 4, flexShrink: 0, padding: "0 12px" }}>
-                MINTED {mintDate}
-              </p>
-
-              {/* Occasion note — frozen on this card forever */}
+              {/* Occasion pill */}
               {occasion && (
-                <div style={{ width: "calc(100% - 28px)", marginBottom: 6, padding: "5px 8px", borderRadius: 6, background: `${eraStyle.bg}`, border: `1px solid ${eraStyle.border}`, flexShrink: 0 }}>
-                  <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontStyle: "italic", color: eraStyle.text, textAlign: "center", letterSpacing: "0.08em", margin: 0, lineHeight: 1.5 }}>
+                <div style={{
+                  margin: "0 14px 6px", flexShrink: 0, position: "relative", zIndex: 2,
+                  padding: "5px 10px", borderRadius: 20,
+                  background: `${eraStyle.bg}`, border: `1px solid ${eraStyle.border}`,
+                  boxShadow: `0 0 8px ${eraStyle.glow}`,
+                }}>
+                  <p style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 8, fontStyle: "italic",
+                    color: eraStyle.text, textAlign: "center", letterSpacing: "0.04em",
+                    margin: 0, lineHeight: 1.4,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>
                     &ldquo;{occasion}&rdquo;
                   </p>
                 </div>
               )}
 
-              {/* Mod list */}
-              <div style={{ flex: 1, width: "100%", padding: "0 14px 8px", overflowY: "hidden" }}>
-                {mods.length > 0 ? (
+              {/* Mod list (with cost) — fills available space */}
+              <div style={{
+                flex: 1, width: "100%",
+                padding: "4px 18px 4px",
+                overflow: "hidden",
+                position: "relative", zIndex: 2,
+              }}>
+                {(modsDetail && modsDetail.length > 0) || mods.length > 0 ? (
                   <>
-                    <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 700, letterSpacing: "0.14em", color: "rgba(160,140,200,0.32)", textTransform: "uppercase" as const, marginBottom: 4 }}>
-                      Mods at mint
+                    <p style={{
+                      fontFamily: "ui-monospace, monospace", fontSize: 6, fontWeight: 700,
+                      letterSpacing: "0.2em", color: "rgba(160,140,200,0.5)",
+                      textTransform: "uppercase" as const, marginBottom: 3, textAlign: "center",
+                    }}>
+                      ── Mods at mint ──
                     </p>
                     <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                      {mods.slice(0, 8).map((m, i) => (
-                        <li key={i} style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, color: "rgba(200,185,230,0.62)", lineHeight: 1.8, display: "flex", gap: 5 }}>
-                          <span style={{ color: CARD_BORDER_COLOR, flexShrink: 0 }}>›</span>
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{m}</span>
+                      {(modsDetail ?? mods.map((name) => ({ name, cost: null as number | null }))).slice(0, 9).map((m, i) => (
+                        <li key={i} style={{
+                          fontFamily: "ui-monospace, monospace", fontSize: 7,
+                          color: "rgba(220,205,250,0.78)", lineHeight: 1.7,
+                          display: "flex", gap: 4, alignItems: "baseline",
+                        }}>
+                          <span style={{ color: eraStyle.text, flexShrink: 0, fontWeight: 900 }}>·</span>
+                          <span style={{
+                            flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const,
+                          }}>
+                            {m.name}
+                          </span>
+                          {m.cost != null && m.cost > 0 && (
+                            <span style={{
+                              color: "rgba(245,215,110,0.7)", flexShrink: 0,
+                              fontFamily: "ui-monospace, monospace", fontSize: 6, fontWeight: 700,
+                            }}>
+                              ${m.cost >= 1000 ? (m.cost / 1000).toFixed(1) + "k" : m.cost}
+                            </span>
+                          )}
                         </li>
                       ))}
-                      {mods.length > 8 && (
-                        <li style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, color: "rgba(200,185,230,0.28)", fontStyle: "italic", marginTop: 2 }}>
-                          +{mods.length - 8} more
+                      {((modsDetail?.length ?? mods.length) > 9) && (
+                        <li style={{
+                          fontFamily: "ui-monospace, monospace", fontSize: 6,
+                          color: "rgba(200,185,230,0.35)", fontStyle: "italic",
+                          marginTop: 2, textAlign: "center",
+                        }}>
+                          +{(modsDetail?.length ?? mods.length) - 9} more
                         </li>
                       )}
                     </ul>
                   </>
                 ) : (
-                  <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, color: "rgba(200,185,230,0.22)", fontStyle: "italic", textAlign: "center", marginTop: 6 }}>
-                    Stock build
+                  <p style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 8,
+                    color: "rgba(200,185,230,0.3)", fontStyle: "italic",
+                    textAlign: "center", marginTop: 14,
+                  }}>
+                    ── Stock build ──
                   </p>
                 )}
               </div>
 
-              {/* Back footer */}
-              <div style={{ width: "100%", height: 38, background: "rgba(5,5,12,0.94)", borderTop: `1px solid rgba(123,79,212,0.18)`, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, flexShrink: 0 }}>
-                {interactive && (
-                  <button onClick={(e) => { e.stopPropagation(); doFlip(false); }} title="Flip [F]"
-                    style={{ background: "transparent", border: "none", cursor: "pointer", color: "rgba(200,180,240,0.35)", padding: 4, display: "flex" }}>
-                    <RotateCcw size={10} />
-                  </button>
-                )}
-                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 700, color: "rgba(200,180,240,0.38)", letterSpacing: "0.08em", textTransform: "uppercase" as const }}>
-                  {nickname}
-                </span>
+              {/* Bottom: era name + one-line description */}
+              <div style={{
+                padding: "6px 16px 8px", flexShrink: 0, position: "relative", zIndex: 2,
+                borderTop: `1px solid ${eraStyle.border}`,
+                background: `linear-gradient(180deg, transparent 0%, ${eraStyle.bg} 100%)`,
+              }}>
+                <p style={{
+                  fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900,
+                  color: eraStyle.text, letterSpacing: "0.22em", textTransform: "uppercase",
+                  margin: "0 0 2px", textAlign: "center",
+                }}>
+                  {era} ERA
+                </p>
+                <p style={{
+                  fontFamily: "ui-monospace, monospace", fontSize: 6,
+                  color: "rgba(200,185,230,0.55)", letterSpacing: "0.04em",
+                  margin: 0, textAlign: "center", lineHeight: 1.4,
+                }}>
+                  {ERA_SHORT[era]}
+                </p>
               </div>
+
+              {/* Invisible flip-back button covers the whole back to allow tap-to-flip */}
+              {interactive && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); doFlip(false); }}
+                  title="Flip [F]"
+                  aria-label="Flip to front"
+                  style={{
+                    position: "absolute", inset: 0, zIndex: 3,
+                    background: "transparent", border: "none", cursor: "pointer",
+                  }}
+                />
+              )}
             </div>
 
           </div>{/* /flip container */}

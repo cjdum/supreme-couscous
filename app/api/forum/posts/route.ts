@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 
+// Content may include base64-embedded images from the RichComposer — allow up to 2MB of text.
 const createPostSchema = z.object({
   title: z.string().min(1).max(200),
-  content: z.string().min(1).max(5000),
+  content: z.string().min(1).max(2_000_000),
   category: z.enum(["general", "build", "advice", "showcase", "for_sale"]).default("general"),
   car_id: z.string().uuid().optional().nullable(),
 });
@@ -148,7 +149,16 @@ export async function POST(request: Request) {
 
   const result = createPostSchema.safeParse(body);
   if (!result.success) {
-    return NextResponse.json({ error: result.error.flatten().fieldErrors }, { status: 400 });
+    // Surface a clear, human-readable error for the client composer.
+    const flat = result.error.flatten().fieldErrors;
+    const firstErr =
+      flat.content?.[0] ||
+      flat.title?.[0] ||
+      flat.category?.[0] ||
+      flat.car_id?.[0] ||
+      "Validation failed";
+    console.error("[forum] post validation failed:", flat);
+    return NextResponse.json({ error: firstErr, details: flat }, { status: 400 });
   }
 
   const { data, error } = await supabase

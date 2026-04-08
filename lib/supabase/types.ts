@@ -20,8 +20,13 @@ export interface PixelCardSnapshot {
   trim: string | null;
   description: string | null;
   mods: string[];
+  /** Full mod details at mint time (for card back). Optional for backward compat. */
+  mods_detail?: { name: string; cost: number | null; category: string }[];
   mod_count: number;
   hp: number | null;
+  torque: number | null;
+  zero_to_sixty: number | null;
+  total_invested: number | null;
   build_score: number | null;
   vin_verified: boolean;
 }

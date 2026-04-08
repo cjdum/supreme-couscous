@@ -63,10 +63,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Occasion note is required" }, { status: 400 });
   }
 
-  // ── 1. Load car ─────────────────────────────────────────────────────────
+  // ── 1. Load car (fresh from DB — never state/props) ────────────────────
   const { data: carRaw } = await supabase
     .from("cars")
-    .select("id, user_id, make, model, year, color, trim, description, horsepower, vin_verified")
+    .select("id, user_id, make, model, year, color, trim, description, horsepower, torque, zero_to_sixty, vin_verified")
     .eq("id", carId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -81,6 +81,8 @@ export async function POST(req: Request) {
     trim: string | null;
     description: string | null;
     horsepower: number | null;
+    torque: number | null;
+    zero_to_sixty: number | null;
     vin_verified: boolean;
   } | null;
 
@@ -111,14 +113,18 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── 3. Mod list ─────────────────────────────────────────────────────────
+  // ── 3. Mod list (with cost/category for card back) ─────────────────────
   const { data: modsRaw } = await supabase
     .from("mods")
-    .select("name, status")
+    .select("name, status, cost, category")
     .eq("car_id", carId)
     .eq("status", "installed");
 
-  const mods = ((modsRaw ?? []) as { name: string; status: string }[]).map((m) => m.name);
+  type ModRow = { name: string; status: string; cost: number | null; category: string };
+  const modRows = (modsRaw ?? []) as ModRow[];
+  const mods = modRows.map((m) => m.name);
+  const modsDetail = modRows.map((m) => ({ name: m.name, cost: m.cost, category: m.category }));
+  const totalInvested = modRows.reduce((sum, m) => sum + (m.cost ?? 0), 0);
 
   // ── 4. Build snapshot ───────────────────────────────────────────────────
   const colorLabel = car.color?.trim() || "white";
@@ -126,17 +132,21 @@ export async function POST(req: Request) {
   const description = (car.description ?? "").trim() || null;
 
   const snapshot: PixelCardSnapshot = {
-    make:         car.make,
-    model:        car.model,
-    year:         car.year,
-    color:        colorLabel,
-    trim:         trimLabel,
+    make:           car.make,
+    model:          car.model,
+    year:           car.year,
+    color:          colorLabel,
+    trim:           trimLabel,
     description,
     mods,
-    mod_count:    mods.length,
-    hp:           car.horsepower,
-    build_score:  null,
-    vin_verified: car.vin_verified,
+    mods_detail:    modsDetail,
+    mod_count:      mods.length,
+    hp:             car.horsepower,
+    torque:         car.torque,
+    zero_to_sixty:  car.zero_to_sixty,
+    total_invested: totalInvested,
+    build_score:    null,
+    vin_verified:   car.vin_verified,
   };
 
   // ── 5. Assign era (random, permanent) ──────────────────────────────────
@@ -227,18 +237,32 @@ Return only the 3-word name. Nothing else.`,
   })();
 
   const imagePromise = (async () => {
-    // Prompt built exclusively from DB fields — make/model/year/color/trim
-    const pixelPrompt = `A ${car.year} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}, year ${car.year}, exterior color ${colorLabel}.
+    // DEBUG: verify the exact car data being used for this generation
+    console.log("[cards] generating image for car:", {
+      car_id: car.id,
+      year:   car.year,
+      make:   car.make,
+      model:  car.model,
+      trim:   trimLabel,
+      color:  colorLabel,
+    });
 
-View: 3/4 front driver side angle. The car fills 85% of the frame. Silhouette is accurate to the actual ${car.year} ${car.make} ${car.model}.
+    // Prompt built exclusively from DB fields — make/model/year/color/trim.
+    // First sentence follows the exact format required by the product spec.
+    const pixelPrompt = `Pixel art trading card illustration of a ${car.year} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}, exterior color ${colorLabel}.
+
+View: 3/4 front driver side view. The car fills 85% of the frame. Silhouette is accurate to the actual ${car.year} ${car.make} ${car.model}.
 
 Style: True retro SNES-era pixel art. Hard chunky pixels. No anti-aliasing. No blur. No smooth gradients. Max 32 colors. Every pixel must be clearly blocky and visible. NOT photorealistic, NOT smooth, NOT rendered.
 
-Color: The exterior paint color is ${colorLabel}. Use exactly "${colorLabel}" — do not substitute with poetic names, do not use crimson, scarlet, burgundy, or any synonym. If the color is "${colorLabel}", paint it "${colorLabel}".
+Color: Paint the car exactly "${colorLabel}". Use the literal color name from the database. Do not substitute with poetic synonyms.
 
 Background: Solid flat dark color #0a0a18. No ground shadows. No gradient sky.
 
-STRICT: No text of any kind. No letters. No numbers. No labels. No watermarks. No logos. No license plates. No badges. No card borders. No UI. No HUD. Only the car sprite.`;
+No text, letters, numbers, labels, badges, or watermarks anywhere in the image. No logos. No license plates. No card borders. Only the car sprite.`;
+
+    // DEBUG: log the full prompt being sent to the image API
+    console.log("[cards] image prompt:\n" + pixelPrompt);
 
     const imageResponse = await openai.images.generate({
       model: "dall-e-3",

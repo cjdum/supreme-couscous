@@ -16,7 +16,9 @@ interface RichComposerProps {
  * Persists to a textarea (markdown text), no contentEditable / iframe.
  * Image button opens file picker and pastes a base64 URL into the text.
  */
-export function RichComposer({ value, onChange, placeholder = "Write your post...", rows = 6, maxLength = 5000 }: RichComposerProps) {
+// maxLength default bumped to 2MB so base64-embedded images from the image picker
+// are not silently truncated. Keep the visible counter showing thousands rather than chars.
+export function RichComposer({ value, onChange, placeholder = "Write your post...", rows = 6, maxLength = 2_000_000 }: RichComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);

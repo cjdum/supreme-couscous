@@ -9,7 +9,6 @@ import { BuildTimeline } from "@/components/garage/build-timeline";
 import { GarageStats } from "@/components/garage/garage-stats";
 import { PageContainer } from "@/components/ui/page-container";
 import { calculateBuildScore, LEVEL_COLORS } from "@/lib/build-score";
-import { CardCollection } from "@/components/garage/card-collection";
 import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
 import type { MintedCard } from "@/lib/pixel-card";
 
@@ -129,17 +128,13 @@ export default async function GaragePage() {
       notes: m.notes,
     }));
 
-  // ── All minted cards across the user (for collection section) ──
+  // ── All minted cards across the user (for the Mint CTA + CarsRail thumbnails) ──
   const { data: userCardsRaw } = await supabase
     .from("pixel_cards")
     .select("*")
     .eq("user_id", user!.id)
     .order("minted_at", { ascending: false });
   const userCards = (userCardsRaw ?? []) as MintedCard[];
-  const carLabels: Record<string, string> = {};
-  for (const c of cars) {
-    carLabels[c.id] = `${c.year} ${c.make} ${c.model}`;
-  }
   // Group cards by car_id for CarsRail thumbnails (newest → oldest already)
   const cardsByCarId = new Map<string, MintedCard[]>();
   for (const card of userCards) {
@@ -245,75 +240,77 @@ export default async function GaragePage() {
           </div>
         </section>
 
-        {/* ── Mint a Card CTA ── */}
+        {/* ── Compact Mint-a-Card card (same width as car cards) ── */}
         {(() => {
           const primaryCardCount = cardsByCarId.get(primaryCar.id)?.length ?? 0;
           return (
             <section className="mt-10">
-              <div className="rounded-2xl overflow-hidden"
+              <div
+                className="rounded-2xl overflow-hidden mx-auto"
                 style={{
-                  background: "linear-gradient(135deg, rgba(123,79,212,0.12) 0%, rgba(168,85,247,0.08) 100%)",
-                  border: "1px solid rgba(123,79,212,0.28)",
-                  boxShadow: "0 0 32px rgba(123,79,212,0.12)",
-                  padding: "20px 24px",
-                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-                  flexWrap: "wrap",
+                  maxWidth: 320, // square-ish, same width as car cards
+                  background: "linear-gradient(160deg, #0e0e1c 0%, #0b0b14 100%)",
+                  border: "1px solid rgba(123,79,212,0.45)",
+                  boxShadow: "0 0 24px rgba(123,79,212,0.18), 0 10px 30px rgba(0,0,0,0.5)",
+                  padding: "22px 20px",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+                  textAlign: "center",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 14, flexShrink: 0,
-                    background: "rgba(123,79,212,0.2)", border: "1px solid rgba(123,79,212,0.4)",
+                <div
+                  style={{
+                    width: 48, height: 48, borderRadius: 14,
+                    background: "rgba(123,79,212,0.2)",
+                    border: "1px solid rgba(123,79,212,0.5)",
                     display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    <GalleryHorizontal size={20} style={{ color: "#a855f7" }} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-black" style={{ color: "rgba(240,230,255,0.92)" }}>
-                      {primaryCardCount === 0 ? "Mint your first card" : "Mint another card"}
-                    </p>
-                    <p className="text-xs mt-0.5" style={{ color: "rgba(160,140,200,0.6)" }}>
-                      {primaryCardCount === 0
-                        ? "Capture this moment — a permanent snapshot of your build."
-                        : `You have ${primaryCardCount} ${primaryCardCount === 1 ? "card" : "cards"} for your primary car. Each one is a permanent snapshot.`}
-                    </p>
-                  </div>
+                    flexShrink: 0,
+                  }}
+                >
+                  <GalleryHorizontal size={22} style={{ color: "#a855f7" }} />
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Link
-                    href={`/garage/${primaryCar.id}`}
+                <div>
+                  <p
                     style={{
-                      display: "inline-flex", alignItems: "center", gap: 8,
-                      padding: "10px 20px", borderRadius: 12,
-                      background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-                      border: "1px solid rgba(123,79,212,0.6)",
-                      color: "white", fontFamily: "ui-monospace, monospace",
-                      fontSize: 12, fontWeight: 700, letterSpacing: "0.08em",
-                      textTransform: "uppercase", textDecoration: "none",
-                      boxShadow: "0 4px 20px rgba(123,79,212,0.4)",
-                      whiteSpace: "nowrap",
+                      fontFamily: "ui-monospace, monospace",
+                      fontSize: 12, fontWeight: 900, letterSpacing: "0.12em",
+                      color: "rgba(240,230,255,0.95)", textTransform: "uppercase",
+                      margin: 0,
                     }}
                   >
-                    <GalleryHorizontal size={13} />
-                    Mint a Card
-                  </Link>
-                  {primaryCardCount > 0 && (
-                    <Link
-                      href="/cards"
-                      style={{
-                        display: "inline-flex", alignItems: "center", gap: 6,
-                        padding: "10px 16px", borderRadius: 12,
-                        background: "rgba(123,79,212,0.1)",
-                        border: "1px solid rgba(123,79,212,0.25)",
-                        color: "rgba(200,180,240,0.7)", fontFamily: "ui-monospace, monospace",
-                        fontSize: 11, fontWeight: 700, letterSpacing: "0.08em",
-                        textDecoration: "none", whiteSpace: "nowrap",
-                      }}
-                    >
-                      View all
-                    </Link>
-                  )}
+                    {primaryCardCount === 0 ? "Mint a Card" : "Mint Another"}
+                  </p>
+                  <p
+                    style={{
+                      fontFamily: "ui-monospace, monospace",
+                      fontSize: 10,
+                      color: "rgba(160,140,200,0.55)",
+                      margin: "4px 0 0",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    {primaryCardCount === 0
+                      ? "Permanent snapshot of this build."
+                      : `${primaryCardCount} ${primaryCardCount === 1 ? "card" : "cards"} minted so far`}
+                  </p>
                 </div>
+                <Link
+                  href={`/garage/${primaryCar.id}`}
+                  style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    padding: "10px 24px", borderRadius: 12,
+                    background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+                    border: "1px solid rgba(123,79,212,0.6)",
+                    color: "white", fontFamily: "ui-monospace, monospace",
+                    fontSize: 11, fontWeight: 700, letterSpacing: "0.1em",
+                    textTransform: "uppercase", textDecoration: "none",
+                    boxShadow: "0 4px 20px rgba(123,79,212,0.4)",
+                    whiteSpace: "nowrap",
+                    marginTop: 4,
+                  }}
+                >
+                  <GalleryHorizontal size={13} />
+                  Mint a Card
+                </Link>
               </div>
             </section>
           );
@@ -338,9 +335,6 @@ export default async function GaragePage() {
             <AddCarButton asCard label="Add another vehicle" />
           </section>
         )}
-
-        {/* ── Pixel Card Collection ── */}
-        <CardCollection cards={userCards} carLabels={carLabels} />
       </PageContainer>
 
       <AddCarButton fab />

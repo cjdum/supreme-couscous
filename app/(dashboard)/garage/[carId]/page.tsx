@@ -8,7 +8,6 @@ import { createClient } from "@/lib/supabase/server";
 import { CategoryBadge } from "@/components/ui/badge";
 import { formatCurrency, formatDate, MOD_CATEGORIES } from "@/lib/utils";
 import { CarDetailTabs } from "@/components/garage/car-detail-tabs";
-import { CardTimeline } from "@/components/garage/card-timeline";
 import { AiSuggestions } from "@/components/garage/ai-suggestions";
 import { VehicleSpecs } from "@/components/garage/vehicle-specs";
 import { PixelCard } from "@/components/garage/pixel-card";
@@ -313,15 +312,7 @@ export default async function CarDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* ── Card Timeline ── */}
-      {allCarCards.length > 0 && (
-        <div className="mx-5 sm:mx-8 mt-4">
-          <CardTimeline
-            cards={allCarCards}
-            carLabel={`${car.year} ${car.make} ${car.model}`}
-          />
-        </div>
-      )}
+      {/* Card timeline lives on /cards (Cards tab), not here. */}
 
       {/* ── Spending chart ── */}
       {chartData.length > 0 && (

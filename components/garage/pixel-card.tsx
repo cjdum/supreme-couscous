@@ -73,19 +73,23 @@ export function PixelCard(props: PixelCardProps) {
     return (
       <CardRevealCeremony
         card={{
-          cardUrl:     freshCard.pixel_card_url,
-          nickname:    freshCard.nickname,
-          generatedAt: freshCard.minted_at,
-          hp:          freshCard.hp,
-          modCount:    freshCard.mod_count,
-          buildScore:  snap.build_score,
-          vinVerified: snap.vin_verified,
-          cardNumber:  freshCard.card_number,
-          era:         freshCard.era,
-          flavorText:  freshCard.flavor_text,
-          occasion:    freshCard.occasion,
-          mods:        snap.mods ?? [],
-          edition:     props.cardCount + 1,
+          cardUrl:        freshCard.pixel_card_url,
+          nickname:       freshCard.nickname,
+          generatedAt:    freshCard.minted_at,
+          hp:             freshCard.hp,
+          modCount:       freshCard.mod_count,
+          buildScore:     snap.build_score,
+          vinVerified:    snap.vin_verified,
+          cardNumber:     freshCard.card_number,
+          era:            freshCard.era,
+          flavorText:     freshCard.flavor_text,
+          occasion:       freshCard.occasion,
+          mods:           snap.mods ?? [],
+          modsDetail:     snap.mods_detail ?? undefined,
+          torque:         snap.torque ?? null,
+          zeroToSixty:    snap.zero_to_sixty ?? null,
+          totalInvested:  snap.total_invested ?? null,
+          edition:        props.cardCount + 1,
         }}
         carLabel={props.carLabel}
         onComplete={() => {
@@ -334,6 +338,10 @@ export function PixelCard(props: PixelCardProps) {
             flavorText={props.latestCard.flavor_text}
             occasion={props.latestCard.occasion}
             mods={props.latestCard.car_snapshot.mods ?? []}
+            modsDetail={props.latestCard.car_snapshot.mods_detail}
+            torque={props.latestCard.car_snapshot.torque ?? null}
+            zeroToSixty={props.latestCard.car_snapshot.zero_to_sixty ?? null}
+            totalInvested={props.latestCard.car_snapshot.total_invested ?? null}
             edition={props.cardCount > 1 ? props.cardCount : null}
             carLabel={props.carLabel}
             idle
