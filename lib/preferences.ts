@@ -6,6 +6,7 @@
 export type DistanceUnit = "miles" | "km";
 export type Currency = "USD" | "EUR" | "GBP";
 export type Theme = "dark" | "light";
+export type SidebarSide = "left" | "right";
 
 export interface Preferences {
   version: 1;
@@ -13,6 +14,7 @@ export interface Preferences {
   currency: Currency;
   theme: Theme;
   emailNotifications: boolean;
+  sidebarSide: SidebarSide;
 }
 
 export const DEFAULT_PREFS: Preferences = {
@@ -21,6 +23,7 @@ export const DEFAULT_PREFS: Preferences = {
   currency: "USD",
   theme: "dark",
   emailNotifications: true,
+  sidebarSide: "right",
 };
 
 const KEY = "modvault.prefs.v1";

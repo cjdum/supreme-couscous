@@ -18,6 +18,7 @@ import {
   type DistanceUnit,
   type Currency,
   type Theme,
+  type SidebarSide,
 } from "@/lib/preferences";
 import type { Car as CarType } from "@/lib/supabase/types";
 
@@ -355,6 +356,20 @@ export default function SettingsPage() {
                 label="Light"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
+              Sidebar position
+            </label>
+            <SegmentedControl<SidebarSide>
+              value={prefs.sidebarSide ?? "right"}
+              onChange={(v) => updatePref("sidebarSide", v)}
+              options={[
+                { value: "left", label: "Left" },
+                { value: "right", label: "Right" },
+              ]}
+            />
           </div>
         </div>
       </section>

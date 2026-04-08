@@ -26,6 +26,37 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
   const [view, setView] = useState<ViewState | null>(null);
   // Refs for each car's scroll container (keyed by car key)
   const scrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Non-passive wheel listeners so we can preventDefault when scrolling horizontally
+  const wheelHandlers = useRef<Map<string, (e: WheelEvent) => void>>(new Map());
+
+  function makeScrollRef(key: string) {
+    return (el: HTMLDivElement | null) => {
+      // Clean up previous listener for this key
+      const prev = scrollRefs.current.get(key);
+      const prevHandler = wheelHandlers.current.get(key);
+      if (prev && prevHandler) prev.removeEventListener("wheel", prevHandler);
+
+      if (el) {
+        scrollRefs.current.set(key, el);
+        const handler = (e: WheelEvent) => {
+          // Only intercept pure vertical scroll (not diagonal / trackpad horizontal)
+          if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+          const atLeft  = el.scrollLeft <= 0;
+          const atRight = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
+          const goRight = e.deltaY > 0;
+          if ((goRight && !atRight) || (!goRight && !atLeft)) {
+            e.preventDefault(); // block page scroll
+            el.scrollBy({ left: e.deltaY, behavior: "auto" });
+          }
+        };
+        wheelHandlers.current.set(key, handler);
+        el.addEventListener("wheel", handler, { passive: false });
+      } else {
+        scrollRefs.current.delete(key);
+        wheelHandlers.current.delete(key);
+      }
+    };
+  }
 
   // Group cards by car_id, maintain a stable car order (first appearance, sorted by oldest mint)
   const { groups, carOrder } = useMemo(() => {
@@ -175,16 +206,8 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
 
                 {/* Cards horizontal scroll for this car */}
                 <div
-                  ref={(el) => {
-                    if (el) scrollRefs.current.set(key, el);
-                    else scrollRefs.current.delete(key);
-                  }}
+                  ref={makeScrollRef(key)}
                   className="cc-scroll"
-                  onWheel={(e) => {
-                    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-                      e.currentTarget.scrollBy({ left: e.deltaY, behavior: "auto" });
-                    }
-                  }}
                   style={{
                     display: "flex",
                     gap: "1.5rem",

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Trash2, Loader2, Globe, Lock, ShieldCheck, ShieldOff, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
 import { sanitize } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
@@ -20,7 +20,6 @@ interface EditCarModalProps {
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: CURRENT_YEAR - 1884 }, (_, i) => CURRENT_YEAR + 1 - i);
 
 export function EditCarModal({ open, onClose, car, cardCount = 0 }: EditCarModalProps) {
   const router = useRouter();
@@ -229,11 +228,19 @@ export function EditCarModal({ open, onClose, car, cardCount = 0 }: EditCarModal
         {/* ── Year / Trim ──────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-3">
           <div className="relative">
-            <Select
+            <Input
               label="Year"
+              type="number"
+              min={1885}
+              max={2030}
               value={String(form.year)}
-              onChange={(e) => !vinLocked && setForm((f) => ({ ...f, year: parseInt(e.target.value) }))}
-              options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
+              onChange={(e) => {
+                if (!vinLocked) {
+                  const v = parseInt(e.target.value);
+                  setForm((f) => ({ ...f, year: isNaN(v) ? CURRENT_YEAR : v }));
+                }
+              }}
+              placeholder="e.g. 2024"
               disabled={vinLocked}
             />
             {vinLocked && <ShieldCheck size={11} className="absolute right-3 bottom-3 text-[#f5d76e]" />}

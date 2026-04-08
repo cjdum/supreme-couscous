@@ -314,19 +314,19 @@ export function TradingCard({
                 overflow: "visible",
               }}>
                 <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 50% 65%, ${eraStyle.glow} 0%, transparent 68%)`, pointerEvents: "none" }} />
-                {/* 2px era-colored border around the pixel art image */}
+                {/* Era-colored border — no inner padding so the image fills to the frame edge */}
                 <div style={{
                   position: "relative",
-                  padding: 2,
                   border: `2px solid ${eraStyle.border}`,
                   borderRadius: 6,
-                  background: "rgba(0,0,0,0.35)",
-                  boxShadow: `0 0 8px ${eraStyle.glow}`,
+                  overflow: "hidden",
+                  boxShadow: `0 0 10px ${eraStyle.glow}`,
                   zIndex: 2,
+                  lineHeight: 0,
                 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cardUrl} alt={nickname} width={232} height={172}
-                  style={{ width: 232, height: 172, objectFit: "contain", imageRendering: "pixelated", display: "block" }}
+                <img src={cardUrl} alt={nickname} width={240} height={180}
+                  style={{ width: 240, height: 180, objectFit: "cover", imageRendering: "pixelated", display: "block" }}
                 />
                 </div>
                 {vinVerified && (

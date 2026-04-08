@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/top-bar";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { DashboardMain } from "@/components/layout/dashboard-main";
 import { GlobalEnhancers } from "@/components/layout/global-enhancers";
 
 export default async function DashboardLayout({
@@ -29,11 +30,9 @@ export default async function DashboardLayout({
       <GlobalEnhancers />
       <TopBar username={profile?.username} />
       <SidebarNav username={profile?.username} />
-      <main
-        className="pt-16 lg:pt-0 lg:pl-14 animate-fade pb-[max(88px,calc(env(safe-area-inset-bottom)+76px))] lg:pb-8"
-      >
+      <DashboardMain>
         {children}
-      </main>
+      </DashboardMain>
       <BottomNav />
     </div>
   );

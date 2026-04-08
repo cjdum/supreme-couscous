@@ -103,9 +103,9 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
         background: "rgba(3,3,10,0.96)",
         backdropFilter: "blur(14px)",
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: "center",
         justifyContent: "center",
-        padding: "12px 20px",
+        padding: "20px",
         animation: "cvFadeIn 0.22s ease-out",
         cursor: "pointer",
         overflowY: "auto",
@@ -204,8 +204,8 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           maxWidth: 420,
           width: "100%",
           cursor: "default",
-          paddingTop: "2vh",
-          paddingBottom: "5vh",
+          paddingTop: "8vh",
+          paddingBottom: "8vh",
         }}
       >
         {/* Card section: peek cards + nav arrows + current card */}

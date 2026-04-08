@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Car, Sparkles, MessageSquare, Zap, BarChart2, User, LogOut, Settings, GalleryHorizontal } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { loadPreferences } from "@/lib/preferences";
 
 interface SidebarNavProps {
   username?: string | null;
@@ -22,6 +24,17 @@ const NAV_ITEMS = [
 export function SidebarNav({ username }: SidebarNavProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [side, setSide] = useState<"left" | "right">("right");
+
+  useEffect(() => {
+    const prefs = loadPreferences();
+    setSide(prefs.sidebarSide ?? "right");
+    function onStorage(e: StorageEvent) {
+      if (e.key?.includes("modvault")) setSide(loadPreferences().sidebarSide ?? "right");
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -53,7 +66,11 @@ export function SidebarNav({ username }: SidebarNavProps) {
         .sidebar-signout-text { display: none; }
         .sidebar-nav:hover .sidebar-signout-text { display: inline; }
       `}</style>
-      <aside className="sidebar-nav hidden lg:flex fixed left-0 top-0 bottom-0 z-40 flex-col border-r border-[var(--color-border)] glass">
+      <aside className={`sidebar-nav hidden lg:flex fixed top-0 bottom-0 z-40 flex-col glass ${
+        side === "right"
+          ? "right-0 border-l border-[var(--color-border)]"
+          : "left-0 border-r border-[var(--color-border)]"
+      }`}>
         {/* Logo */}
         <div className="px-3 pt-4 pb-6" style={{ minWidth: 56 }}>
           <Link href="/garage" className="flex items-center gap-3">

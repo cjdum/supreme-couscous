@@ -194,122 +194,84 @@ export default async function GaragePage() {
         )}
 
         {/* ── Quick actions ── */}
-        <section className="mt-10">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Link
-              href={`/garage/${primaryCar.id}`}
-              className="rounded-2xl bg-[var(--color-accent)] p-5 flex items-center justify-between hover:brightness-110 transition-all active:scale-[0.98] shadow-[0_4px_24px_rgba(59,130,246,0.25)] group"
-            >
-              <div>
-                <p className="text-sm font-bold text-white">Manage Build</p>
-                <p className="text-[11px] text-white/60 mt-0.5">Log mods &amp; track</p>
-              </div>
-              <Wrench size={20} className="text-white/60 group-hover:scale-110 transition-transform" />
-            </Link>
-            <Link
-              href={`/visualizer?carId=${primaryCar.id}`}
-              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-            >
-              <div>
-                <p className="text-sm font-bold">AI Render</p>
-                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Visualize mods</p>
-              </div>
-              <Zap size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
-            </Link>
-            <Link
-              href="/stats"
-              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-            >
-              <div>
-                <p className="text-sm font-bold">Analytics</p>
-                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Build insights</p>
-              </div>
-              <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform" />
-            </Link>
-            <Link
-              href="/profile"
-              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-            >
-              <div>
-                <p className="text-sm font-bold">Profile</p>
-                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Score &amp; badges</p>
-              </div>
-              <Plus size={20} className="text-[var(--color-text-muted)] group-hover:scale-110 transition-transform" />
-            </Link>
-          </div>
-        </section>
-
-        {/* ── Compact Mint-a-Card card (same width as car cards) ── */}
         {(() => {
           const primaryCardCount = cardsByCarId.get(primaryCar.id)?.length ?? 0;
           return (
             <section className="mt-10">
-              <div
-                className="rounded-2xl overflow-hidden mx-auto"
-                style={{
-                  maxWidth: 320, // square-ish, same width as car cards
-                  background: "linear-gradient(160deg, #0e0e1c 0%, #0b0b14 100%)",
-                  border: "1px solid rgba(123,79,212,0.45)",
-                  boxShadow: "0 0 24px rgba(123,79,212,0.18), 0 10px 30px rgba(0,0,0,0.5)",
-                  padding: "22px 20px",
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
-                  textAlign: "center",
-                }}
-              >
-                <div
-                  style={{
-                    width: 48, height: 48, borderRadius: 14,
-                    background: "rgba(123,79,212,0.2)",
-                    border: "1px solid rgba(123,79,212,0.5)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <GalleryHorizontal size={22} style={{ color: "#a855f7" }} />
-                </div>
-                <div>
-                  <p
-                    style={{
-                      fontFamily: "ui-monospace, monospace",
-                      fontSize: 12, fontWeight: 900, letterSpacing: "0.12em",
-                      color: "rgba(240,230,255,0.95)", textTransform: "uppercase",
-                      margin: 0,
-                    }}
-                  >
-                    {primaryCardCount === 0 ? "Mint a Card" : "Mint Another"}
-                  </p>
-                  <p
-                    style={{
-                      fontFamily: "ui-monospace, monospace",
-                      fontSize: 10,
-                      color: "rgba(160,140,200,0.55)",
-                      margin: "4px 0 0",
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {primaryCardCount === 0
-                      ? "Permanent snapshot of this build."
-                      : `${primaryCardCount} ${primaryCardCount === 1 ? "card" : "cards"} minted so far`}
-                  </p>
-                </div>
+              {/* 2-col grid: Mint card spans full width on mobile, left col on desktop */}
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+
+                {/* PRIMARY: Mint a Card — purple, spans 2 cols on mobile */}
                 <Link
                   href={`/garage/${primaryCar.id}`}
+                  className="col-span-2 lg:col-span-1 rounded-2xl p-5 flex items-center justify-between active:scale-[0.98] transition-all group"
                   style={{
-                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    padding: "10px 24px", borderRadius: 12,
-                    background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-                    border: "1px solid rgba(123,79,212,0.6)",
-                    color: "white", fontFamily: "ui-monospace, monospace",
-                    fontSize: 11, fontWeight: 700, letterSpacing: "0.1em",
-                    textTransform: "uppercase", textDecoration: "none",
-                    boxShadow: "0 4px 20px rgba(123,79,212,0.4)",
-                    whiteSpace: "nowrap",
-                    marginTop: 4,
+                    background: "linear-gradient(135deg, #5a2da0 0%, #7b4fd4 50%, #a855f7 100%)",
+                    border: "1px solid rgba(168,85,247,0.5)",
+                    boxShadow: "0 4px 24px rgba(123,79,212,0.35)",
                   }}
                 >
-                  <GalleryHorizontal size={13} />
-                  Mint a Card
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      {primaryCardCount === 0 ? "Mint a Card" : "Mint Another Card"}
+                    </p>
+                    <p className="text-[11px] text-white/60 mt-0.5">
+                      {primaryCardCount === 0
+                        ? "Freeze this build forever"
+                        : `${primaryCardCount} card${primaryCardCount !== 1 ? "s" : ""} minted`}
+                    </p>
+                  </div>
+                  <GalleryHorizontal size={22} className="text-white/70 group-hover:scale-110 transition-transform flex-shrink-0" />
                 </Link>
+
+                {/* Manage Build */}
+                <Link
+                  href={`/garage/${primaryCar.id}`}
+                  className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Manage Build</p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Log mods &amp; track</p>
+                  </div>
+                  <Wrench size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
+                </Link>
+
+                {/* AI Render */}
+                <Link
+                  href={`/visualizer?carId=${primaryCar.id}`}
+                  className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)]">AI Render</p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Visualize mods</p>
+                  </div>
+                  <Zap size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
+                </Link>
+
+                {/* Stats */}
+                <Link
+                  href="/stats"
+                  className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Analytics</p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Build insights</p>
+                  </div>
+                  <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
+                </Link>
+
+                {/* Profile */}
+                <Link
+                  href="/profile"
+                  className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-[var(--color-text-primary)]">Profile</p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Score &amp; badges</p>
+                  </div>
+                  <Plus size={20} className="text-[var(--color-text-muted)] group-hover:scale-110 transition-transform flex-shrink-0" />
+                </Link>
+
               </div>
             </section>
           );
