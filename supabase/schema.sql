@@ -1188,3 +1188,29 @@ begin
     set last_calculated_at = excluded.last_calculated_at;
 end;
 $$;
+
+-- ── v2: One Card At A Time + Personalities + Karma + Card Level ───────────────
+-- Run this block in Supabase SQL editor
+
+-- pixel_cards: status, personality, last_words, burned_at, card_level
+alter table pixel_cards add column if not exists status      text not null default 'alive'
+  check (status in ('alive', 'ghost'));
+alter table pixel_cards add column if not exists personality text;
+alter table pixel_cards add column if not exists last_words  text;
+alter table pixel_cards add column if not exists burned_at   timestamptz;
+alter table pixel_cards add column if not exists card_level  integer not null default 1;
+
+-- Backfill: all existing cards are alive
+update pixel_cards set status = 'alive' where status is null or status = '';
+
+-- Enforce only ONE alive card per user (partial unique index)
+create unique index if not exists idx_pixel_cards_one_alive_per_user
+  on pixel_cards(user_id)
+  where status = 'alive';
+
+-- profiles: card_level (total mints ever, never resets) + karma
+alter table profiles add column if not exists card_level integer not null default 0;
+alter table profiles add column if not exists karma      integer not null default 0;
+
+-- Index for fast alive-card lookups
+create index if not exists idx_pixel_cards_status on pixel_cards(user_id, status);

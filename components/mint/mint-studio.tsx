@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { Flame, Lock, Zap, Trophy, MessageSquare, Star } from "lucide-react";
 import { PixelCard } from "@/components/garage/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface MintableCar {
   id: string;
@@ -20,13 +21,43 @@ export interface MintableCar {
   latestCard: MintedCard | null;
 }
 
+export interface AliveCardInfo {
+  id: string;
+  cardTitle: string | null;
+  nickname: string;
+  pixelCardUrl: string;
+  personality: string | null;
+  flavorText: string | null;
+  mintedAt: string;
+  carLabel: string;
+}
+
 interface MintStudioProps {
   cars: MintableCar[];
+  aliveCard: AliveCardInfo | null;
+  karma: number;
+  karmaThreshold: number;
+  onInitiateBurn: () => void;
 }
 
 type Phase = "select" | "mint";
+type BurnState = "idle" | "confirm";
 
-// ── Car SVG silhouette (inline, no external dependency) ───────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+// ── CarSilhouette ─────────────────────────────────────────────────────────────
 
 function CarSilhouette() {
   return (
@@ -44,6 +75,519 @@ function CarSilhouette() {
       <circle cx="12" cy="28" r="4" fill="rgba(6,6,17,1)" />
       <circle cx="52" cy="28" r="4" fill="rgba(6,6,17,1)" />
     </svg>
+  );
+}
+
+// ── KarmaActions ──────────────────────────────────────────────────────────────
+
+const KARMA_ACTIONS = [
+  { icon: Zap,           label: "Battle a card",       gain: "+5" },
+  { icon: Trophy,        label: "Win a battle",         gain: "+3" },
+  { icon: MessageSquare, label: "Post in community",    gain: "+5" },
+  { icon: Star,          label: "Rate a card",          gain: "+2" },
+] as const;
+
+// ── AliveCardPreview ──────────────────────────────────────────────────────────
+
+interface AliveCardPreviewProps {
+  card: AliveCardInfo;
+  compact?: boolean;
+}
+
+function AliveCardPreview({ card, compact = false }: AliveCardPreviewProps) {
+  const title = card.cardTitle ?? card.nickname;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: compact ? 10 : 14,
+      }}
+    >
+      {/* Card image */}
+      <div
+        style={{
+          position: "relative",
+          width: compact ? 140 : 180,
+          height: compact ? 196 : 252,
+          borderRadius: 12,
+          overflow: "hidden",
+          boxShadow: "0 0 0 1px rgba(168,85,247,0.3), 0 8px 32px rgba(123,79,212,0.25)",
+          flexShrink: 0,
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={card.pixelCardUrl}
+          alt={title}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
+        {/* Alive pulse dot */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: "#30d158",
+            boxShadow: "0 0 0 3px rgba(48,209,88,0.25)",
+            animation: "alivePulse 2s ease-in-out infinite",
+          }}
+        />
+      </div>
+
+      {/* Title + personality */}
+      <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 6 }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: compact ? 13 : 15,
+            fontWeight: 700,
+            color: "#f0eeff",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {title}
+        </p>
+        {card.personality && (
+          <span
+            style={{
+              display: "inline-block",
+              alignSelf: "center",
+              padding: "3px 10px",
+              borderRadius: 999,
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              color: "#c084fc",
+              background: "rgba(168,85,247,0.14)",
+              border: "1px solid rgba(168,85,247,0.3)",
+            }}
+          >
+            {card.personality}
+          </span>
+        )}
+        {!compact && (
+          <p
+            style={{
+              margin: 0,
+              fontSize: 11,
+              color: "rgba(200,190,255,0.4)",
+              fontFamily: "ui-monospace, monospace",
+              letterSpacing: "0.04em",
+            }}
+          >
+            Alive since {formatDate(card.mintedAt)}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── AliveWithLock (State 2) ────────────────────────────────────────────────────
+
+interface AliveWithLockProps {
+  card: AliveCardInfo;
+  karma: number;
+  karmaThreshold: number;
+}
+
+function AliveWithLock({ card, karma, karmaThreshold }: AliveWithLockProps) {
+  const progress = Math.min(karma / karmaThreshold, 1);
+  const pct = Math.round(progress * 100);
+  const remaining = Math.max(karmaThreshold - karma, 0);
+
+  return (
+    <div
+      style={{
+        maxWidth: 480,
+        margin: "0 auto",
+        padding: "64px 20px 80px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 32,
+      }}
+    >
+      {/* Alive card preview */}
+      <AliveCardPreview card={card} />
+
+      {/* Karma section */}
+      <div
+        style={{
+          width: "100%",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(168,85,247,0.16)",
+          borderRadius: 16,
+          padding: 24,
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        {/* Header row */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Lock
+              size={15}
+              color="rgba(168,85,247,0.6)"
+              aria-hidden="true"
+            />
+            <span
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: "rgba(200,190,255,0.6)",
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+              }}
+            >
+              Karma required to remint
+            </span>
+          </div>
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 800,
+              fontFamily: "ui-monospace, monospace",
+              color: "#c084fc",
+              letterSpacing: "0.02em",
+            }}
+          >
+            {karma} / {karmaThreshold}
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        <div
+          role="progressbar"
+          aria-valuenow={karma}
+          aria-valuemin={0}
+          aria-valuemax={karmaThreshold}
+          aria-label={`Karma progress: ${karma} of ${karmaThreshold}`}
+          style={{
+            position: "relative",
+            height: 8,
+            borderRadius: 999,
+            background: "rgba(168,85,247,0.1)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              inset: "0 auto 0 0",
+              width: `${pct}%`,
+              borderRadius: 999,
+              background: "linear-gradient(90deg, #7b4fd4 0%, #c084fc 100%)",
+              boxShadow: "0 0 8px rgba(168,85,247,0.5)",
+              transition: "width 600ms ease",
+            }}
+          />
+        </div>
+
+        {/* Remaining callout */}
+        <p
+          style={{
+            margin: 0,
+            fontSize: 12,
+            color: "rgba(200,190,255,0.45)",
+            textAlign: "center",
+            letterSpacing: "0.01em",
+          }}
+        >
+          {remaining > 0
+            ? `${remaining} more karma needed to unlock a new mint`
+            : "Karma threshold reached"}
+        </p>
+      </div>
+
+      {/* How to earn karma */}
+      <div
+        style={{
+          width: "100%",
+          background: "rgba(123,79,212,0.05)",
+          border: "1px solid rgba(123,79,212,0.14)",
+          borderRadius: 16,
+          padding: 20,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
+      >
+        <p
+          style={{
+            margin: 0,
+            fontSize: 11,
+            fontWeight: 700,
+            color: "rgba(200,190,255,0.45)",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+          }}
+        >
+          Earn karma by
+        </p>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+          }}
+        >
+          {KARMA_ACTIONS.map(({ icon: Icon, label, gain }) => (
+            <div
+              key={label}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 9,
+                padding: "10px 12px",
+                borderRadius: 10,
+                background: "rgba(255,255,255,0.03)",
+                border: "1px solid rgba(168,85,247,0.1)",
+              }}
+            >
+              <Icon size={14} color="rgba(168,85,247,0.6)" aria-hidden="true" />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 11,
+                    color: "rgba(200,190,255,0.65)",
+                    fontWeight: 500,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {label}
+                </p>
+              </div>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  fontFamily: "ui-monospace, monospace",
+                  color: "#c084fc",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {gain}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* CTA state */}
+      <p
+        style={{
+          margin: 0,
+          fontSize: "clamp(14px, 2.5vw, 17px)",
+          fontWeight: 700,
+          color: "rgba(200,190,255,0.4)",
+          textAlign: "center",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        Earn karma before you can mint again
+      </p>
+    </div>
+  );
+}
+
+// ── AliveWithBurn (State 3) ────────────────────────────────────────────────────
+
+interface AliveWithBurnProps {
+  card: AliveCardInfo;
+  burnState: BurnState;
+  onBurnClick: () => void;
+  onBurnCancel: () => void;
+  onBurnConfirm: () => void;
+}
+
+function AliveWithBurn({
+  card,
+  burnState,
+  onBurnClick,
+  onBurnCancel,
+  onBurnConfirm,
+}: AliveWithBurnProps) {
+  return (
+    <div
+      style={{
+        maxWidth: 480,
+        margin: "0 auto",
+        padding: "64px 20px 80px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 28,
+      }}
+    >
+      {/* Alive card with date */}
+      <AliveCardPreview card={card} />
+
+      {burnState === "idle" ? (
+        /* ── Burn CTA ── */
+        <div
+          style={{
+            width: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 14,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onBurnClick}
+            className="burn-btn"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: "14px 32px",
+              borderRadius: 12,
+              background: "rgba(220,38,38,0.12)",
+              border: "1px solid rgba(220,38,38,0.4)",
+              color: "#f87171",
+              fontSize: 15,
+              fontWeight: 700,
+              letterSpacing: "0.01em",
+              cursor: "pointer",
+              transition: "background 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
+            }}
+          >
+            <Flame size={17} aria-hidden="true" />
+            Burn this card
+          </button>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 11,
+              color: "rgba(200,190,255,0.3)",
+              textAlign: "center",
+              letterSpacing: "0.01em",
+              lineHeight: 1.5,
+            }}
+          >
+            This is permanent. Your card&rsquo;s last words will be spoken.
+          </p>
+        </div>
+      ) : (
+        /* ── Burn confirmation panel ── */
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-label="Confirm card burn"
+          style={{
+            width: "100%",
+            background: "rgba(40, 10, 10, 0.6)",
+            border: "1px solid rgba(220,38,38,0.35)",
+            borderRadius: 16,
+            padding: "24px 22px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 18,
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 16,
+                fontWeight: 800,
+                color: "#fca5a5",
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Are you sure?
+            </p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                color: "rgba(200,190,255,0.5)",
+                lineHeight: 1.55,
+              }}
+            >
+              Once burned, this card becomes a ghost. Its last words are eternal.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+            }}
+          >
+            <button
+              type="button"
+              onClick={onBurnCancel}
+              className="cancel-btn"
+              style={{
+                padding: "12px 0",
+                borderRadius: 10,
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "rgba(200,190,255,0.7)",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "background 150ms ease, border-color 150ms ease",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onBurnConfirm}
+              className="confirm-burn-btn"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 7,
+                padding: "12px 0",
+                borderRadius: 10,
+                background: "rgba(220,38,38,0.18)",
+                border: "1px solid rgba(220,38,38,0.5)",
+                color: "#f87171",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "background 150ms ease, border-color 150ms ease",
+              }}
+            >
+              <Flame size={14} aria-hidden="true" />
+              Yes, burn it
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -76,7 +620,8 @@ function CarCard({ car, onSelect }: CarCardProps) {
         cursor: "pointer",
         textAlign: "left",
         padding: 0,
-        transition: "border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease",
+        transition:
+          "border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease",
       }}
     >
       {/* Cover image / placeholder */}
@@ -210,7 +755,10 @@ function CarCard({ car, onSelect }: CarCardProps) {
             fontFamily: "ui-monospace, monospace",
             fontWeight: 700,
             letterSpacing: "0.05em",
-            color: car.cardCount > 0 ? "rgba(168,85,247,0.75)" : "rgba(255,255,255,0.25)",
+            color:
+              car.cardCount > 0
+                ? "rgba(168,85,247,0.75)"
+                : "rgba(255,255,255,0.25)",
           }}
         >
           {car.cardCount === 0
@@ -234,114 +782,6 @@ function CarCard({ car, onSelect }: CarCardProps) {
   );
 }
 
-// ── MintStudio ────────────────────────────────────────────────────────────────
-
-export function MintStudio({ cars }: MintStudioProps) {
-  const [phase, setPhase] = useState<Phase>("select");
-  const [selected, setSelected] = useState<MintableCar | null>(null);
-
-  function handleSelect(car: MintableCar) {
-    setSelected(car);
-    setPhase("mint");
-  }
-
-  function handleBack() {
-    setPhase("select");
-    setSelected(null);
-  }
-
-  return (
-    <div
-      style={{
-        position: "relative",
-        minHeight: "100dvh",
-        background: "#060611",
-        overflowX: "hidden",
-      }}
-    >
-      {/* ── Ambient glow elements ── */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "fixed",
-          inset: 0,
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      >
-        {/* Top center radial */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "100%",
-            height: "60%",
-            background:
-              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(123,79,212,0.15) 0%, transparent 60%)",
-          }}
-        />
-        {/* Bottom-left accent */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: "10%",
-            left: "-10%",
-            width: 500,
-            height: 500,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 70%)",
-          }}
-        />
-        {/* Top-right accent */}
-        <div
-          style={{
-            position: "absolute",
-            top: "5%",
-            right: "-8%",
-            width: 400,
-            height: 400,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(123,79,212,0.07) 0%, transparent 70%)",
-          }}
-        />
-      </div>
-
-      {/* ── Content layer ── */}
-      <div style={{ position: "relative", zIndex: 1 }}>
-        {phase === "select" ? (
-          <SelectPhase cars={cars} onSelect={handleSelect} />
-        ) : selected ? (
-          <MintPhase car={selected} onBack={handleBack} />
-        ) : null}
-      </div>
-
-      {/* Hover styles injected once via a style tag */}
-      <style>{`
-        .mint-car-card:hover {
-          border-color: rgba(168,85,247,0.6) !important;
-          transform: scale(1.02);
-          box-shadow: 0 0 0 1px rgba(168,85,247,0.15), 0 8px 32px rgba(123,79,212,0.18);
-        }
-        .mint-car-card:focus-visible {
-          outline: 2px solid rgba(168,85,247,0.7);
-          outline-offset: 2px;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .mint-car-card {
-            transition: border-color 0ms !important;
-            transform: none !important;
-          }
-          .mint-car-card:hover {
-            transform: none !important;
-          }
-        }
-      `}</style>
-    </div>
-  );
-}
-
 // ── SelectPhase ───────────────────────────────────────────────────────────────
 
 interface SelectPhaseProps {
@@ -358,13 +798,7 @@ function SelectPhase({ cars, onSelect }: SelectPhaseProps) {
         padding: "64px 20px 80px",
       }}
     >
-      {/* Heading block */}
-      <div
-        style={{
-          textAlign: "center",
-          marginBottom: 52,
-        }}
-      >
+      <div style={{ textAlign: "center", marginBottom: 52 }}>
         <h1
           style={{
             margin: 0,
@@ -392,11 +826,11 @@ function SelectPhase({ cars, onSelect }: SelectPhaseProps) {
         </p>
       </div>
 
-      {/* Responsive car grid */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
+          gridTemplateColumns:
+            "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
           gap: 16,
         }}
       >
@@ -444,8 +878,8 @@ function MintPhase({ car, onBack }: MintPhaseProps) {
           fontSize: 13,
           fontWeight: 600,
           cursor: "pointer",
-          transition: "background 150ms ease, border-color 150ms ease, color 150ms ease",
-          letterSpacing: "0.01em",
+          transition:
+            "background 150ms ease, border-color 150ms ease, color 150ms ease",
         }}
         onMouseEnter={(e) => {
           const btn = e.currentTarget;
@@ -478,7 +912,7 @@ function MintPhase({ car, onBack }: MintPhaseProps) {
         Back
       </button>
 
-      {/* Car name heading */}
+      {/* Car name */}
       <div style={{ marginBottom: 32, textAlign: "center" }}>
         <h2
           style={{
@@ -507,7 +941,7 @@ function MintPhase({ car, onBack }: MintPhaseProps) {
         )}
       </div>
 
-      {/* PixelCard — centered */}
+      {/* PixelCard centered */}
       <div
         style={{
           display: "flex",
@@ -525,6 +959,207 @@ function MintPhase({ car, onBack }: MintPhaseProps) {
           autoMint={true}
         />
       </div>
+    </div>
+  );
+}
+
+// ── MintStudio ────────────────────────────────────────────────────────────────
+
+export function MintStudio({
+  cars,
+  aliveCard,
+  karma,
+  karmaThreshold,
+  onInitiateBurn,
+}: MintStudioProps) {
+  const [phase, setPhase] = useState<Phase>("select");
+  const [selected, setSelected] = useState<MintableCar | null>(null);
+  const [burnState, setBurnState] = useState<BurnState>("idle");
+
+  function handleSelect(car: MintableCar) {
+    setSelected(car);
+    setPhase("mint");
+  }
+
+  function handleBack() {
+    setPhase("select");
+    setSelected(null);
+  }
+
+  // Determine which top-level state to render:
+  // State 1: no alive card  → show normal car picker / mint flow
+  // State 2: alive card + karma < threshold  → locked, show karma progress
+  // State 3: alive card + karma >= threshold  → burn available
+  const hasAlive = aliveCard !== null;
+  const canBurn = hasAlive && karma >= karmaThreshold;
+  const isLocked = hasAlive && karma < karmaThreshold;
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        minHeight: "100dvh",
+        background: "#060611",
+        overflowX: "hidden",
+      }}
+    >
+      {/* ── Ambient glow ── */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "100%",
+            height: "60%",
+            background:
+              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(123,79,212,0.15) 0%, transparent 60%)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: "10%",
+            left: "-10%",
+            width: 500,
+            height: 500,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 70%)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            top: "5%",
+            right: "-8%",
+            width: 400,
+            height: 400,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle, rgba(123,79,212,0.07) 0%, transparent 70%)",
+          }}
+        />
+        {/* Warm burn glow for states 2/3 */}
+        {hasAlive && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "70%",
+              height: "40%",
+              background: canBurn
+                ? "radial-gradient(ellipse at 50% 100%, rgba(220,60,0,0.1) 0%, transparent 70%)"
+                : "radial-gradient(ellipse at 50% 100%, rgba(123,79,212,0.06) 0%, transparent 70%)",
+              transition: "background 800ms ease",
+            }}
+          />
+        )}
+      </div>
+
+      {/* ── Content layer ── */}
+      <div style={{ position: "relative", zIndex: 1 }}>
+        {/* State 2: locked behind karma */}
+        {isLocked && aliveCard && (
+          <AliveWithLock
+            card={aliveCard}
+            karma={karma}
+            karmaThreshold={karmaThreshold}
+          />
+        )}
+
+        {/* State 3: burn available */}
+        {canBurn && aliveCard && (
+          <AliveWithBurn
+            card={aliveCard}
+            burnState={burnState}
+            onBurnClick={() => setBurnState("confirm")}
+            onBurnCancel={() => setBurnState("idle")}
+            onBurnConfirm={() => {
+              setBurnState("idle");
+              onInitiateBurn();
+            }}
+          />
+        )}
+
+        {/* State 1 / State 4: no alive card — normal mint flow */}
+        {!hasAlive && (
+          <>
+            {phase === "select" ? (
+              <SelectPhase cars={cars} onSelect={handleSelect} />
+            ) : selected ? (
+              <MintPhase car={selected} onBack={handleBack} />
+            ) : null}
+          </>
+        )}
+      </div>
+
+      {/* ── Global styles ── */}
+      <style>{`
+        .mint-car-card:hover {
+          border-color: rgba(168,85,247,0.6) !important;
+          transform: scale(1.02);
+          box-shadow: 0 0 0 1px rgba(168,85,247,0.15), 0 8px 32px rgba(123,79,212,0.18);
+        }
+        .mint-car-card:focus-visible {
+          outline: 2px solid rgba(168,85,247,0.7);
+          outline-offset: 2px;
+        }
+
+        .burn-btn:hover {
+          background: rgba(220,38,38,0.2) !important;
+          border-color: rgba(220,38,38,0.6) !important;
+          box-shadow: 0 0 24px rgba(220,38,38,0.2);
+        }
+        .burn-btn:focus-visible {
+          outline: 2px solid rgba(220,38,38,0.7);
+          outline-offset: 2px;
+        }
+
+        .cancel-btn:hover {
+          background: rgba(255,255,255,0.08) !important;
+          border-color: rgba(255,255,255,0.18) !important;
+        }
+        .cancel-btn:focus-visible {
+          outline: 2px solid rgba(200,190,255,0.6);
+          outline-offset: 2px;
+        }
+
+        .confirm-burn-btn:hover {
+          background: rgba(220,38,38,0.28) !important;
+          border-color: rgba(220,38,38,0.7) !important;
+        }
+        .confirm-burn-btn:focus-visible {
+          outline: 2px solid rgba(220,38,38,0.7);
+          outline-offset: 2px;
+        }
+
+        @keyframes alivePulse {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(48,209,88,0.25); }
+          50%       { box-shadow: 0 0 0 6px rgba(48,209,88,0.08); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .mint-car-card {
+            transition: border-color 0ms !important;
+            transform: none !important;
+          }
+          .mint-car-card:hover {
+            transform: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

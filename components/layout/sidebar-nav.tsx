@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Car, Sparkles, MessageSquare, User, LogOut, Settings, GalleryHorizontal, Users, Trophy, Bell, Swords } from "lucide-react";
+import { Car, Sparkles, MessageSquare, User, LogOut, Settings, GalleryHorizontal, Users, Trophy, Bell, Swords, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { loadPreferences } from "@/lib/preferences";
@@ -16,10 +16,11 @@ const NAV_ITEMS = [
   { href: "/garage",       icon: Car,              label: "Garage",       shortcut: "G" },
   { href: "/cards",        icon: GalleryHorizontal, label: "Cards",        shortcut: "" },
   { href: "/mint",         icon: Sparkles,          label: "Mint",         shortcut: "" },
+  { href: "/timeline",     icon: Clock,             label: "Timeline",     shortcut: "" },
   { href: "/community",    icon: Users,             label: "Community",    shortcut: "" },
   { href: "/battles",      icon: Swords,            label: "Battles",      shortcut: "" },
   { href: "/achievements", icon: Trophy,            label: "Achievements", shortcut: "" },
-  { href: "/chat",         icon: MessageSquare,     label: "AI Chat",      shortcut: "C" },
+  { href: "/card-chat",    icon: MessageSquare,     label: "Card Chat",    shortcut: "C" },
   { href: "/notifications",icon: Bell,              label: "Notifications",shortcut: "" },
 ];
 

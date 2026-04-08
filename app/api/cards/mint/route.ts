@@ -9,6 +9,7 @@ import type {
   CardTrait,
 } from "@/lib/supabase/types";
 import { randomEra, assignRarity } from "@/lib/pixel-card";
+import { randomPersonality } from "@/lib/card-personality";
 
 /**
  * POST /api/cards/mint
@@ -90,6 +91,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Review payload incomplete" }, { status: 400 });
   }
 
+  // ── Enforce one alive card at a time ──────────────────────────────────
+  const { data: aliveCheck } = await supabase
+    .from("pixel_cards")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("status", "alive")
+    .maybeSingle();
+  if (aliveCheck) {
+    return NextResponse.json(
+      { error: "You already have a living card. Burn it before minting a new one." },
+      { status: 409 },
+    );
+  }
+
   // ── Load car ───────────────────────────────────────────────────────────
   const { data: carRaw } = await supabase
     .from("cars")
@@ -162,6 +177,18 @@ export async function POST(req: Request) {
 
   const era = randomEra();
   const rarity = assignRarity(mods.length, totalInvested, null, Math.random());
+  const personality = randomPersonality();
+
+  // Increment profile's card_level (total mints ever) and use it as this card's level
+  const { data: profileRaw } = await supabase
+    .from("profiles")
+    .select("card_level")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const currentLevel = (profileRaw as { card_level: number } | null)?.card_level ?? 0;
+  const newCardLevel = currentLevel + 1;
+  // Bump profile level (fire-and-forget)
+  supabase.from("profiles").update({ card_level: newCardLevel }).eq("user_id", user.id).then(() => {}, () => {});
 
   // ── Generate pixel art (text-only prompt, hard year lock) ───────────────
   const openai = getOpenAI();
@@ -240,6 +267,9 @@ export async function POST(req: Request) {
       flavour_text: body.flavourText,
       weaknesses: body.weaknesses,
       rival_archetypes: body.rivalArchetypes,
+      status: "alive",
+      personality,
+      card_level: newCardLevel,
     })
     .select(
       "id, user_id, car_id, car_snapshot, pixel_card_url, nickname, hp, mod_count, minted_at, card_number, flavor_text, era, occasion, rarity, is_public, card_title, build_archetype, estimated_performance, ai_estimated_performance, build_aggression, uniqueness_score, authenticity_confidence, traits, flavour_text, weaknesses, rival_archetypes, battle_record",
