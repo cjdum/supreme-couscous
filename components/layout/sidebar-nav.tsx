@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Car, Sparkles, MessageSquare, Zap, BarChart2, User, LogOut, Settings } from "lucide-react";
+import { Car, Sparkles, MessageSquare, Zap, BarChart2, User, LogOut, Settings, GalleryHorizontal } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,7 @@ interface SidebarNavProps {
 
 const NAV_ITEMS = [
   { href: "/garage", icon: Car, label: "Garage", shortcut: "G" },
+  { href: "/cards", icon: GalleryHorizontal, label: "Cards", shortcut: "" },
   { href: "/visualizer", icon: Zap, label: "Visualizer", shortcut: "V" },
   { href: "/chat", icon: MessageSquare, label: "AI Chat", shortcut: "C" },
   { href: "/forum", icon: Sparkles, label: "Forum", shortcut: "" },

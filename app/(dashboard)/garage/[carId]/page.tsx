@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CategoryBadge } from "@/components/ui/badge";
 import { formatCurrency, formatDate, MOD_CATEGORIES } from "@/lib/utils";
 import { CarDetailTabs } from "@/components/garage/car-detail-tabs";
+import { CardTimeline } from "@/components/garage/card-timeline";
 import { AiSuggestions } from "@/components/garage/ai-suggestions";
 import { VehicleSpecs } from "@/components/garage/vehicle-specs";
 import { PixelCard } from "@/components/garage/pixel-card";
@@ -76,15 +77,16 @@ export default async function CarDetailPage({ params }: Props) {
     .eq("car_id", carId);
   void photoCount;
 
-  // Latest pixel card + total count for this car
-  const { data: latestRaw, count: cardCount } = await supabase
+  // All pixel cards for this car (timeline + latest)
+  const { data: allCardsRaw } = await supabase
     .from("pixel_cards")
-    .select("*", { count: "exact" })
+    .select("*")
     .eq("car_id", carId)
     .eq("user_id", user.id)
-    .order("minted_at", { ascending: false })
-    .limit(1);
-  const latestCard = ((latestRaw ?? []) as MintedCard[])[0] ?? null;
+    .order("minted_at", { ascending: true }); // oldest first for timeline
+  const allCarCards = (allCardsRaw ?? []) as MintedCard[];
+  const cardCount = allCarCards.length;
+  const latestCard = allCarCards.length > 0 ? allCarCards[allCarCards.length - 1] : null;
 
   const installed = mods.filter((m) => m.status === "installed");
   const wishlist = mods.filter((m) => m.status === "wishlist");
@@ -311,6 +313,16 @@ export default async function CarDetailPage({ params }: Props) {
         </div>
       )}
 
+      {/* ── Card Timeline ── */}
+      {allCarCards.length > 0 && (
+        <div className="mx-5 sm:mx-8 mt-4">
+          <CardTimeline
+            cards={allCarCards}
+            carLabel={`${car.year} ${car.make} ${car.model}`}
+          />
+        </div>
+      )}
+
       {/* ── Spending chart ── */}
       {chartData.length > 0 && (
         <div className="mx-5 sm:mx-8 mt-4 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 lg:p-6">
@@ -331,7 +343,9 @@ export default async function CarDetailPage({ params }: Props) {
             carId={carId}
             carLabel={`${car.year} ${car.make} ${car.model}`}
             latestCard={latestCard}
-            cardCount={cardCount ?? 0}
+            cardCount={cardCount}
+            trim={car.trim}
+            color={car.color}
           />
           <VehicleSpecs car={car} />
 

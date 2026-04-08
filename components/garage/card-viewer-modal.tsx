@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { ERA_COLORS, safeEra } from "@/lib/pixel-card";
@@ -13,30 +13,49 @@ interface CardViewerModalProps {
   onClose: () => void;
 }
 
+const ERA_DESCRIPTIONS: Record<string, string> = {
+  Dawn:   "The earliest era of car culture — raw machines, open roads, and the birth of automotive passion.",
+  Chrome:  "The polished age of chrome bumpers, tailfins, and drive-in glamour. Style over everything.",
+  Turbo:   "Forced induction enters the scene. Power, boost pressure, and the sound of wastegates.",
+  Neon:    "The digital era — neon underglow, ECU tuning, and the streets as a canvas.",
+  Apex:    "The pinnacle. Track-focused engineering meets obsessive craftsmanship. Lap times are sacred.",
+};
+
 export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardViewerModalProps) {
   const initial = startIndex ?? cards.length - 1;
   const [idx, setIdx] = useState(Math.max(0, Math.min(initial, cards.length - 1)));
   const [copied, setCopied] = useState(false);
-  // Flip state managed here so F/Space can control it without the global keydown in TradingCard
   const [flipped, setFlipped] = useState(false);
+  const [eraTooltip, setEraTooltip] = useState(false);
+  const [editionTooltip, setEditionTooltip] = useState(false);
+
+  // Swipe gesture state
+  const touchStartX = useRef<number | null>(null);
 
   const card = cards[idx];
+
+  // Lock body scroll
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
   // Reset flip when switching cards
   useEffect(() => {
     setFlipped(false);
+    setEraTooltip(false);
+    setEditionTooltip(false);
   }, [idx]);
 
-  // Keyboard controls scoped to this modal
+  // Keyboard controls
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName ?? "";
       if (["INPUT", "TEXTAREA"].includes(tag)) return;
-
       if (e.key === "Escape") { onClose(); return; }
       if (e.key === "ArrowLeft"  && idx > 0)               { setIdx((i) => i - 1); return; }
       if (e.key === "ArrowRight" && idx < cards.length - 1) { setIdx((i) => i + 1); return; }
-      // F and Space both flip the card — only active while this modal is mounted
       if (e.key === "f" || e.key === "F" || e.key === " ") {
         e.preventDefault();
         setFlipped((prev) => !prev);
@@ -62,6 +81,23 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
+
+  function goLeft()  { if (idx > 0)               setIdx(idx - 1); }
+  function goRight() { if (idx < cards.length - 1) setIdx(idx + 1); }
+
+  function onTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) goRight(); else goLeft();
+  }
+
+  const prevCard = idx > 0 ? cards[idx - 1] : null;
+  const nextCard = idx < cards.length - 1 ? cards[idx + 1] : null;
 
   return (
     <div
@@ -121,10 +157,12 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
         </div>
       )}
 
-      {/* Main panel: card + info side by side */}
+      {/* Main panel */}
       <div
         className="cv-panel"
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
         style={{
           display: "flex",
           flexDirection: "row",
@@ -135,59 +173,135 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           cursor: "default",
         }}
       >
-        {/* LEFT: card + nav arrows */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
+        {/* LEFT: carousel with peek */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, position: "relative" }}>
+
+          {/* Prev nav */}
           {cards.length > 1 && (
             <button
-              onClick={() => idx > 0 && setIdx(idx - 1)}
+              onClick={() => goLeft()}
               disabled={idx === 0}
               aria-label="Previous edition"
               style={{
-                width: 40, height: 40, borderRadius: 12,
+                width: 40, height: 40, borderRadius: 12, flexShrink: 0,
                 background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
                 color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.25 : 1,
+                cursor: idx === 0 ? "not-allowed" : "pointer", opacity: idx === 0 ? 0.2 : 1,
+                zIndex: 2,
               }}
             >
               <ChevronLeft size={18} />
             </button>
           )}
 
-          {/* idle=false in fullscreen viewer — no floating animation, pure tilt focus */}
-          <TradingCard
-            cardUrl={card.pixel_card_url}
-            nickname={card.nickname}
-            generatedAt={card.minted_at}
-            hp={card.hp}
-            modCount={card.mod_count}
-            buildScore={snap.build_score}
-            vinVerified={snap.vin_verified}
-            cardNumber={card.card_number}
-            era={card.era}
-            flavorText={card.flavor_text}
-            occasion={card.occasion}
-            mods={snap.mods ?? []}
-            edition={cards.length > 1 ? edition : null}
-            carLabel={carLabel}
-            scale={1.1}
-            idle={false}
-            interactive
-            showShare
-            onShare={handleShare}
-            flipped={flipped}
-            onFlipChange={setFlipped}
-          />
+          {/* Card stack with peek */}
+          <div style={{ position: "relative" }}>
+            {/* Peek: previous card edge (left side) */}
+            {prevCard && (
+              <div style={{
+                position: "absolute",
+                left: -52,
+                top: "50%",
+                transform: "translateY(-50%) scale(0.82) rotateY(12deg)",
+                transformOrigin: "right center",
+                opacity: 0.22,
+                pointerEvents: "none",
+                zIndex: 0,
+                overflow: "hidden",
+                width: 60,
+              }}>
+                <TradingCard
+                  cardUrl={prevCard.pixel_card_url}
+                  nickname={prevCard.nickname}
+                  generatedAt={prevCard.minted_at}
+                  hp={prevCard.hp}
+                  modCount={prevCard.mod_count}
+                  buildScore={prevCard.car_snapshot.build_score}
+                  era={prevCard.era}
+                  flavorText={prevCard.flavor_text}
+                  occasion={prevCard.occasion}
+                  mods={prevCard.car_snapshot.mods ?? []}
+                  carLabel={carLabel}
+                  scale={1.1}
+                  idle={false}
+                  interactive={false}
+                />
+              </div>
+            )}
 
+            {/* Current card — idle=false in fullscreen viewer */}
+            <div style={{ position: "relative", zIndex: 1 }}>
+              <TradingCard
+                cardUrl={card.pixel_card_url}
+                nickname={card.nickname}
+                generatedAt={card.minted_at}
+                hp={card.hp}
+                modCount={card.mod_count}
+                buildScore={snap.build_score}
+                vinVerified={snap.vin_verified}
+                cardNumber={card.card_number}
+                era={card.era}
+                flavorText={card.flavor_text}
+                occasion={card.occasion}
+                mods={snap.mods ?? []}
+                edition={cards.length > 1 ? edition : null}
+                carLabel={carLabel}
+                scale={1.1}
+                idle={false}
+                interactive
+                showShare
+                onShare={handleShare}
+                flipped={flipped}
+                onFlipChange={setFlipped}
+              />
+            </div>
+
+            {/* Peek: next card edge (right side) */}
+            {nextCard && (
+              <div style={{
+                position: "absolute",
+                right: -52,
+                top: "50%",
+                transform: "translateY(-50%) scale(0.82) rotateY(-12deg)",
+                transformOrigin: "left center",
+                opacity: 0.22,
+                pointerEvents: "none",
+                zIndex: 0,
+                overflow: "hidden",
+                width: 60,
+              }}>
+                <TradingCard
+                  cardUrl={nextCard.pixel_card_url}
+                  nickname={nextCard.nickname}
+                  generatedAt={nextCard.minted_at}
+                  hp={nextCard.hp}
+                  modCount={nextCard.mod_count}
+                  buildScore={nextCard.car_snapshot.build_score}
+                  era={nextCard.era}
+                  flavorText={nextCard.flavor_text}
+                  occasion={nextCard.occasion}
+                  mods={nextCard.car_snapshot.mods ?? []}
+                  carLabel={carLabel}
+                  scale={1.1}
+                  idle={false}
+                  interactive={false}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Next nav */}
           {cards.length > 1 && (
             <button
-              onClick={() => idx < cards.length - 1 && setIdx(idx + 1)}
+              onClick={() => goRight()}
               disabled={idx === cards.length - 1}
               aria-label="Next edition"
               style={{
-                width: 40, height: 40, borderRadius: 12,
+                width: 40, height: 40, borderRadius: 12, flexShrink: 0,
                 background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
                 color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: idx === cards.length - 1 ? "not-allowed" : "pointer", opacity: idx === cards.length - 1 ? 0.25 : 1,
+                cursor: idx === cards.length - 1 ? "not-allowed" : "pointer", opacity: idx === cards.length - 1 ? 0.2 : 1,
+                zIndex: 2,
               }}
             >
               <ChevronRight size={18} />
@@ -210,13 +324,38 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
             {carLabel}
           </h2>
 
-          {/* Edition + card number row */}
+          {/* Edition + card number + era row */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+            {/* Edition number with tooltip */}
             {cards.length > 1 && (
-              <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, color: "rgba(200,180,240,0.55)", letterSpacing: "0.15em" }}>
-                Edition {edition} of {cards.length}
-              </span>
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setEditionTooltip((v) => !v)}
+                  onBlur={() => setEditionTooltip(false)}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer", padding: 0,
+                    fontFamily: "ui-monospace, monospace", fontSize: 10,
+                    color: "rgba(200,180,240,0.55)", letterSpacing: "0.15em",
+                    textDecoration: "underline dotted rgba(200,180,240,0.3)",
+                  }}
+                >
+                  Edition {edition} of {cards.length}
+                </button>
+                {editionTooltip && (
+                  <div style={{
+                    position: "absolute", bottom: "calc(100% + 6px)", left: 0,
+                    width: 220, padding: "8px 10px", borderRadius: 10,
+                    background: "rgba(12,10,22,0.98)", border: "1px solid rgba(123,79,212,0.35)",
+                    fontFamily: "ui-monospace, monospace", fontSize: 9,
+                    color: "rgba(200,185,230,0.75)", lineHeight: 1.6, zIndex: 100,
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
+                  }}>
+                    This is print #{edition} of all {cards.length} cards ever minted in this garage for this car.
+                  </div>
+                )}
+              </div>
             )}
+
             {card.card_number != null && (
               <div style={{
                 fontFamily: "ui-monospace, monospace", fontSize: 10, fontWeight: 900,
@@ -227,16 +366,37 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
                 #{String(card.card_number).padStart(4, "0")}
               </div>
             )}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "3px 10px", borderRadius: 20,
-              background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
-              boxShadow: `0 0 8px ${eraStyle.glow}`,
-            }}>
-              <div style={{ width: 5, height: 5, borderRadius: "50%", background: eraStyle.text }} />
-              <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: eraStyle.text }}>
-                {era} Era
-              </span>
+
+            {/* Era badge with tooltip */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setEraTooltip((v) => !v)}
+                onBlur={() => setEraTooltip(false)}
+                style={{
+                  background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
+                  borderRadius: 20, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "3px 10px",
+                  boxShadow: `0 0 8px ${eraStyle.glow}`,
+                }}
+              >
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: eraStyle.text }} />
+                <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase" as const, color: eraStyle.text }}>
+                  {era} Era
+                </span>
+              </button>
+              {eraTooltip && (
+                <div style={{
+                  position: "absolute", bottom: "calc(100% + 6px)", left: 0,
+                  width: 240, padding: "8px 10px", borderRadius: 10,
+                  background: "rgba(12,10,22,0.98)", border: `1px solid ${eraStyle.border}`,
+                  fontFamily: "ui-monospace, monospace", fontSize: 9,
+                  color: "rgba(200,185,230,0.75)", lineHeight: 1.6, zIndex: 100,
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
+                }}>
+                  <span style={{ color: eraStyle.text, fontWeight: 900 }}>{era} Era</span> — {ERA_DESCRIPTIONS[era]}
+                </div>
+              )}
             </div>
           </div>
 
@@ -261,9 +421,12 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
             </div>
           )}
 
-          {/* Flavor text */}
+          {/* Flavor text — only here, never on card face */}
           {card.flavor_text && (
             <div style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 10, background: "rgba(123,79,212,0.08)", border: "1px solid rgba(123,79,212,0.2)" }}>
+              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700, color: "rgba(160,140,200,0.38)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 4 }}>
+                Card Description
+              </p>
               <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, fontStyle: "italic", color: "rgba(200,185,230,0.72)", lineHeight: 1.65, margin: 0 }}>
                 {card.flavor_text}
               </p>
@@ -319,7 +482,7 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
         position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
         fontFamily: "ui-monospace, monospace", fontSize: 10,
         color: "rgba(255,255,255,0.2)", letterSpacing: "0.18em", textTransform: "uppercase",
-        pointerEvents: "none",
+        pointerEvents: "none", whiteSpace: "nowrap",
       }}>
         {cards.length > 1 ? "← → editions · " : ""}F / Space to flip · Esc to close
       </p>

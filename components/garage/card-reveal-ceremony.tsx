@@ -18,11 +18,11 @@ type Phase =
   | "card_flying"
   | "card_flipping"
   | "card_settled"
-  | "nickname_reveal"
   | "show_continue";
-const DISMISSING_PHASES = new Set<Phase>(["card_settled", "nickname_reveal", "show_continue"]);
 
-// 12 gold particles fanning out in a sunburst
+const DISMISSING_PHASES = new Set<Phase>(["card_settled", "show_continue"]);
+
+// 14 gold particles fanning out in a sunburst — computed once
 const PARTICLES = Array.from({ length: 14 }, (_, i) => {
   const angle = (i / 14) * 360;
   const distance = 80 + Math.random() * 60;
@@ -35,82 +35,82 @@ const PARTICLES = Array.from({ length: 14 }, (_, i) => {
 
 export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCeremonyProps) {
   const [phase, setPhase] = useState<Phase>("hidden");
-  const [displayedNickname, setDisplayedNickname] = useState("");
   const [particlesActive, setParticlesActive] = useState(false);
 
-  // ── Advance through phases ─────────────────────────────────────────────
+  // ── Lock body scroll while overlay is open ─────────────────────────────
   useEffect(() => {
-    const q = (delay: number, next: Phase) =>
-      setTimeout(() => setPhase(next), delay);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
-    const t1 = q(50,   "dimming");
-    const t2 = q(350,  "pack_present");
-    const t3 = q(1100, "pack_shaking");
-    const t4 = q(1900, "pack_opening");
-    const t5 = q(2450, "card_flying");
-    const t6 = q(2900, "card_flipping");
-    const t7 = q(3700, "card_settled");
-    const t8 = q(3800, "nickname_reveal");
-    const t9 = q(5200, "show_continue");
+  // ── Advance through phases ─────────────────────────────────────────────
+  // Cumulative timing (total ~2.5s to "tap to continue"):
+  //  0ms    → dimming (overlay fade in)
+  //  50ms   → pack_present (slides in from top, 0.2s anim)
+  //  250ms  → pack_shaking (0.5s shake)
+  //  750ms  → pack_opening (pack splits, 0.3s)
+  //  1050ms → card_flying  (card scales in, 0.5s)
+  //  1550ms → card_flipping (Y-axis flip, 0.8s)
+  //  2350ms → card_settled
+  //  2500ms → show_continue
+  useEffect(() => {
+    const q = (delay: number, next: Phase) => setTimeout(() => setPhase(next), delay);
 
-    // Trigger particle burst when card flips
-    const tp = setTimeout(() => setParticlesActive(true), 3700);
-    const tp2 = setTimeout(() => setParticlesActive(false), 5000);
+    const t1 = q(0,    "dimming");
+    const t2 = q(50,   "pack_present");
+    const t3 = q(250,  "pack_shaking");
+    const t4 = q(750,  "pack_opening");
+    const t5 = q(1050, "card_flying");
+    const t6 = q(1550, "card_flipping");
+    const t7 = q(2350, "card_settled");
+    const t8 = q(2500, "show_continue");
+
+    // Particle burst when card settles
+    const tp  = setTimeout(() => setParticlesActive(true),  2350);
+    const tp2 = setTimeout(() => setParticlesActive(false), 3200);
 
     return () => {
-      [t1, t2, t3, t4, t5, t6, t7, t8, t9, tp, tp2].forEach(clearTimeout);
+      [t1, t2, t3, t4, t5, t6, t7, t8, tp, tp2].forEach(clearTimeout);
     };
   }, []);
 
-  // ── Typewriter for nickname ────────────────────────────────────────────
-  useEffect(() => {
-    if (phase !== "nickname_reveal") return;
-    let i = 0;
-    setDisplayedNickname("");
-    const iv = setInterval(() => {
-      i++;
-      if (i <= card.nickname.length) {
-        setDisplayedNickname(card.nickname.slice(0, i));
-      } else {
-        clearInterval(iv);
-      }
-    }, 65);
-    return () => clearInterval(iv);
-  }, [phase, card.nickname]);
-
   function handleDismiss() {
     if (!DISMISSING_PHASES.has(phase)) return;
-    setTimeout(onComplete, 300);
+    setTimeout(onComplete, 250);
   }
 
   // ── Derive visual state from phase ────────────────────────────────────
-  const overlayVisible = phase !== "hidden";
-  const packVisible    = phase === "pack_present" || phase === "pack_shaking" || phase === "pack_opening";
-  const cardVisible    = ["card_flying", "card_flipping", "card_settled", "nickname_reveal", "show_continue"].includes(phase);
-  const nickVisible    = ["nickname_reveal", "show_continue"].includes(phase);
+  const overlayVisible  = phase !== "hidden";
+  const packVisible     = ["pack_present", "pack_shaking", "pack_opening"].includes(phase);
+  const cardVisible     = ["card_flying", "card_flipping", "card_settled", "show_continue"].includes(phase);
   const continueVisible = phase === "show_continue";
 
   return (
     <>
       <style>{`
+        @keyframes packSlideIn {
+          from { transform: translateY(-160px); opacity: 0; }
+          to   { transform: translateY(0);      opacity: 1; }
+        }
         @keyframes packShake {
           0%,100% { transform: translateX(0); }
-          15%      { transform: translateX(-8px) rotate(-2deg); }
-          35%      { transform: translateX(8px)  rotate(2deg); }
-          55%      { transform: translateX(-6px) rotate(-1.5deg); }
-          75%      { transform: translateX(6px)  rotate(1.5deg); }
+          15%     { transform: translateX(-8px) rotate(-2deg); }
+          35%     { transform: translateX(8px)  rotate(2deg); }
+          55%     { transform: translateX(-6px) rotate(-1.5deg); }
+          75%     { transform: translateX(6px)  rotate(1.5deg); }
         }
         @keyframes packTopOut {
-          from { transform: translateY(0); opacity: 1; }
-          to   { transform: translateY(-160px); opacity: 0; }
+          from { transform: translateY(0);     opacity: 1; }
+          to   { transform: translateY(-200px); opacity: 0; }
         }
         @keyframes packBotOut {
-          from { transform: translateY(0); opacity: 1; }
-          to   { transform: translateY(160px); opacity: 0; }
+          from { transform: translateY(0);    opacity: 1; }
+          to   { transform: translateY(200px); opacity: 0; }
         }
         @keyframes cardFlyIn {
-          from { transform: scale(0.06) translateY(60px); opacity: 0; }
-          60%  { transform: scale(1.07) translateY(-8px); opacity: 1; }
+          from { transform: scale(0.05) translateY(60px); opacity: 0; }
+          65%  { transform: scale(1.1)  translateY(-6px); opacity: 1; }
           to   { transform: scale(1)    translateY(0);    opacity: 1; }
         }
         @keyframes cardFlip360 {
@@ -121,10 +121,6 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
           0%   { transform: translate(-50%, -50%) scale(1); opacity: 1; }
           80%  { opacity: 0.6; }
           100% { transform: translate(calc(-50% + var(--tx) * 1px), calc(-50% + var(--ty) * 1px)) scale(0); opacity: 0; }
-        }
-        @keyframes nicknameIn {
-          from { opacity: 0; letter-spacing: 0.6em; }
-          to   { opacity: 1; letter-spacing: 0.2em; }
         }
         @keyframes tapIn {
           from { opacity: 0; transform: translateY(6px); }
@@ -142,21 +138,30 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
           position: "fixed",
           inset: 0,
           zIndex: 9999,
-          background: "rgba(4,4,12,0.96)",
+          background: "rgba(4,4,12,0.97)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           gap: 24,
-          transition: "opacity 0.5s ease",
+          transition: "opacity 0.4s ease",
           opacity: overlayVisible ? 1 : 0,
           pointerEvents: overlayVisible ? "auto" : "none",
-          backdropFilter: "blur(8px)",
+          backdropFilter: "blur(10px)",
         }}
       >
         {/* ── Card pack ─────────────────────────────────────────────────── */}
         {packVisible && (
-          <div style={{ position: "relative", width: 120, height: 180 }}>
+          <div
+            style={{
+              position: "relative",
+              width: 120,
+              height: 180,
+              animation: phase === "pack_present"
+                ? "packSlideIn 0.22s cubic-bezier(0.34,1.56,0.64,1) forwards"
+                : undefined,
+            }}
+          >
             {/* Pack body — bottom half */}
             <div
               style={{
@@ -169,9 +174,9 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
                 border: "2px solid rgba(245,215,110,0.4)",
                 borderRadius: "0 0 10px 10px",
                 animation: phase === "pack_shaking"
-                  ? "packShake 0.8s cubic-bezier(0.36,0.07,0.19,0.97) both"
+                  ? "packShake 0.5s cubic-bezier(0.36,0.07,0.19,0.97) both"
                   : phase === "pack_opening"
-                  ? "packBotOut 0.45s ease-in forwards"
+                  ? "packBotOut 0.3s ease-in forwards"
                   : undefined,
               }}
             />
@@ -192,9 +197,9 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
                 justifyContent: "center",
                 gap: 4,
                 animation: phase === "pack_shaking"
-                  ? "packShake 0.8s cubic-bezier(0.36,0.07,0.19,0.97) both"
+                  ? "packShake 0.5s cubic-bezier(0.36,0.07,0.19,0.97) both"
                   : phase === "pack_opening"
-                  ? "packTopOut 0.45s ease-in forwards"
+                  ? "packTopOut 0.3s ease-in forwards"
                   : undefined,
               }}
             >
@@ -248,10 +253,11 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
 
             {/* The card itself */}
             <div
+              className={phase === "card_flying" ? "cr-card-fly" : phase === "card_flipping" ? "cr-card-flip" : ""}
               style={{
                 animation:
                   phase === "card_flying"
-                    ? "cardFlyIn 0.42s cubic-bezier(0.34,1.56,0.64,1) forwards"
+                    ? "cardFlyIn 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards"
                     : phase === "card_flipping"
                     ? "cardFlip360 0.8s cubic-bezier(0.4,0,0.2,1) forwards"
                     : undefined,
@@ -260,29 +266,10 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
               <TradingCard
                 {...card}
                 carLabel={carLabel}
-                idle={phase === "card_settled" || phase === "nickname_reveal" || phase === "show_continue"}
+                idle={phase === "card_settled" || phase === "show_continue"}
                 interactive={false}
               />
             </div>
-          </div>
-        )}
-
-        {/* ── Nickname typewriter ───────────────────────────────────────── */}
-        {nickVisible && (
-          <div
-            style={{
-              fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-              fontSize: 22,
-              fontWeight: 900,
-              color: "#f5d76e",
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              animation: "nicknameIn 0.6s ease-out forwards",
-              textShadow: "0 0 20px rgba(245,215,110,0.5)",
-            }}
-          >
-            {displayedNickname}
-            <span style={{ opacity: displayedNickname.length < card.nickname.length ? 1 : 0, borderRight: "2px solid #f5d76e", marginLeft: 2 }} />
           </div>
         )}
 
@@ -293,7 +280,8 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
               fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
               fontSize: 11,
               color: "rgba(255,255,255,0.35)",
-              letterSpacing: "0.2em",
+              letterSpacing: "0.22em",
+              textTransform: "uppercase" as const,
               animation: "tapIn 0.4s ease-out forwards",
               marginTop: 8,
             }}

@@ -86,6 +86,14 @@ export async function POST(req: Request) {
 
   if (!car) return NextResponse.json({ error: "Car not found" }, { status: 404 });
 
+  // ── 1b. Require trim and color before minting ───────────────────────────
+  if (!car.trim?.trim() || !car.color?.trim()) {
+    return NextResponse.json(
+      { error: "Fill in your car's trim and color before minting a card." },
+      { status: 400 }
+    );
+  }
+
   // ── 2. Photo check ──────────────────────────────────────────────────────
   const { data: photosRaw } = await supabase
     .from("car_photos")
@@ -220,17 +228,17 @@ Return only the 3-word name. Nothing else.`,
 
   const imagePromise = (async () => {
     // Prompt built exclusively from DB fields — make/model/year/color/trim
-    const pixelPrompt = `pixel art trading card illustration of a ${car.year} ${colorLabel} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}, side profile, clean background, vibrant colors high detail.
+    const pixelPrompt = `A ${car.year} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}, year ${car.year}, exterior color ${colorLabel}.
 
-Style: True retro SNES-era pixel art. Hard chunky pixels, no anti-aliasing, no blur. Max 32 colors. Every pixel must be clearly blocky and visible. NOT photorealistic, NOT smooth.
+View: 3/4 front driver side angle. The car fills 85% of the frame. Silhouette is accurate to the actual ${car.year} ${car.make} ${car.model}.
 
-Composition: Side profile view. Car silhouette is accurate to the actual ${car.year} ${car.make} ${car.model}. Car fills 85% of the frame horizontally.
+Style: True retro SNES-era pixel art. Hard chunky pixels. No anti-aliasing. No blur. No smooth gradients. Max 32 colors. Every pixel must be clearly blocky and visible. NOT photorealistic, NOT smooth, NOT rendered.
 
-Color accuracy: Paint must be ${colorLabel}. Do not substitute or blend into a generic color.
+Color: The exterior paint color is ${colorLabel}. Use exactly "${colorLabel}" — do not substitute with poetic names, do not use crimson, scarlet, burgundy, or any synonym. If the color is "${colorLabel}", paint it "${colorLabel}".
 
-Background: Solid flat color #0a0a18. No gradients, no shadows on ground.
+Background: Solid flat dark color #0a0a18. No ground shadows. No gradient sky.
 
-No text, no HUD, no card borders, no logos, no license plates. Only the car sprite.`;
+STRICT: No text of any kind. No letters. No numbers. No labels. No watermarks. No logos. No license plates. No badges. No card borders. No UI. No HUD. Only the car sprite.`;
 
     const imageResponse = await openai.images.generate({
       model: "dall-e-3",

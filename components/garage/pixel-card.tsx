@@ -16,6 +16,9 @@ interface PixelCardProps {
   latestCard: MintedCard | null;
   /** Total card count for this car (for "Edition" indicator) */
   cardCount: number;
+  /** If missing, mint is blocked with a clear message */
+  trim?: string | null;
+  color?: string | null;
 }
 
 type MintState = "idle" | "occasion" | "minting" | "ceremony";
@@ -37,6 +40,11 @@ export function PixelCard(props: PixelCardProps) {
   const [freshCard, setFreshCard] = useState<MintedCard | null>(null);
   const [eligibility, setEligibility] = useState<CardEligibility | null>(null);
   const [eligLoading, setEligLoading] = useState(true);
+
+  // Trim + color validation
+  const hasTrim  = !!props.trim?.trim();
+  const hasColor = !!props.color?.trim();
+  const needsProfile = !hasTrim || !hasColor;
 
   // ── Fetch eligibility (initial + polling fallback every 10s) ────────────
   const fetchEligibility = useCallback(async () => {
@@ -388,7 +396,36 @@ export function PixelCard(props: PixelCardProps) {
           label="Upload a real photo"
           detail={hasPhoto ? "Done" : "Required"}
         />
+        <RequirementRow
+          met={hasTrim}
+          icon={<Lock size={13} />}
+          label="Set car trim"
+          detail={hasTrim ? "Done" : "Required"}
+        />
+        <RequirementRow
+          met={hasColor}
+          icon={<Lock size={13} />}
+          label="Set exterior color"
+          detail={hasColor ? "Done" : "Required"}
+        />
       </div>
+
+      {/* ── Profile requirement warning ────────────────────────────────────── */}
+      {needsProfile && (
+        <div
+          role="alert"
+          className="mt-3 rounded-xl border px-3.5 py-2.5 text-[11px]"
+          style={{
+            background: "rgba(245,166,35,0.08)",
+            borderColor: "rgba(245,166,35,0.3)",
+            color: "rgba(245,166,35,0.9)",
+            fontFamily: "ui-monospace, monospace",
+            lineHeight: 1.6,
+          }}
+        >
+          Fill in your car&rsquo;s trim and color before minting a card. Edit the car details above to add them.
+        </div>
+      )}
 
       {/* ── Error message ──────────────────────────────────────────────────── */}
       {error && mintState === "idle" && (
@@ -404,20 +441,20 @@ export function PixelCard(props: PixelCardProps) {
       <div className="mt-4">
         <button
           onClick={handleMint}
-          disabled={!eligible || mintState === "minting"}
+          disabled={!eligible || mintState === "minting" || needsProfile}
           style={{
             width: "100%", height: 44, borderRadius: 12,
-            background: !eligible || mintState === "minting"
+            background: !eligible || mintState === "minting" || needsProfile
               ? "rgba(123,79,212,0.18)"
               : "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-            border: `1px solid ${eligible ? "rgba(123,79,212,0.6)" : "rgba(123,79,212,0.25)"}`,
-            color: eligible ? "white" : "rgba(255,255,255,0.5)",
+            border: `1px solid ${eligible && !needsProfile ? "rgba(123,79,212,0.6)" : "rgba(123,79,212,0.25)"}`,
+            color: eligible && !needsProfile ? "white" : "rgba(255,255,255,0.5)",
             fontFamily: "ui-monospace, monospace", fontSize: 12, fontWeight: 700,
             letterSpacing: "0.1em", textTransform: "uppercase" as const,
-            cursor: !eligible || mintState === "minting" ? "not-allowed" : "pointer",
+            cursor: !eligible || mintState === "minting" || needsProfile ? "not-allowed" : "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             transition: "all 0.2s",
-            boxShadow: eligible && mintState === "idle" ? "0 4px 20px rgba(123,79,212,0.35)" : "none",
+            boxShadow: eligible && mintState === "idle" && !needsProfile ? "0 4px 20px rgba(123,79,212,0.35)" : "none",
           }}
         >
           {mintState === "minting" ? (

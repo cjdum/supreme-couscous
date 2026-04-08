@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Wrench, Zap, Award, Plus } from "lucide-react";
+import { Wrench, Zap, Award, Plus, GalleryHorizontal } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { AddCarButton } from "@/components/garage/add-car-button";
@@ -244,6 +244,80 @@ export default async function GaragePage() {
             </Link>
           </div>
         </section>
+
+        {/* ── Mint a Card CTA ── */}
+        {(() => {
+          const primaryCardCount = cardsByCarId.get(primaryCar.id)?.length ?? 0;
+          return (
+            <section className="mt-10">
+              <div className="rounded-2xl overflow-hidden"
+                style={{
+                  background: "linear-gradient(135deg, rgba(123,79,212,0.12) 0%, rgba(168,85,247,0.08) 100%)",
+                  border: "1px solid rgba(123,79,212,0.28)",
+                  boxShadow: "0 0 32px rgba(123,79,212,0.12)",
+                  padding: "20px 24px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+                    background: "rgba(123,79,212,0.2)", border: "1px solid rgba(123,79,212,0.4)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <GalleryHorizontal size={20} style={{ color: "#a855f7" }} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black" style={{ color: "rgba(240,230,255,0.92)" }}>
+                      {primaryCardCount === 0 ? "Mint your first card" : "Mint another card"}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: "rgba(160,140,200,0.6)" }}>
+                      {primaryCardCount === 0
+                        ? "Capture this moment — a permanent snapshot of your build."
+                        : `You have ${primaryCardCount} ${primaryCardCount === 1 ? "card" : "cards"} for your primary car. Each one is a permanent snapshot.`}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Link
+                    href={`/garage/${primaryCar.id}`}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 8,
+                      padding: "10px 20px", borderRadius: 12,
+                      background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+                      border: "1px solid rgba(123,79,212,0.6)",
+                      color: "white", fontFamily: "ui-monospace, monospace",
+                      fontSize: 12, fontWeight: 700, letterSpacing: "0.08em",
+                      textTransform: "uppercase", textDecoration: "none",
+                      boxShadow: "0 4px 20px rgba(123,79,212,0.4)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <GalleryHorizontal size={13} />
+                    Mint a Card
+                  </Link>
+                  {primaryCardCount > 0 && (
+                    <Link
+                      href="/cards"
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "10px 16px", borderRadius: 12,
+                        background: "rgba(123,79,212,0.1)",
+                        border: "1px solid rgba(123,79,212,0.25)",
+                        color: "rgba(200,180,240,0.7)", fontFamily: "ui-monospace, monospace",
+                        fontSize: 11, fontWeight: 700, letterSpacing: "0.08em",
+                        textDecoration: "none", whiteSpace: "nowrap",
+                      }}
+                    >
+                      View all
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </section>
+          );
+        })()}
 
         {/* ── Other vehicles rail ── */}
         {otherCars.length > 0 && (

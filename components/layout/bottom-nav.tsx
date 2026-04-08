@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Car, Sparkles, BarChart2, MessageSquare, Zap } from "lucide-react";
+import { Car, GalleryHorizontal, BarChart2, MessageSquare, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/garage", icon: Car, label: "Garage" },
+  { href: "/cards", icon: GalleryHorizontal, label: "Cards" },
   { href: "/visualizer", icon: Zap, label: "Render" },
   { href: "/chat", icon: MessageSquare, label: "AI" },
-  { href: "/forum", icon: Sparkles, label: "Forum" },
   { href: "/stats", icon: BarChart2, label: "Stats" },
 ];
 

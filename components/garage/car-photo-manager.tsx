@@ -126,7 +126,7 @@ export function CarPhotoManager({ carId, currentPhotoUrl }: CarPhotoManagerProps
       <input
         ref={fileRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/*"
         className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
       />
