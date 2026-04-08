@@ -247,30 +247,24 @@ Return only the 3-word name. Nothing else.`,
       color:  colorLabel,
     });
 
-    // Prompt built exclusively from DB fields — make/model/year/color/trim.
-    // First sentence follows the exact format required by the product spec.
-    const pixelPrompt = `Pixel art trading card illustration of a ${car.year} ${car.make} ${car.model}${trimLabel ? " " + trimLabel : ""}, exterior color ${colorLabel}.
-
-View: 3/4 front driver side view. The car fills 85% of the frame. Silhouette is accurate to the actual ${car.year} ${car.make} ${car.model}.
-
-Style: True retro SNES-era pixel art. Hard chunky pixels. No anti-aliasing. No blur. No smooth gradients. Max 32 colors. Every pixel must be clearly blocky and visible. NOT photorealistic, NOT smooth, NOT rendered.
-
-Color: Paint the car exactly "${colorLabel}". Use the literal color name from the database. Do not substitute with poetic synonyms.
-
-Background: Solid flat dark color #0a0a18. No ground shadows. No gradient sky.
-
-No text, letters, numbers, labels, badges, or watermarks anywhere in the image. No logos. No license plates. No card borders. Only the car sprite.`;
+    // Short, forceful prompt — DALL-E 2 responds much better to tight visual
+    // instructions than verbose style essays. Every sentence is a direct
+    // visual rule.
+    const pixelPrompt = `Pixel art sprite of a ${car.year} ${car.make} ${car.model}. Retro 16-bit video game style. Hard square pixels, no anti-aliasing, no blur, no gradients. Car body color: ${colorLabel}. 3/4 front angle. Car fills the frame. Flat dark background #0a0a18. No text, no logos, no license plates. Chunky blocky pixels only. Style reference: Super Nintendo racing game car sprite.`;
 
     // DEBUG: log the full prompt being sent to the image API
     console.log("[cards] image prompt:\n" + pixelPrompt);
 
+    // DEBUG: confirm which model/size is actually firing
+    const imageModel = "dall-e-2";
+    const imageSize  = "512x512" as const;
+    console.log(`[cards] image API call → model=${imageModel} size=${imageSize}`);
+
     const imageResponse = await openai.images.generate({
-      model: "dall-e-3",
+      model: imageModel,
       prompt: pixelPrompt,
       n: 1,
-      size: "1024x1024",
-      quality: "hd",
-      style: "vivid",
+      size: imageSize,
       response_format: "b64_json",
     });
 
