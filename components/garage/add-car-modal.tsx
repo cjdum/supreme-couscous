@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Camera, Upload, X, Check } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { Toggle } from "@/components/ui/toggle";
 import { Autocomplete } from "@/components/ui/autocomplete";
 import { createClient } from "@/lib/supabase/client";
@@ -19,7 +19,6 @@ interface AddCarModalProps {
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: CURRENT_YEAR - 1884 }, (_, i) => CURRENT_YEAR + 1 - i);
 
 type EntryTab = "manual" | "vin";
 type ModalStep = "details" | "photo";
@@ -293,11 +292,18 @@ export function AddCarModal({ open, onClose }: AddCarModalProps) {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Select
+                <Input
                   label="Year"
-                  value={String(form.year ?? CURRENT_YEAR)}
-                  onChange={(e) => setField("year", parseInt(e.target.value))}
-                  options={YEARS.filter((y) => y >= 1980).map((y) => ({ value: String(y), label: String(y) }))}
+                  type="number"
+                  min={1885}
+                  max={2030}
+                  value={form.year != null ? String(form.year) : ""}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    setField("year", isNaN(v) ? CURRENT_YEAR : v);
+                  }}
+                  placeholder="e.g. 2024"
+                  error={errors.year}
                 />
                 <Input
                   label="Trim"

@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Sliders, Edit2, Share2, Star, Zap, Camera } from "lucide-react";
+import { ChevronRight, Edit2, Share2, Star, Zap, Camera } from "lucide-react";
 import { EditCarModal } from "./edit-car-modal";
 import { CarShareCard } from "./car-share-card";
-import { ModConfiguratorPanel } from "./mod-configurator-panel";
 import type { Car, ModCategory } from "@/lib/supabase/types";
 
 interface GarageHeroProps {
@@ -46,7 +45,6 @@ export function GarageHero({
 }: GarageHeroProps) {
   const [editing, setEditing] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [customizing, setCustomizing] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [scrollY, setScrollY] = useState(0);
 
@@ -173,16 +171,16 @@ export function GarageHero({
           </div>
         )}
 
-        {/* Bottom row: car info (left) + Customize (right) */}
+        {/* Bottom row: car info */}
         {heroImage && (
           <div
-            className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 lg:px-12 pb-8 sm:pb-10 z-10 flex items-end justify-between gap-4 transition-all duration-700 ease-out"
+            className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 lg:px-12 pb-8 sm:pb-10 z-10 transition-all duration-700 ease-out"
             style={{
               opacity: mounted ? 1 : 0,
               transform: mounted ? "translateY(0)" : "translateY(20px)",
             }}
           >
-            <div className="min-w-0 flex-1 max-w-3xl">
+            <div className="min-w-0 max-w-3xl">
               {car.nickname && (
                 <p className="text-[11px] sm:text-xs font-bold text-[#60A5FA] mb-2 tracking-[0.25em] uppercase truncate">
                   {car.nickname}
@@ -205,16 +203,6 @@ export function GarageHero({
                 </p>
               )}
             </div>
-
-            <button
-              type="button"
-              onClick={() => setCustomizing(true)}
-              className="inline-flex items-center gap-2 px-5 sm:px-6 min-h-[44px] py-3 sm:py-3.5 rounded-full bg-white text-black text-xs sm:text-sm font-bold hover:bg-white/90 transition-all active:scale-95 shadow-[0_8px_32px_rgba(255,255,255,0.18)] flex-shrink-0 cursor-pointer whitespace-nowrap"
-              aria-label={`Customize ${carName}`}
-            >
-              <Sliders size={14} />
-              Customize
-            </button>
           </div>
         )}
       </div>
@@ -237,14 +225,6 @@ export function GarageHero({
             topMods,
             username,
           }}
-        />
-      )}
-      {customizing && (
-        <ModConfiguratorPanel
-          open={customizing}
-          onClose={() => setCustomizing(false)}
-          carId={car.id}
-          carName={carName}
         />
       )}
     </>

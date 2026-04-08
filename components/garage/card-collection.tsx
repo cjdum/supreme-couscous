@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { CardViewerModal } from "./card-viewer-modal";
 import { ERA_COLORS, safeEra } from "@/lib/pixel-card";
@@ -24,6 +24,8 @@ interface ViewState {
 
 export function CardCollection({ cards, carLabels, hideSectionHeader = false }: CardCollectionProps) {
   const [view, setView] = useState<ViewState | null>(null);
+  // Refs for each car's scroll container (keyed by car key)
+  const scrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Group cards by car_id, maintain a stable car order (first appearance, sorted by oldest mint)
   const { groups, carOrder } = useMemo(() => {
@@ -103,6 +105,9 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
         )}
 
         {/* ── Cards grouped by car, each with a section header ─────────── */}
+        <style>{`
+          .cc-scroll::-webkit-scrollbar { display: none; }
+        `}</style>
         <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
           {carOrder.map((key) => {
             const group = groups.get(key)!;
@@ -113,12 +118,16 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
             const carLabel = (sample.car_id && carLabels[sample.car_id]) || `${snap.year} ${snap.make} ${snap.model}`;
             const totalEditions = group.length;
 
+            function scrollBy(dir: 1 | -1) {
+              const el = scrollRefs.current.get(key);
+              if (!el) return;
+              el.scrollBy({ left: dir * 200, behavior: "smooth" });
+            }
+
             return (
               <div key={key}>
-                {/* Car section header — uses CSS vars so it works in light mode too */}
-                <div
-                  className="flex items-center justify-between pb-2 mb-4 border-b border-[rgba(123,79,212,0.22)]"
-                >
+                {/* Car section header */}
+                <div className="flex items-center justify-between pb-2 mb-4 border-b border-[rgba(123,79,212,0.22)]">
                   <div>
                     <h3
                       className="text-[var(--color-text-primary)] m-0"
@@ -133,17 +142,56 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                       {totalEditions} {totalEditions === 1 ? "card" : "cards"}
                     </p>
                   </div>
+                  {/* Arrow controls (only when more than ~2 cards) */}
+                  {totalEditions > 2 && (
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button
+                        onClick={() => scrollBy(-1)}
+                        aria-label="Scroll left"
+                        style={{
+                          width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(123,79,212,0.3)",
+                          background: "rgba(123,79,212,0.08)", color: "rgba(200,180,240,0.7)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <button
+                        onClick={() => scrollBy(1)}
+                        aria-label="Scroll right"
+                        style={{
+                          width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(123,79,212,0.3)",
+                          background: "rgba(123,79,212,0.08)", color: "rgba(200,180,240,0.7)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Cards horizontal scroll for this car */}
                 <div
+                  ref={(el) => {
+                    if (el) scrollRefs.current.set(key, el);
+                    else scrollRefs.current.delete(key);
+                  }}
+                  className="cc-scroll"
+                  onWheel={(e) => {
+                    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                      e.currentTarget.scrollBy({ left: e.deltaY, behavior: "auto" });
+                    }
+                  }}
                   style={{
                     display: "flex",
                     gap: "1.5rem",
                     overflowX: "auto",
                     paddingBottom: "0.75rem",
                     WebkitOverflowScrolling: "touch",
-                    scrollbarWidth: "thin",
+                    scrollbarWidth: "none",
                   }}
                 >
                   {displayGroup.map((card) => {

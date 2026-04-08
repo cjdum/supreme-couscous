@@ -172,7 +172,6 @@ export default async function GaragePage() {
           carCount={cars.length}
           totalMods={totalMods}
           totalInvested={totalInvested}
-          breakdown={buildScore.breakdown}
         />
 
         {/* ── Build Timeline (primary car) ── */}
@@ -337,7 +336,6 @@ export default async function GaragePage() {
         )}
       </PageContainer>
 
-      <AddCarButton fab />
     </div>
   );
 }

@@ -138,7 +138,7 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
           position: "fixed",
           inset: 0,
           zIndex: 9999,
-          background: "rgba(4,4,12,0.97)",
+          background: "#000",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -147,7 +147,6 @@ export function CardRevealCeremony({ card, carLabel, onComplete }: CardRevealCer
           transition: "opacity 0.4s ease",
           opacity: overlayVisible ? 1 : 0,
           pointerEvents: overlayVisible ? "auto" : "none",
-          backdropFilter: "blur(10px)",
         }}
       >
         {/* ── Card pack ─────────────────────────────────────────────────── */}

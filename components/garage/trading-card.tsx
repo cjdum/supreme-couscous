@@ -51,14 +51,6 @@ const PIXEL_TEXTURE = [
   "repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 4px)",
 ].join(", ");
 
-// Short one-line era descriptions for the back-of-card footer.
-const ERA_SHORT: Record<string, string> = {
-  Dawn:   "The birth of car culture. Raw machines, open roads.",
-  Chrome: "Polished age of chrome & tailfins. Style over all.",
-  Turbo:  "Forced induction. Power, boost, wastegate song.",
-  Neon:   "The digital era. Underglow, ECU, night streets.",
-  Apex:   "The pinnacle. Track-focused. Lap times are sacred.",
-};
 
 function fmt(n: number): string {
   return String(n).padStart(4, "0");
@@ -319,7 +311,7 @@ export function TradingCard({
                 height: ART_H, flexShrink: 0, position: "relative",
                 background: "rgba(5,5,12,0.65)",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                overflow: "hidden",
+                overflow: "visible",
               }}>
                 <div style={{ position: "absolute", inset: 0, background: `radial-gradient(ellipse at 50% 65%, ${eraStyle.glow} 0%, transparent 68%)`, pointerEvents: "none" }} />
                 {/* 2px era-colored border around the pixel art image */}
@@ -431,7 +423,7 @@ export function TradingCard({
               </div>
             </div>
 
-            {/* ══════════ BACK FACE ═══════════════════════════════════ */}
+            {/* ══════════ BACK FACE — MODVAULT branding only ══════════ */}
             <div style={{
               position: "absolute",
               inset: 0,
@@ -441,184 +433,98 @@ export function TradingCard({
               borderRadius: 14,
               border: `2px solid ${eraStyle.border}`,
               boxShadow: `0 0 22px ${eraStyle.glow}, 0 10px 36px rgba(0,0,0,0.75)`,
-              // Solid opaque base first — prevents bleed-through on flip
               backgroundColor: "#0b0b14",
-              backgroundImage: `${PIXEL_TEXTURE}, radial-gradient(ellipse at 50% 20%, ${eraStyle.bg} 0%, transparent 60%), linear-gradient(158deg, #0a0a18 0%, #0f0d1c 55%, #090910 100%)`,
-              display: "flex", flexDirection: "column", overflow: "hidden",
+              backgroundImage: [
+                "radial-gradient(circle, rgba(123,79,212,0.12) 1px, transparent 1px)",
+                `radial-gradient(ellipse at 50% 50%, ${eraStyle.bg} 0%, transparent 65%)`,
+                "linear-gradient(158deg, #0a0a18 0%, #0f0d1c 55%, #090910 100%)",
+              ].join(", "),
+              backgroundSize: "18px 18px, 100% 100%, 100% 100%",
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              overflow: "hidden",
             }}>
-              {/* Decorative pixel border — inset 6px from outer border */}
+              {/* Decorative era borders */}
               <div aria-hidden="true" style={{
-                position: "absolute",
-                inset: 6,
-                border: `1px dashed ${eraStyle.border}`,
-                borderRadius: 10,
-                pointerEvents: "none",
-              }} />
-              <div aria-hidden="true" style={{
-                position: "absolute",
-                inset: 9,
+                position: "absolute", inset: 6,
                 border: `1px solid ${eraStyle.border}`,
-                borderRadius: 8,
-                opacity: 0.45,
-                pointerEvents: "none",
+                borderRadius: 10, opacity: 0.55, pointerEvents: "none",
+              }} />
+              <div aria-hidden="true" style={{
+                position: "absolute", inset: 10,
+                border: `1px dashed ${eraStyle.border}`,
+                borderRadius: 7, opacity: 0.28, pointerEvents: "none",
               }} />
 
-              {/* Top: car make/model/year centered, prominent */}
+              {/* Centered MODVAULT wordmark + logo */}
               <div style={{
-                padding: "18px 16px 8px",
-                textAlign: "center",
-                flexShrink: 0,
-                position: "relative",
-                zIndex: 2,
-              }}>
-                {yearStr && (
-                  <p style={{
-                    fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 700,
-                    color: "rgba(200,180,240,0.45)", letterSpacing: "0.28em",
-                    margin: 0, textTransform: "uppercase",
-                  }}>
-                    {yearStr}
-                  </p>
-                )}
-                <p style={{
-                  fontFamily: "ui-monospace, monospace", fontSize: 14, fontWeight: 900,
-                  color: eraStyle.text, letterSpacing: "0.1em",
-                  margin: "2px 0 0", textTransform: "uppercase",
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  padding: "0 8px",
-                }}>
-                  {nameStr}
-                </p>
-              </div>
-
-              {/* Edition # + mint date row */}
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                padding: "0 16px 6px", flexShrink: 0, position: "relative", zIndex: 2,
-                flexWrap: "wrap",
-              }}>
-                {cardNumber != null && (
-                  <div style={{
-                    padding: "3px 10px", borderRadius: 6,
-                    background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
-                    fontFamily: "ui-monospace, monospace", fontSize: 11, fontWeight: 900,
-                    color: eraStyle.text, letterSpacing: "0.15em",
-                  }}>
-                    #{fmt(cardNumber)}
-                  </div>
-                )}
-                <span style={{
-                  fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700,
-                  color: "rgba(200,180,240,0.55)", letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                }}>
-                  {mintDate}
-                </span>
-              </div>
-
-              {/* Occasion pill */}
-              {occasion && (
-                <div style={{
-                  margin: "0 14px 6px", flexShrink: 0, position: "relative", zIndex: 2,
-                  padding: "5px 10px", borderRadius: 20,
-                  background: `${eraStyle.bg}`, border: `1px solid ${eraStyle.border}`,
-                  boxShadow: `0 0 8px ${eraStyle.glow}`,
-                }}>
-                  <p style={{
-                    fontFamily: "ui-monospace, monospace", fontSize: 8, fontStyle: "italic",
-                    color: eraStyle.text, textAlign: "center", letterSpacing: "0.04em",
-                    margin: 0, lineHeight: 1.4,
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>
-                    &ldquo;{occasion}&rdquo;
-                  </p>
-                </div>
-              )}
-
-              {/* Mod list (with cost) — fills available space */}
-              <div style={{
-                flex: 1, width: "100%",
-                padding: "4px 18px 4px",
-                overflow: "hidden",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
                 position: "relative", zIndex: 2,
               }}>
-                {(modsDetail && modsDetail.length > 0) || mods.length > 0 ? (
-                  <>
-                    <p style={{
-                      fontFamily: "ui-monospace, monospace", fontSize: 6, fontWeight: 700,
-                      letterSpacing: "0.2em", color: "rgba(160,140,200,0.5)",
-                      textTransform: "uppercase" as const, marginBottom: 3, textAlign: "center",
-                    }}>
-                      ── Mods at mint ──
-                    </p>
-                    <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
-                      {(modsDetail ?? mods.map((name) => ({ name, cost: null as number | null }))).slice(0, 9).map((m, i) => (
-                        <li key={i} style={{
-                          fontFamily: "ui-monospace, monospace", fontSize: 7,
-                          color: "rgba(220,205,250,0.78)", lineHeight: 1.7,
-                          display: "flex", gap: 4, alignItems: "baseline",
-                        }}>
-                          <span style={{ color: eraStyle.text, flexShrink: 0, fontWeight: 900 }}>·</span>
-                          <span style={{
-                            flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const,
-                          }}>
-                            {m.name}
-                          </span>
-                          {m.cost != null && m.cost > 0 && (
-                            <span style={{
-                              color: "rgba(245,215,110,0.7)", flexShrink: 0,
-                              fontFamily: "ui-monospace, monospace", fontSize: 6, fontWeight: 700,
-                            }}>
-                              ${m.cost >= 1000 ? (m.cost / 1000).toFixed(1) + "k" : m.cost}
-                            </span>
-                          )}
-                        </li>
-                      ))}
-                      {((modsDetail?.length ?? mods.length) > 9) && (
-                        <li style={{
-                          fontFamily: "ui-monospace, monospace", fontSize: 6,
-                          color: "rgba(200,185,230,0.35)", fontStyle: "italic",
-                          marginTop: 2, textAlign: "center",
-                        }}>
-                          +{(modsDetail?.length ?? mods.length) - 9} more
-                        </li>
-                      )}
-                    </ul>
-                  </>
-                ) : (
+                {/* Car icon */}
+                <div style={{
+                  width: 52, height: 52, borderRadius: 14,
+                  background: "rgba(123,79,212,0.18)",
+                  border: `1px solid ${eraStyle.border}`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: `0 0 16px ${eraStyle.glow}`,
+                }}>
+                  <svg width="24" height="24" viewBox="0 0 14 14" fill="none">
+                    <path d="M2 9l2-5h6l2 5H2z" stroke={eraStyle.text} strokeWidth="1.5" strokeLinejoin="round" />
+                    <circle cx="4.5" cy="10" r="1" fill={eraStyle.text} />
+                    <circle cx="9.5" cy="10" r="1" fill={eraStyle.text} />
+                  </svg>
+                </div>
+
+                {/* Wordmark */}
+                <div style={{ textAlign: "center" }}>
                   <p style={{
-                    fontFamily: "ui-monospace, monospace", fontSize: 8,
-                    color: "rgba(200,185,230,0.3)", fontStyle: "italic",
-                    textAlign: "center", marginTop: 14,
+                    fontFamily: "ui-monospace, monospace", fontSize: 14, fontWeight: 900,
+                    letterSpacing: "0.28em", textTransform: "uppercase",
+                    color: eraStyle.text, margin: "0 0 3px",
                   }}>
-                    ── Stock build ──
+                    MODVAULT
+                  </p>
+                  <p style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 700,
+                    letterSpacing: "0.2em", textTransform: "uppercase",
+                    color: "rgba(160,140,200,0.5)", margin: 0,
+                  }}>
+                    PIXEL CARD
+                  </p>
+                </div>
+
+                {/* Era indicator */}
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "3px 12px", borderRadius: 20,
+                  background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
+                  boxShadow: `0 0 8px ${eraStyle.glow}`,
+                  marginTop: 2,
+                }}>
+                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: eraStyle.text }} />
+                  <span style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900,
+                    letterSpacing: "0.2em", textTransform: "uppercase" as const,
+                    color: eraStyle.text,
+                  }}>
+                    {era} Era
+                  </span>
+                </div>
+
+                {/* Card number */}
+                {cardNumber != null && (
+                  <p style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 700,
+                    color: "rgba(200,180,240,0.4)", letterSpacing: "0.15em",
+                    margin: "2px 0 0",
+                  }}>
+                    #{fmt(cardNumber)}
                   </p>
                 )}
               </div>
 
-              {/* Bottom: era name + one-line description */}
-              <div style={{
-                padding: "6px 16px 8px", flexShrink: 0, position: "relative", zIndex: 2,
-                borderTop: `1px solid ${eraStyle.border}`,
-                background: `linear-gradient(180deg, transparent 0%, ${eraStyle.bg} 100%)`,
-              }}>
-                <p style={{
-                  fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900,
-                  color: eraStyle.text, letterSpacing: "0.22em", textTransform: "uppercase",
-                  margin: "0 0 2px", textAlign: "center",
-                }}>
-                  {era} ERA
-                </p>
-                <p style={{
-                  fontFamily: "ui-monospace, monospace", fontSize: 6,
-                  color: "rgba(200,185,230,0.55)", letterSpacing: "0.04em",
-                  margin: 0, textAlign: "center", lineHeight: 1.4,
-                }}>
-                  {ERA_SHORT[era]}
-                </p>
-              </div>
-
-              {/* Invisible flip-back button covers the whole back to allow tap-to-flip */}
+              {/* Invisible flip-back button — tap anywhere to flip back */}
               {interactive && (
                 <button
                   onClick={(e) => { e.stopPropagation(); doFlip(false); }}

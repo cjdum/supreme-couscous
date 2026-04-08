@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { Award, ChevronDown, Plus } from "lucide-react";
+import { Award } from "lucide-react";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { formatCurrency } from "@/lib/utils";
-import type { ScoreBreakdownItem } from "@/lib/build-score";
 
 interface GarageStatsProps {
   buildScore: number;
@@ -17,7 +15,6 @@ interface GarageStatsProps {
   carCount: number;
   totalMods: number;
   totalInvested: number;
-  breakdown?: ScoreBreakdownItem[];
 }
 
 export function GarageStats({
@@ -30,10 +27,7 @@ export function GarageStats({
   carCount,
   totalMods,
   totalInvested,
-  breakdown = [],
 }: GarageStatsProps) {
-  const [showBreakdown, setShowBreakdown] = useState(false);
-  const hasBreakdown = breakdown.length > 0;
   return (
     <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] shadow-[0_8px_32px_rgba(0,0,0,0.4)] overflow-hidden">
       {/* ── Single condensed strip: score | divider | 3 stat cells ── */}
@@ -93,43 +87,6 @@ export function GarageStats({
         </div>
       </div>
 
-      {/* ── Positive breakdown drawer ── */}
-      {hasBreakdown && (
-        <div className="border-t border-[var(--color-border)]">
-          <button
-            type="button"
-            onClick={() => setShowBreakdown((v) => !v)}
-            className="w-full flex items-center justify-between px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer"
-            aria-expanded={showBreakdown}
-          >
-            <span>How you earned it</span>
-            <ChevronDown
-              size={12}
-              className="transition-transform"
-              style={{ transform: showBreakdown ? "rotate(180deg)" : "rotate(0deg)" }}
-            />
-          </button>
-          {showBreakdown && (
-            <ul className="px-5 pb-4 grid gap-1.5 sm:grid-cols-2 animate-fade">
-              {breakdown.map((item, i) => (
-                <li
-                  key={i}
-                  className="flex items-center justify-between gap-3 text-[11px]"
-                >
-                  <span className="text-[var(--color-text-secondary)] truncate">{item.label}</span>
-                  <span
-                    className="flex items-center gap-0.5 font-bold tabular shrink-0"
-                    style={{ color: levelColor }}
-                  >
-                    <Plus size={9} strokeWidth={3} />
-                    {item.points}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -30,7 +30,7 @@ export default async function DashboardLayout({
       <TopBar username={profile?.username} />
       <SidebarNav username={profile?.username} />
       <main
-        className="pt-16 lg:pt-0 lg:pl-64 animate-fade pb-[max(88px,calc(env(safe-area-inset-bottom)+76px))] lg:pb-8"
+        className="pt-16 lg:pt-0 lg:pl-14 animate-fade pb-[max(88px,calc(env(safe-area-inset-bottom)+76px))] lg:pb-8"
       >
         {children}
       </main>
