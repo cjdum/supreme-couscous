@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Wrench, Zap, Award, GalleryHorizontal, MessageSquare, BarChart2, Sparkles } from "lucide-react";
+import { Wrench, Award, GalleryHorizontal, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { AddCarButton } from "@/components/garage/add-car-button";
@@ -7,7 +7,6 @@ import { GarageHero } from "@/components/garage/garage-hero";
 import { CarsRail } from "@/components/garage/cars-rail";
 import { BuildTimeline } from "@/components/garage/build-timeline";
 import { PageContainer } from "@/components/ui/page-container";
-import { RoastMyBuild } from "@/components/garage/roast-my-build";
 import { TradingCard } from "@/components/garage/trading-card";
 import { QuickStatsWidget } from "@/components/garage/quick-stats-widget";
 import { calculateBuildScore } from "@/lib/build-score";
@@ -228,51 +227,29 @@ export default async function GaragePage() {
               </div>
             </div>
           ) : (
-            /* No card yet — prominent mint CTA */
-            <div className="flex flex-col items-center gap-5">
-              <div
-                style={{
-                  width: 280, height: 368,
-                  borderRadius: 14,
-                  background: "linear-gradient(158deg, rgba(123,79,212,0.12) 0%, rgba(168,85,247,0.08) 100%)",
-                  border: "2px dashed rgba(123,79,212,0.35)",
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  gap: 12,
-                }}
-              >
-                <div
-                  style={{
-                    width: 56, height: 56, borderRadius: 16,
-                    background: "rgba(123,79,212,0.18)", border: "1px solid rgba(123,79,212,0.35)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}
-                >
-                  <Sparkles size={24} style={{ color: "#a855f7" }} />
-                </div>
-                <div style={{ textAlign: "center", padding: "0 24px" }}>
-                  <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 12, fontWeight: 900, color: "rgba(240,230,255,0.8)", letterSpacing: "0.06em", margin: "0 0 6px" }}>
-                    No card yet
-                  </p>
-                  <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, color: "rgba(160,140,200,0.5)", letterSpacing: "0.04em", lineHeight: 1.5, margin: 0 }}>
-                    Mint your first card to freeze this build forever
-                  </p>
-                </div>
-              </div>
+            /* No card yet — quiet nudge */
+            <div
+              style={{
+                width: 280, height: 240,
+                borderRadius: 14,
+                background: "linear-gradient(158deg, rgba(123,79,212,0.08) 0%, rgba(168,85,247,0.05) 100%)",
+                border: "1px dashed rgba(123,79,212,0.25)",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 10, margin: "0 auto",
+              }}
+            >
+              <GalleryHorizontal size={24} style={{ color: "rgba(168,85,247,0.35)" }} />
+              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, color: "rgba(200,180,240,0.5)", letterSpacing: "0.06em", textAlign: "center", margin: 0 }}>
+                No cards yet
+              </p>
               <Link
-                href={`/garage/${primaryCar.id}?action=mint`}
+                href="/mint"
                 style={{
-                  display: "inline-flex", alignItems: "center", gap: 8,
-                  padding: "12px 24px", borderRadius: 14,
-                  background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-                  border: "1px solid rgba(168,85,247,0.5)",
-                  color: "#fff", textDecoration: "none",
-                  fontFamily: "ui-monospace, monospace", fontSize: 12, fontWeight: 700,
-                  letterSpacing: "0.08em", textTransform: "uppercase",
-                  boxShadow: "0 4px 24px rgba(123,79,212,0.4)",
+                  fontFamily: "ui-monospace, monospace", fontSize: 10, fontWeight: 700,
+                  color: "rgba(168,85,247,0.6)", textDecoration: "none", letterSpacing: "0.08em",
                 }}
               >
-                <Sparkles size={14} />
-                Mint Your First Card
+                Go to Mint →
               </Link>
             </div>
           )}
@@ -305,28 +282,6 @@ export default async function GaragePage() {
             {/* Quick Actions */}
             <div className="grid grid-cols-2 gap-3 content-start">
               <Link
-                href={`/garage/${primaryCar.id}?action=mint`}
-                className="col-span-2 rounded-2xl p-5 flex items-center justify-between active:scale-[0.98] transition-all group"
-                style={{
-                  background: "linear-gradient(135deg, #5a2da0 0%, #7b4fd4 50%, #a855f7 100%)",
-                  border: "1px solid rgba(168,85,247,0.5)",
-                  boxShadow: "0 4px 24px rgba(123,79,212,0.35)",
-                }}
-              >
-                <div>
-                  <p className="text-sm font-bold text-white">
-                    {primaryCardCount === 0 ? "Mint a Card" : "Mint Another Card"}
-                  </p>
-                  <p className="text-[11px] text-white/70 mt-0.5">
-                    {primaryCardCount === 0
-                      ? "Freeze this build forever"
-                      : `${primaryCardCount} card${primaryCardCount !== 1 ? "s" : ""} minted`}
-                  </p>
-                </div>
-                <GalleryHorizontal size={22} className="text-white/80 group-hover:scale-110 transition-transform flex-shrink-0" />
-              </Link>
-
-              <Link
                 href={`/garage/${primaryCar.id}#mods`}
                 className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
               >
@@ -349,47 +304,18 @@ export default async function GaragePage() {
               </Link>
 
               <Link
-                href={`/visualizer?carId=${primaryCar.id}`}
-                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-              >
-                <div>
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">AI Render</p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Visualize mods</p>
-                </div>
-                <Zap size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
-              </Link>
-
-              <Link
                 href="/cards"
-                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+                className="col-span-2 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
               >
                 <div>
                   <p className="text-sm font-bold text-[var(--color-text-primary)]">My Cards</p>
                   <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
-                    {userCards.length} minted
+                    {userCards.length === 0 ? "None minted yet — go to Mint" : `${userCards.length} minted`}
                   </p>
                 </div>
                 <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
               </Link>
-
-              <Link
-                href="/stats"
-                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-              >
-                <div>
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Stats</p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Build insights</p>
-                </div>
-                <BarChart2 size={20} className="text-[var(--color-accent-bright)] group-hover:scale-110 transition-transform flex-shrink-0" />
-              </Link>
             </div>
-          </div>
-
-          <div className="mt-4 flex justify-end">
-            <RoastMyBuild
-              carId={primaryCar.id}
-              carLabel={primaryCarLabel}
-            />
           </div>
         </section>
 

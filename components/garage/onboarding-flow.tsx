@@ -4,13 +4,12 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, ChevronRight, Check, Upload, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/input";
+import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { carSchema, type CarInput } from "@/lib/validations";
 import { sanitize } from "@/lib/utils";
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: CURRENT_YEAR - 1884 }, (_, i) => CURRENT_YEAR + 1 - i);
 
 type Step = 1 | 2 | 3;
 
@@ -206,11 +205,18 @@ export function OnboardingFlow() {
 
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <Select
+                <Input
                   label="Year"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={String(form.year ?? CURRENT_YEAR)}
-                  onChange={(e) => setField("year", parseInt(e.target.value))}
-                  options={YEARS.map((y) => ({ value: String(y), label: String(y) }))}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value.replace(/\D/g, ""));
+                    setField("year", isNaN(v) ? CURRENT_YEAR : v);
+                  }}
+                  placeholder={String(CURRENT_YEAR)}
+                  error={errors.year}
                 />
                 <Input
                   label="Make"

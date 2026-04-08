@@ -136,10 +136,10 @@ export function EditCarModal({ open, onClose, car, cardCount = 0 }: EditCarModal
   }
 
   function handleSave() {
-    // Block only when 2+ identity fields change simultaneously — looks like a different car.
+    // Show hint when 2+ identity fields change, but never block — user can always save.
     if (identityDelta >= 2 && !identityWarning) {
       setIdentityWarning(true);
-      return;
+      // Still proceed with save after showing the suggestion
     }
     persistSave();
   }
@@ -171,32 +171,21 @@ export function EditCarModal({ open, onClose, car, cardCount = 0 }: EditCarModal
           </div>
         )}
 
-        {/* ── Identity block (2+ core fields changed — looks like a different car) */}
+        {/* ── Identity hint (2+ core fields changed — soft suggestion only, never blocks) */}
         {identityWarning && (
-          <div className="rounded-xl border border-[rgba(255,59,48,0.4)] bg-[rgba(255,59,48,0.06)] p-4 space-y-3">
-            <div className="flex items-start gap-2">
-              <AlertTriangle size={14} className="text-[var(--color-danger)] flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-white">This looks like a different car</p>
-                <p className="text-[11px] text-[var(--color-text-secondary)] mt-1">
-                  You&rsquo;ve changed {identityDelta} of the core identity fields (make, model, year).
-                  Would you like to add a new car instead?
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setIdentityWarning(false)}
-                className="flex-1 h-9 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-secondary)] cursor-pointer hover:border-[var(--color-border-bright)] transition-colors"
-              >
-                Keep editing
-              </button>
-              <button
-                onClick={() => { onClose(); router.push("/garage"); }}
-                className="flex-1 h-9 rounded-lg bg-[var(--color-accent)] text-white text-xs font-bold cursor-pointer hover:brightness-110 transition-all flex items-center justify-center gap-1.5"
-              >
-                Add new car
-              </button>
+          <div className="rounded-xl border border-[rgba(255,190,0,0.3)] bg-[rgba(255,190,0,0.05)] p-3.5 flex items-start gap-2.5">
+            <AlertTriangle size={13} className="text-[#fbbf24] flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-[var(--color-text-secondary)]">
+                Looks like a different car — consider{" "}
+                <button
+                  onClick={() => { onClose(); router.push("/garage"); }}
+                  className="text-[var(--color-accent-bright)] underline underline-offset-2 cursor-pointer"
+                >
+                  adding a new one
+                </button>{" "}
+                instead.
+              </p>
             </div>
           </div>
         )}
@@ -230,13 +219,13 @@ export function EditCarModal({ open, onClose, car, cardCount = 0 }: EditCarModal
           <div className="relative">
             <Input
               label="Year"
-              type="number"
-              min={1885}
-              max={2030}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={String(form.year)}
               onChange={(e) => {
                 if (!vinLocked) {
-                  const v = parseInt(e.target.value);
+                  const v = parseInt(e.target.value.replace(/\D/g, ""));
                   setForm((f) => ({ ...f, year: isNaN(v) ? CURRENT_YEAR : v }));
                 }
               }}

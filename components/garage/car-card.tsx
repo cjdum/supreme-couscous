@@ -206,14 +206,28 @@ export function CarCard({
             <p className="text-[11px] text-white/35 truncate mt-0.5">{car.trim}</p>
           )}
 
-          <div className="flex items-center gap-3 mt-2">
-            <span className="flex items-center gap-1 text-[11px] text-white/45">
-              <Wrench size={9} />
-              {modCount}
-            </span>
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            {modCount > 0 && (
+              <span className="flex items-center gap-1 text-[11px] text-white/50">
+                <Wrench size={9} />
+                {modCount} mod{modCount !== 1 ? "s" : ""}
+              </span>
+            )}
             {totalSpent > 0 && (
-              <span className="text-[11px] font-bold text-[var(--color-accent-bright)]">
+              <span className="text-[11px] font-semibold text-[var(--color-accent-bright)]">
                 {formatCurrency(totalSpent)}
+              </span>
+            )}
+            {car.vin_verified && (
+              <span className="flex items-center gap-1 text-[10px] text-[#f5d76e]/60">
+                <ShieldCheck size={9} />
+                VIN
+              </span>
+            )}
+            {!car.is_public && (
+              <span className="flex items-center gap-1 text-[10px] text-white/30">
+                <Lock size={9} />
+                Private
               </span>
             )}
           </div>

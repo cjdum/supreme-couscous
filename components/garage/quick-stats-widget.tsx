@@ -101,22 +101,9 @@ export function QuickStatsWidget({
         </p>
       </div>
 
-      {/* Stats grid */}
+      {/* Stats grid — Build Score is the hero stat */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Total Invested */}
-        <div
-          className="rounded-2xl p-3"
-          style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.18)" }}
-        >
-          <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(147,197,253,0.6)", margin: "0 0 4px" }}>
-            Total Invested
-          </p>
-          <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 18, fontWeight: 900, color: "#93c5fd", letterSpacing: "-0.02em", margin: 0 }}>
-            {formatCurrency(totalInvested)}
-          </p>
-        </div>
-
-        {/* Build Score */}
+        {/* Build Score — primary */}
         <div
           className="rounded-2xl p-3"
           style={{ background: "rgba(123,79,212,0.07)", border: "1px solid rgba(123,79,212,0.2)" }}
@@ -150,6 +137,19 @@ export function QuickStatsWidget({
               → {nextLevel.name} at {nextThreshold}
             </p>
           )}
+        </div>
+
+        {/* Total Invested — secondary stat */}
+        <div
+          className="rounded-2xl p-3"
+          style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.12)" }}
+        >
+          <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(147,197,253,0.45)", margin: "0 0 4px" }}>
+            Invested
+          </p>
+          <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 16, fontWeight: 800, color: "rgba(147,197,253,0.75)", letterSpacing: "-0.02em", margin: 0 }}>
+            {formatCurrency(totalInvested)}
+          </p>
         </div>
       </div>
 

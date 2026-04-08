@@ -400,17 +400,19 @@ export function TradingCard({
                     {era}
                   </span>
                 </div>
-                {/* Rarity badge */}
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 4,
-                  padding: "2px 7px", borderRadius: 20,
-                  background: rarityStyle.bg, border: `1px solid ${rarityStyle.border}`,
-                  boxShadow: isLegendary ? `0 0 10px ${rarityStyle.glow}` : "none",
-                }}>
-                  <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: rarityStyle.text }}>
-                    {rarity}
-                  </span>
-                </div>
+                {/* Rarity badge — only show for Uncommon and above */}
+                {rarity !== "Common" && (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 4,
+                    padding: "2px 7px", borderRadius: 20,
+                    background: rarityStyle.bg, border: `1px solid ${rarityStyle.border}`,
+                    boxShadow: isLegendary ? `0 0 10px ${rarityStyle.glow}` : "none",
+                  }}>
+                    <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: rarityStyle.text }}>
+                      {rarity}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* STATS — HP / Torque / 0-60 / Mods / Invested (dashes when missing) */}

@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles, ChevronLeft, ChevronRight, ChevronDown, ArrowLeftRight, Share2 } from "lucide-react";
+import { Sparkles, ChevronLeft, ChevronRight, ChevronDown, Share2 } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { CardViewerModal } from "./card-viewer-modal";
-import { CompareCardsModal } from "./compare-cards-modal";
 import { ERAS, ERA_COLORS, RARITY_COLORS, safeEra, safeRarity, type Era } from "@/lib/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
 
@@ -52,7 +51,6 @@ type EraFilter = "all" | Era;
 
 export function CardCollection({ cards, carLabels, hideSectionHeader = false }: CardCollectionProps) {
   const [view, setView] = useState<ViewState | null>(null);
-  const [compareOpen, setCompareOpen] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [eraFilter, setEraFilter] = useState<EraFilter>("all");
 
@@ -228,9 +226,10 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
   function openViewer(card: MintedCard) {
     const key = card.car_id ?? `orphan:${card.id}`;
     const group = groups.get(key) ?? [card];
-    // IMPORTANT: use the same sort order as the grid so the modal's prev/next
-    // peek cards match what the user sees behind them.
-    const sorted = sortGroup(group);
+    // Always show cards oldest-first in the viewer so edition #1 = first minted.
+    const sorted = [...group].sort(
+      (a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime()
+    );
     const startIndex = sorted.findIndex((c) => c.id === card.id);
     const label = card.car_id ? carLabels[card.car_id] : null;
     const snap = card.car_snapshot;
@@ -250,13 +249,6 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
           carLabel={view.carLabel}
           startIndex={view.startIndex}
           onClose={() => setView(null)}
-        />
-      )}
-      {compareOpen && (
-        <CompareCardsModal
-          cards={cards}
-          carLabels={carLabels}
-          onClose={() => setCompareOpen(false)}
         />
       )}
 
@@ -329,33 +321,8 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
             })}
           </div>
 
-          {/* Compare button + Sort dropdown */}
+          {/* Sort dropdown */}
           <div className="flex items-center gap-3 flex-wrap">
-            {cards.length >= 2 && (
-              <button
-                onClick={() => setCompareOpen(true)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "8px 14px",
-                  borderRadius: 10,
-                  background: "var(--mv-panel-bg-solid)",
-                  border: "1px solid var(--mv-panel-border-bright)",
-                  color: "var(--mv-accent-text)",
-                  fontFamily: "ui-monospace, monospace",
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                  cursor: "pointer",
-                  boxShadow: "0 0 14px rgba(168,85,247,0.12)",
-                }}
-              >
-                <ArrowLeftRight size={12} />
-                Compare
-              </button>
-            )}
           <div
             className="flex items-center gap-2"
             style={{ fontFamily: "ui-monospace, monospace" }}

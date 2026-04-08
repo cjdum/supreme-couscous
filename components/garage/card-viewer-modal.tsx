@@ -138,12 +138,11 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
           align-items: center;
           justify-content: center;
           position: relative;
-          /* Constrain width to the main card + a small gutter so peek cards
-             clip before they can cross into the description panel. */
-          width: 360px;
+          /* Wide enough to reveal peek cards on both sides */
+          width: 420px;
           max-width: 100%;
-          overflow: hidden;
-          padding: 20px 0;
+          overflow: visible;
+          padding: 20px 40px;
         }
         .cv-desc-col {
           flex: 1 1 420px;
@@ -476,11 +475,11 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
 
           {/* Flavor text */}
           {card.flavor_text && (
-            <div style={{ marginBottom: 12, padding: "8px 12px", borderRadius: 10, background: "rgba(123,79,212,0.08)", border: "1px solid rgba(123,79,212,0.2)" }}>
-              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700, color: "rgba(160,140,200,0.5)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 4 }}>
-                Card Description
+            <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(123,79,212,0.08)", border: "1px solid rgba(123,79,212,0.2)" }}>
+              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 700, color: "rgba(160,140,200,0.5)", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 6 }}>
+                About this build
               </p>
-              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, fontStyle: "italic", color: "rgba(200,185,230,0.8)", lineHeight: 1.6, margin: 0 }}>
+              <p style={{ fontSize: 13, fontStyle: "italic", color: "rgba(220,210,245,0.88)", lineHeight: 1.65, margin: 0, letterSpacing: "0.01em" }}>
                 {card.flavor_text}
               </p>
             </div>
