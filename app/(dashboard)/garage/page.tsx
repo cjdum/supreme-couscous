@@ -8,6 +8,7 @@ import { CarsRail } from "@/components/garage/cars-rail";
 import { BuildTimeline } from "@/components/garage/build-timeline";
 import { GarageStats } from "@/components/garage/garage-stats";
 import { PageContainer } from "@/components/ui/page-container";
+import { RoastMyBuild } from "@/components/garage/roast-my-build";
 import { calculateBuildScore, LEVEL_COLORS } from "@/lib/build-score";
 import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
 import type { MintedCard } from "@/lib/pixel-card";
@@ -272,6 +273,14 @@ export default async function GaragePage() {
                   <Plus size={20} className="text-[var(--color-text-muted)] group-hover:scale-110 transition-transform flex-shrink-0" />
                 </Link>
 
+              </div>
+
+              {/* Roast my build — fun AI action pinned under the quick-actions grid */}
+              <div className="mt-4 flex justify-end">
+                <RoastMyBuild
+                  carId={primaryCar.id}
+                  carLabel={`${primaryCar.year} ${primaryCar.make} ${primaryCar.model}`}
+                />
               </div>
             </section>
           );

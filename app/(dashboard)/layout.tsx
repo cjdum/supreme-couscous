@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/layout/bottom-nav";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { DashboardMain } from "@/components/layout/dashboard-main";
 import { GlobalEnhancers } from "@/components/layout/global-enhancers";
+import { ToastProvider } from "@/components/ui/toast";
 
 export default async function DashboardLayout({
   children,
@@ -26,14 +27,16 @@ export default async function DashboardLayout({
   const profile = profileRaw as { username: string } | null;
 
   return (
-    <div className="min-h-dvh bg-[var(--color-bg)] gradient-bg">
-      <GlobalEnhancers />
-      <TopBar username={profile?.username} />
-      <SidebarNav username={profile?.username} />
-      <DashboardMain>
-        {children}
-      </DashboardMain>
-      <BottomNav />
-    </div>
+    <ToastProvider>
+      <div className="min-h-dvh bg-[var(--color-bg)] gradient-bg">
+        <GlobalEnhancers />
+        <TopBar username={profile?.username} />
+        <SidebarNav username={profile?.username} />
+        <DashboardMain>
+          {children}
+        </DashboardMain>
+        <BottomNav />
+      </div>
+    </ToastProvider>
   );
 }

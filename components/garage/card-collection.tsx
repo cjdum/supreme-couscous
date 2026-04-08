@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
+import { Sparkles, ChevronLeft, ChevronRight, ChevronDown, ArrowLeftRight } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { CardViewerModal } from "./card-viewer-modal";
+import { CompareCardsModal } from "./compare-cards-modal";
 import { ERAS, ERA_COLORS, safeEra, type Era } from "@/lib/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
 
@@ -51,6 +52,7 @@ type EraFilter = "all" | Era;
 
 export function CardCollection({ cards, carLabels, hideSectionHeader = false }: CardCollectionProps) {
   const [view, setView] = useState<ViewState | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [eraFilter, setEraFilter] = useState<EraFilter>("all");
 
@@ -250,6 +252,13 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
           onClose={() => setView(null)}
         />
       )}
+      {compareOpen && (
+        <CompareCardsModal
+          cards={cards}
+          carLabels={carLabels}
+          onClose={() => setCompareOpen(false)}
+        />
+      )}
 
       <section className={hideSectionHeader ? "" : "mt-14"}>
         {!hideSectionHeader && (
@@ -320,7 +329,33 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
             })}
           </div>
 
-          {/* Sort dropdown */}
+          {/* Compare button + Sort dropdown */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {cards.length >= 2 && (
+              <button
+                onClick={() => setCompareOpen(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  borderRadius: 10,
+                  background: "rgba(15,12,30,0.65)",
+                  border: "1px solid rgba(168,85,247,0.3)",
+                  color: "#e9d5ff",
+                  fontFamily: "ui-monospace, monospace",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  cursor: "pointer",
+                  boxShadow: "0 0 14px rgba(168,85,247,0.12)",
+                }}
+              >
+                <ArrowLeftRight size={12} />
+                Compare
+              </button>
+            )}
           <div
             className="flex items-center gap-2"
             style={{ fontFamily: "ui-monospace, monospace" }}
@@ -378,6 +413,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                 }}
               />
             </div>
+          </div>
           </div>
         </div>
 

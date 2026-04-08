@@ -5,6 +5,7 @@ import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { ERA_COLORS, safeEra } from "@/lib/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
+import { useToast } from "@/components/ui/toast";
 
 interface CardViewerModalProps {
   cards: MintedCard[];
@@ -21,6 +22,7 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
   const [idx, setIdx] = useState(Math.max(0, Math.min(initial, cards.length - 1)));
   const [copied, setCopied] = useState(false);
   const [flipped, setFlipped] = useState(false);
+  const toast = useToast();
 
   // Swipe gesture state
   const touchStartX = useRef<number | null>(null);
@@ -67,8 +69,14 @@ export function CardViewerModal({ cards, carLabel, startIndex, onClose }: CardVi
   });
 
   function handleShare() {
-    const url = `${window.location.origin}/cards/${card.id}`;
-    navigator.clipboard.writeText(url).catch(() => {});
+    const url = `${window.location.origin}/c/${card.id}`;
+    navigator.clipboard.writeText(url)
+      .then(() => {
+        toast.success("Share link copied", { description: "Paste it anywhere — works for anyone.", duration: 3000 });
+      })
+      .catch(() => {
+        toast.error("Couldn't copy link");
+      });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
