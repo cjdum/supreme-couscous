@@ -120,7 +120,8 @@ export function TradingCard({
       // ±6 deg max, scale 1.02 on hover — centered pivot
       const rx = (y - 0.5) * -12; // maps 0-1 → -6..+6
       const ry = (x - 0.5) * 12;
-      outerRef.current.style.transform = `perspective(900px) scale(${scale * 1.02}) rotateX(${rx}deg) rotateY(${ry}deg)`;
+      // Perspective lives on the outer wrapper, don't stack it here.
+      outerRef.current.style.transform = `scale(${scale * 1.02}) rotateX(${rx}deg) rotateY(${ry}deg)`;
       // Soft white glare — low opacity radial following mouse
       if (shimmerRef.current) {
         shimmerRef.current.style.background = `radial-gradient(circle at ${x * 100}% ${y * 100}%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 40%, transparent 70%)`;
@@ -172,7 +173,11 @@ export function TradingCard({
   const scaleKey = scale.toString().replace(".", "_");
 
   return (
-    // ── Outer wrapper: mouse events, sized to scaled card ───────────────────
+    // ── Outer wrapper: mouse events, sized to scaled card.
+    // CRITICAL: perspective lives here so the 3D flip has depth. All ancestors
+    // between here and the flip container MUST have transform-style: preserve-3d
+    // or backface-visibility gets flattened and the front face bleeds through
+    // the back face.
     <div
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
@@ -181,12 +186,18 @@ export function TradingCard({
         height: CARD_H * scale,
         position: "relative",
         cursor: interactive ? "default" : "pointer",
+        perspective: "1200px",
+        WebkitPerspective: "1200px",
+        transformStyle: "preserve-3d",
+        WebkitTransformStyle: "preserve-3d",
       }}
     >
       <style>{`
+        /* Idle float: translate via top/left instead of transform so we
+           don't create a 2D rendering context that flattens the 3D chain. */
         @keyframes tcFloat_${scaleKey} {
-          0%,100% { transform: translateY(0px) rotate(-0.4deg); }
-          50%      { transform: translateY(-5px) rotate(0.4deg); }
+          0%,100% { top: 0px; }
+          50%     { top: -5px; }
         }
         .tc-idle-${scaleKey} {
           animation: tcFloat_${scaleKey} 3.2s ease-in-out infinite;
@@ -199,10 +210,16 @@ export function TradingCard({
         }
       `}</style>
 
-      {/* ── Idle float layer (only translates/rotates, no scale) ─────────── */}
+      {/* ── Idle float layer — uses top/left animation (no transform)
+           so the 3D context of its children is preserved. */}
       <div
         className={idle ? `tc-idle-${scaleKey}` : ""}
-        style={{ position: "absolute", inset: 0 }}
+        style={{
+          position: "absolute",
+          inset: 0,
+          transformStyle: "preserve-3d",
+          WebkitTransformStyle: "preserve-3d",
+        }}
       >
         {/* ── Tilt + scale layer (center-center origin) ──────────────────── */}
         <div
@@ -218,24 +235,11 @@ export function TradingCard({
             transformOrigin: "center center",
             transform: `scale(${scale})`,
             transformStyle: "preserve-3d",
+            WebkitTransformStyle: "preserve-3d",
             transition: "transform 80ms ease",
             willChange: "transform",
           }}
         >
-          {/* Soft white glare — follows mouse, no rainbow */}
-          <div
-            ref={shimmerRef}
-            style={{
-              position: "absolute",
-              inset: 0,
-              pointerEvents: "none",
-              zIndex: 40,
-              mixBlendMode: "screen",
-              opacity: 0,
-              borderRadius: 14,
-            }}
-          />
-
           {/* ── Flip container ──────────────────────────────────────────── */}
           <div
             style={{
@@ -246,7 +250,6 @@ export function TradingCard({
               WebkitTransformStyle: "preserve-3d",
               transition: "transform 0.65s cubic-bezier(0.4,0,0.2,1)",
               transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
-              isolation: "isolate",
             }}
           >
 
@@ -256,7 +259,7 @@ export function TradingCard({
               inset: 0,
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",
-              transform: "rotateY(0deg)",
+              transform: "rotateY(0deg) translateZ(0.1px)",
               borderRadius: 14,
               border: `2px solid ${CARD_BORDER_COLOR}`,
               boxShadow: `0 0 22px ${eraStyle.glow}, 0 0 6px ${CARD_BORDER_GLOW}, 0 10px 36px rgba(0,0,0,0.75)`,
@@ -268,6 +271,21 @@ export function TradingCard({
               flexDirection: "column",
               overflow: "hidden",
             }}>
+
+              {/* Soft white glare — follows mouse. Lives inside the front
+                  face so it flips away cleanly with the card. */}
+              <div
+                ref={shimmerRef}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  pointerEvents: "none",
+                  zIndex: 40,
+                  mixBlendMode: "screen",
+                  opacity: 0,
+                  borderRadius: 14,
+                }}
+              />
 
               {/* HEADER */}
               <div style={{
@@ -432,7 +450,7 @@ export function TradingCard({
               inset: 0,
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",
-              transform: "rotateY(180deg)",
+              transform: "rotateY(180deg) translateZ(0.1px)",
               borderRadius: 14,
               border: `2px solid ${CARD_BORDER_COLOR}`,
               boxShadow: `0 0 22px rgba(123,79,212,0.45), 0 10px 36px rgba(0,0,0,0.75)`,
