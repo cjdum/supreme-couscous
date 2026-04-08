@@ -847,3 +847,344 @@ drop policy if exists "pixel_cards: public feed read" on pixel_cards;
 create policy "pixel_cards: public feed read"
   on pixel_cards for select
   using (is_public = true);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v14: ModVault core systems
+--   - Card generation data (archetype, traits, performance, etc.)
+--   - Builder Score components
+--   - Community ratings (cleanliness/creativity/execution/presence)
+--   - Flags & endorsements
+--   - Battle system
+--   - Notifications
+--   - Achievements (unified)
+--   - Vehicle stock specs lookup table
+-- Run this block in Supabase SQL Editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- ── Card generation data on pixel_cards ─────────────────────────────────────
+alter table pixel_cards add column if not exists card_title               text;
+alter table pixel_cards add column if not exists build_archetype          text;
+alter table pixel_cards add column if not exists estimated_performance    jsonb;
+alter table pixel_cards add column if not exists ai_estimated_performance jsonb;
+alter table pixel_cards add column if not exists build_aggression         int check (build_aggression is null or (build_aggression between 1 and 10));
+alter table pixel_cards add column if not exists uniqueness_score         int check (uniqueness_score is null or (uniqueness_score between 0 and 100));
+alter table pixel_cards add column if not exists authenticity_confidence  int check (authenticity_confidence is null or (authenticity_confidence between 0 and 100));
+alter table pixel_cards add column if not exists traits                   jsonb;
+alter table pixel_cards add column if not exists flavour_text             text;
+alter table pixel_cards add column if not exists weaknesses               jsonb;
+alter table pixel_cards add column if not exists rival_archetypes         jsonb;
+alter table pixel_cards add column if not exists battle_record            jsonb not null default '{"wins":0,"losses":0}'::jsonb;
+alter table pixel_cards add column if not exists last_battle_at           timestamptz;
+
+create index if not exists pixel_cards_archetype_idx on pixel_cards(build_archetype);
+create index if not exists pixel_cards_authenticity_idx on pixel_cards(authenticity_confidence);
+
+-- ── builder_scores ───────────────────────────────────────────────────────────
+create table if not exists builder_scores (
+  user_id                 uuid primary key references auth.users(id) on delete cascade,
+  documentation_quality   int not null default 0 check (documentation_quality between 0 and 1000),
+  community_trust         int not null default 0 check (community_trust between 0 and 1000),
+  engagement_authenticity int not null default 0 check (engagement_authenticity between 0 and 1000),
+  build_consistency       int not null default 0 check (build_consistency between 0 and 1000),
+  platform_tenure         int not null default 0 check (platform_tenure between 0 and 1000),
+  composite_score         int not null default 0 check (composite_score between 0 and 1000),
+  tier_label              text not null default 'Newcomer',
+  last_calculated_at      timestamptz not null default now()
+);
+
+create index if not exists builder_scores_composite_idx on builder_scores(composite_score desc);
+
+alter table builder_scores enable row level security;
+
+drop policy if exists "builder_scores: public read" on builder_scores;
+create policy "builder_scores: public read"
+  on builder_scores for select using (true);
+
+drop policy if exists "builder_scores: owner write" on builder_scores;
+create policy "builder_scores: owner write"
+  on builder_scores for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- ── card_ratings ─────────────────────────────────────────────────────────────
+create table if not exists card_ratings (
+  id                          uuid primary key default uuid_generate_v4(),
+  card_id                     uuid not null references pixel_cards(id) on delete cascade,
+  rater_id                    uuid not null references auth.users(id) on delete cascade,
+  rater_builder_score_at_time int not null default 0,
+  cleanliness                 int not null check (cleanliness between 1 and 5),
+  creativity                  int not null check (creativity between 1 and 5),
+  execution                   int not null check (execution between 1 and 5),
+  presence                    int not null check (presence between 1 and 5),
+  weighted_composite          numeric(5,2) not null default 0,
+  created_at                  timestamptz not null default now(),
+  updated_at                  timestamptz not null default now(),
+  constraint card_ratings_unique unique (card_id, rater_id)
+);
+
+create index if not exists card_ratings_card_id_idx on card_ratings(card_id);
+create index if not exists card_ratings_rater_id_idx on card_ratings(rater_id);
+
+alter table card_ratings enable row level security;
+
+drop policy if exists "card_ratings: public read" on card_ratings;
+create policy "card_ratings: public read"
+  on card_ratings for select using (true);
+
+drop policy if exists "card_ratings: rater write" on card_ratings;
+create policy "card_ratings: rater write"
+  on card_ratings for all
+  using (auth.uid() = rater_id)
+  with check (
+    auth.uid() = rater_id
+    and not exists (
+      select 1 from pixel_cards pc
+      where pc.id = card_ratings.card_id and pc.user_id = auth.uid()
+    )
+  );
+
+drop trigger if exists set_updated_at_card_ratings on card_ratings;
+create trigger set_updated_at_card_ratings
+  before update on card_ratings
+  for each row execute function handle_updated_at();
+
+-- ── card_battles ─────────────────────────────────────────────────────────────
+create table if not exists card_battles (
+  id                   uuid primary key default uuid_generate_v4(),
+  challenger_card_id   uuid not null references pixel_cards(id) on delete cascade,
+  opponent_card_id     uuid not null references pixel_cards(id) on delete cascade,
+  challenger_user_id   uuid not null references auth.users(id) on delete cascade,
+  opponent_user_id     uuid not null references auth.users(id) on delete cascade,
+  outcome              text not null check (outcome in ('win', 'loss', 'narrow_win', 'narrow_loss')),
+  score_breakdown      jsonb not null default '{}'::jsonb,
+  created_at           timestamptz not null default now()
+);
+
+create index if not exists card_battles_challenger_idx on card_battles(challenger_user_id, created_at desc);
+create index if not exists card_battles_opponent_idx on card_battles(opponent_user_id, created_at desc);
+create index if not exists card_battles_card_idx on card_battles(challenger_card_id, created_at desc);
+
+alter table card_battles enable row level security;
+
+drop policy if exists "card_battles: public read" on card_battles;
+create policy "card_battles: public read"
+  on card_battles for select using (true);
+
+drop policy if exists "card_battles: challenger insert" on card_battles;
+create policy "card_battles: challenger insert"
+  on card_battles for insert
+  with check (auth.uid() = challenger_user_id);
+
+-- ── card_credibility_signals (flag/endorse) ──────────────────────────────────
+create table if not exists card_credibility_signals (
+  id          uuid primary key default uuid_generate_v4(),
+  card_id     uuid not null references pixel_cards(id) on delete cascade,
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  signal_type text not null check (signal_type in ('flag', 'endorse')),
+  weight      numeric(5,2) not null default 1.0,
+  reason      text check (char_length(reason) <= 500),
+  created_at  timestamptz not null default now(),
+  constraint card_credibility_signals_unique unique (card_id, user_id, signal_type)
+);
+
+create index if not exists ccs_card_id_idx on card_credibility_signals(card_id);
+
+alter table card_credibility_signals enable row level security;
+
+drop policy if exists "ccs: rater read own" on card_credibility_signals;
+create policy "ccs: rater read own"
+  on card_credibility_signals for select
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from pixel_cards pc
+      where pc.id = card_credibility_signals.card_id and pc.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "ccs: owner write" on card_credibility_signals;
+create policy "ccs: owner write"
+  on card_credibility_signals for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- ── notifications ────────────────────────────────────────────────────────────
+create table if not exists notifications (
+  id         uuid primary key default uuid_generate_v4(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  type       text not null,
+  payload    jsonb not null default '{}'::jsonb,
+  read       boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notifications_user_id_idx on notifications(user_id, read, created_at desc);
+
+alter table notifications enable row level security;
+
+drop policy if exists "notifications: owner all" on notifications;
+create policy "notifications: owner all"
+  on notifications for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- ── achievements (unified) ───────────────────────────────────────────────────
+create table if not exists achievements (
+  id               uuid primary key default uuid_generate_v4(),
+  user_id          uuid not null references auth.users(id) on delete cascade,
+  achievement_type text not null,
+  category         text not null check (category in ('builder', 'community', 'battle', 'platform')),
+  earned_at        timestamptz not null default now(),
+  progress_data    jsonb not null default '{}'::jsonb,
+  constraint achievements_unique unique (user_id, achievement_type)
+);
+
+create index if not exists achievements_user_id_idx on achievements(user_id, earned_at desc);
+
+alter table achievements enable row level security;
+
+drop policy if exists "achievements: public read" on achievements;
+create policy "achievements: public read"
+  on achievements for select using (true);
+
+drop policy if exists "achievements: owner write" on achievements;
+create policy "achievements: owner write"
+  on achievements for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- ── vehicle_stock_specs ──────────────────────────────────────────────────────
+create table if not exists vehicle_stock_specs (
+  id              uuid primary key default uuid_generate_v4(),
+  year            int not null,
+  make            text not null,
+  model           text not null,
+  trim            text,
+  hp              int,
+  torque          int,
+  zero_to_sixty   numeric(4,2),
+  top_speed       int,
+  weight          int,
+  notes           text,
+  created_at      timestamptz not null default now()
+);
+
+create unique index if not exists vehicle_stock_specs_unique_idx
+  on vehicle_stock_specs (year, lower(make), lower(model), coalesce(lower(trim), ''));
+
+create index if not exists vehicle_stock_specs_make_model_idx on vehicle_stock_specs(lower(make), lower(model));
+
+alter table vehicle_stock_specs enable row level security;
+
+drop policy if exists "vehicle_stock_specs: public read" on vehicle_stock_specs;
+create policy "vehicle_stock_specs: public read"
+  on vehicle_stock_specs for select using (true);
+
+-- ── Seed common vehicle stock specs ──────────────────────────────────────────
+-- Ranges cover: Porsche 911 variants, BMW M cars, Toyota/Honda performance,
+-- American muscle, European hot hatches.
+insert into vehicle_stock_specs (year, make, model, trim, hp, torque, zero_to_sixty, top_speed, weight) values
+  -- Porsche 911
+  (2020, 'Porsche', '911', 'Carrera',         379, 331, 4.0, 182, 3354),
+  (2020, 'Porsche', '911', 'Carrera S',       443, 390, 3.5, 191, 3382),
+  (2020, 'Porsche', '911', 'Carrera 4S',      443, 390, 3.4, 190, 3497),
+  (2020, 'Porsche', '911', 'Turbo',           572, 553, 2.7, 199, 3636),
+  (2020, 'Porsche', '911', 'Turbo S',         640, 590, 2.6, 205, 3636),
+  (2020, 'Porsche', '911', 'GT3',             502, 346, 3.2, 197, 3164),
+  (2018, 'Porsche', '911', 'Carrera',         370, 331, 4.4, 183, 3153),
+  (2015, 'Porsche', '911', 'GT3',             475, 324, 3.3, 196, 3153),
+  -- Porsche 718
+  (2020, 'Porsche', 'Cayman', 'GT4',          414, 309, 4.2, 188, 3199),
+  (2020, 'Porsche', 'Boxster', 'S',           350, 309, 4.2, 177, 3100),
+  -- BMW M3
+  (2021, 'BMW', 'M3', 'Competition',          503, 479, 3.5, 180, 3890),
+  (2021, 'BMW', 'M3', 'Base',                 473, 406, 3.9, 155, 3825),
+  (2018, 'BMW', 'M3', 'Competition',          444, 406, 3.9, 174, 3595),
+  (2015, 'BMW', 'M3', 'Base',                 425, 406, 4.1, 155, 3540),
+  -- BMW M4
+  (2021, 'BMW', 'M4', 'Competition',          503, 479, 3.5, 180, 3880),
+  (2018, 'BMW', 'M4', 'Competition',          444, 406, 3.8, 174, 3590),
+  -- BMW M2
+  (2020, 'BMW', 'M2', 'Competition',          405, 406, 4.0, 174, 3600),
+  (2023, 'BMW', 'M2', 'Base',                 453, 406, 3.9, 177, 3814),
+  -- BMW M5
+  (2020, 'BMW', 'M5', 'Competition',          617, 553, 3.1, 190, 4378),
+  (2020, 'BMW', 'M5', 'Base',                 600, 553, 3.2, 189, 4370),
+  -- Toyota GR Supra
+  (2021, 'Toyota', 'Supra', 'GR 3.0',         382, 368, 3.9, 155, 3400),
+  (2020, 'Toyota', 'Supra', 'GR 3.0',         335, 365, 4.1, 155, 3397),
+  -- Toyota GR86 / 86
+  (2022, 'Toyota', 'GR86', 'Base',            228, 184, 6.1, 140, 2811),
+  (2020, 'Toyota', '86', 'Base',              205, 156, 6.2, 140, 2776),
+  -- Honda Civic Type R
+  (2023, 'Honda', 'Civic', 'Type R',          315, 310, 5.4, 171, 3188),
+  (2018, 'Honda', 'Civic', 'Type R',          306, 295, 5.0, 169, 3117),
+  (2022, 'Honda', 'Civic', 'Si',              200, 192, 6.6, 137, 2952),
+  -- Honda S2000
+  (2005, 'Honda', 'S2000', 'AP2',             237, 162, 5.6, 149, 2855),
+  (2002, 'Honda', 'S2000', 'AP1',             240, 153, 5.8, 150, 2809),
+  -- Nissan GT-R
+  (2020, 'Nissan', 'GT-R', 'Premium',         565, 467, 2.9, 196, 3933),
+  (2020, 'Nissan', 'GT-R', 'Nismo',           600, 481, 2.5, 205, 3865),
+  (2015, 'Nissan', 'GT-R', 'Premium',         545, 463, 2.9, 196, 3829),
+  -- Nissan 370Z / 400Z
+  (2020, 'Nissan', '370Z', 'Nismo',           350, 276, 4.9, 155, 3380),
+  (2023, 'Nissan', 'Z', 'Performance',        400, 350, 4.5, 155, 3528),
+  -- Mazda MX-5 Miata
+  (2022, 'Mazda', 'MX-5 Miata', 'Club',       181, 151, 5.7, 135, 2341),
+  (2020, 'Mazda', 'MX-5 Miata', 'Grand Touring', 181, 151, 5.8, 135, 2339),
+  -- Subaru WRX STI
+  (2021, 'Subaru', 'WRX STI', 'Base',         310, 290, 5.1, 174, 3391),
+  (2018, 'Subaru', 'WRX STI', 'Type RA',      310, 290, 5.0, 174, 3384),
+  -- Subaru BRZ
+  (2022, 'Subaru', 'BRZ', 'Limited',          228, 184, 6.0, 140, 2835),
+  -- Ford Mustang
+  (2020, 'Ford', 'Mustang', 'GT',             460, 420, 4.2, 155, 3705),
+  (2020, 'Ford', 'Mustang', 'Shelby GT500',   760, 625, 3.3, 180, 4171),
+  (2020, 'Ford', 'Mustang', 'Shelby GT350',   526, 429, 3.9, 170, 3791),
+  (2020, 'Ford', 'Mustang', 'EcoBoost',       310, 350, 5.3, 155, 3532),
+  -- Chevrolet Corvette
+  (2020, 'Chevrolet', 'Corvette', 'Stingray', 495, 470, 2.9, 194, 3366),
+  (2023, 'Chevrolet', 'Corvette', 'Z06',      670, 460, 2.6, 195, 3434),
+  (2019, 'Chevrolet', 'Corvette', 'ZR1',      755, 715, 2.85, 212, 3560),
+  -- Chevrolet Camaro
+  (2020, 'Chevrolet', 'Camaro', 'SS 1LE',     455, 455, 4.0, 165, 3685),
+  (2020, 'Chevrolet', 'Camaro', 'ZL1',        650, 650, 3.5, 198, 3907),
+  -- Dodge Challenger
+  (2020, 'Dodge', 'Challenger', 'Hellcat',         717, 656, 3.6, 199, 4448),
+  (2020, 'Dodge', 'Challenger', 'Hellcat Redeye',  797, 707, 3.4, 203, 4492),
+  (2020, 'Dodge', 'Challenger', 'R/T Scat Pack',   485, 475, 4.3, 175, 4251),
+  -- European hot hatches
+  (2022, 'Volkswagen', 'Golf', 'GTI',              241, 273, 5.9, 155, 3150),
+  (2022, 'Volkswagen', 'Golf', 'R',                315, 310, 4.7, 168, 3351),
+  (2018, 'Volkswagen', 'Golf', 'R',                292, 280, 4.5, 155, 3335),
+  (2020, 'Audi', 'RS3',                  null,     401, 354, 3.9, 155, 3593),
+  (2022, 'Audi', 'RS5',                  null,     444, 443, 3.7, 174, 3814),
+  (2020, 'Audi', 'S3',                   null,     292, 295, 4.6, 155, 3417),
+  -- Mercedes AMG
+  (2020, 'Mercedes-Benz', 'C63',         'AMG S',  503, 516, 3.7, 180, 3880),
+  (2020, 'Mercedes-Benz', 'A45',         'AMG S',  416, 369, 3.9, 168, 3638),
+  (2022, 'Mercedes-Benz', 'AMG GT',      'Black Series', 720, 590, 3.1, 202, 3616),
+  -- Tesla
+  (2022, 'Tesla', 'Model S',    'Plaid',   1020, 1050, 1.99, 200, 4766),
+  (2022, 'Tesla', 'Model 3',    'Performance', 450, 471, 3.1, 162, 4048),
+  -- Acura / Lexus
+  (2020, 'Lexus', 'RC F',       null,      472, 395, 4.3, 168, 3958),
+  (2020, 'Acura', 'NSX',        null,      573, 476, 2.9, 191, 3878),
+  -- Alfa Romeo
+  (2020, 'Alfa Romeo', 'Giulia', 'Quadrifoglio', 505, 443, 3.8, 191, 3819)
+on conflict do nothing;
+
+-- ── Builder Score recalc helper ──────────────────────────────────────────────
+-- Note: This is a no-op placeholder. Actual scoring is computed in Next.js
+-- (lib/builder-score.ts) and written via the /api/builder-score/recalculate
+-- endpoint. This function exists so DB triggers have something to call.
+create or replace function touch_builder_score(_user_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  insert into builder_scores (user_id, last_calculated_at)
+  values (_user_id, now())
+  on conflict (user_id) do update
+    set last_calculated_at = excluded.last_calculated_at;
+end;
+$$;

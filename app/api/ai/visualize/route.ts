@@ -6,6 +6,11 @@ import { rateLimit, AI_RATE_LIMIT } from "@/lib/rate-limit";
 import { visualizerSchema } from "@/lib/validations";
 import { sanitize } from "@/lib/utils";
 
+// NOTE: image analysis is DISABLED for the visualizer per the ModVault spec.
+// All car understanding must come from typed text fields — not from user
+// photos. The old describeReferencePhoto() helper has been kept only for
+// historical reference and is never called.
+
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Lazy OpenAI client — don't instantiate until actually used so a missing
@@ -72,54 +77,9 @@ async function persistRenderToStorage(
   return { publicUrl, storagePath: path };
 }
 
-/**
- * Download a reference image and use Claude's vision to describe its visual
- * characteristics (color nuance, stance, wheels visible, body condition),
- * so we can inject those details into the DALL-E prompt. DALL-E 3 can't take
- * image refs directly, so we launder the details through Claude.
- */
-async function describeReferencePhoto(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") ?? "image/jpeg";
-    const mediaType =
-      contentType.includes("png") ? "image/png" :
-      contentType.includes("webp") ? "image/webp" :
-      contentType.includes("gif") ? "image/gif" :
-      "image/jpeg";
-    const buf = Buffer.from(await res.arrayBuffer());
-    // Keep the description call cheap — skip huge files.
-    if (buf.length > 4 * 1024 * 1024) return null;
-    const b64 = buf.toString("base64");
-
-    const msg = await anthropic.messages.create({
-      model: "claude-sonnet-4-5",
-      max_tokens: 260,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: { type: "base64", media_type: mediaType, data: b64 },
-            },
-            {
-              type: "text",
-              text: `Describe this car photo in 3-4 concise sentences for an AI image generator. Focus ONLY on visual traits that should be preserved in a new render: exact paint color and finish (gloss/matte/pearl), wheel style/size/finish, stance and ride height, body kit presence, lighting characteristics, and notable exterior details. Do NOT describe the background. Output plain text, no preamble.`,
-            },
-          ],
-        },
-      ],
-    });
-
-    const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : "";
-    return text || null;
-  } catch (err) {
-    console.warn("[visualize] reference photo description failed:", err);
-    return null;
-  }
-}
+// NOTE: describeReferencePhoto() was removed intentionally.
+// Per the ModVault spec, the visualizer never passes user images to an AI.
+// All car understanding now comes from typed fields only.
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -193,33 +153,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Car not found" }, { status: 404 });
   }
 
-  // Grab REAL user-uploaded photos only — never use generated renders as a
-  // reference (they cause visual drift over time as the model copies its own
-  // hallucinations). The car_photos table only contains real uploads; the
-  // renders table is intentionally excluded here.
-  const { data: photosRaw } = await supabase
-    .from("car_photos")
-    .select("url, is_cover, position, image_descriptor")
-    .eq("car_id", car_id)
-    .order("is_cover", { ascending: false })
-    .order("position", { ascending: true })
-    .limit(3);
-
-  const photos = (photosRaw ?? []) as {
-    url: string;
-    is_cover: boolean;
-    position: number;
-    image_descriptor: string | null;
-  }[];
-
-  // Prefer the cover photo, fall back to first uploaded photo. We deliberately
-  // do NOT fall back to car.cover_image_url because that field can point at a
-  // saved render (when the user explicitly chose "set as banner" on a render).
-  const referencePhoto = photos.find((p) => p.is_cover) ?? photos[0] ?? null;
-  const referenceUrl = referencePhoto?.url ?? null;
-  // Cached descriptor (Perf #20) — if we already analyzed this photo, reuse it
-  // instead of paying for another vision call.
-  const cachedDescriptor = referencePhoto?.image_descriptor ?? null;
+  // IMPORTANT: per the ModVault spec, we no longer pass ANY user image to
+  // an AI (vision or otherwise). All car understanding comes from typed
+  // fields — year, make, model, trim, color, drivetrain, installed mods.
+  // Every generation call is STATELESS — no image history, no descriptors,
+  // no reference photos of any kind. The old reference-photo logic is
+  // removed so the prompt can't quietly regress to describing an image.
 
   // Get installed mods — we lead the DALL-E prompt with the actual build.
   const { data: modsRaw, error: modsErr } = await supabase
@@ -254,70 +193,60 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Step 1: If there's a user photo, describe it ONCE with Claude vision so
-    // we can inject the visual traits into DALL-E's prompt. The result is
-    // cached on the car_photos row in the `image_descriptor` column so future
-    // generations reuse it for free instead of paying for another vision call.
-    let referenceDescription: string | null = cachedDescriptor;
-    if (referenceUrl && !referenceDescription) {
-      console.log(`[visualize] describing reference photo (no cache): ${referenceUrl.slice(0, 80)}`);
-      referenceDescription = await describeReferencePhoto(referenceUrl);
-      if (referenceDescription) {
-        console.log(`[visualize] reference description: ${referenceDescription.slice(0, 180)}`);
-        // Cache it on car_photos so we never analyze this photo again.
-        await supabase
-          .from("car_photos")
-          .update({ image_descriptor: referenceDescription })
-          .eq("car_id", car_id)
-          .eq("url", referenceUrl);
-      }
-    } else if (cachedDescriptor) {
-      console.log(`[visualize] reusing cached descriptor (${cachedDescriptor.length} chars)`);
-    }
-
-    // Step 2: Use Claude to craft the optimal DALL-E prompt — LEADING with
-    // the specific car (year/make/model/trim/color) so DALL-E doesn't invent a
-    // random sports car. Previously DALL-E was producing Koenigseggs when the
-    // user had a 911.
-    console.log("[visualize] generating DALL-E prompt with Claude...");
+    // Step 1: Compose a DEDUCTIVE text-only DALL-E prompt.
+    //
+    // Every ModVault generation is STATELESS — the prompt is built fresh each
+    // time from typed fields, and the year is a HARD CONSTRAINT. We explicitly
+    // forbid "classic", "vintage", or older body styles so DALL-E cannot drift
+    // toward earlier generations of the same nameplate.
+    //
+    // We still use Claude to polish the prompt, but with a tight JSON-shaped
+    // instruction so it can't drift into freeform hypercar territory.
+    console.log("[visualize] composing text-only DALL-E prompt with Claude...");
     const promptMessage = await anthropic.messages.create({
       model: "claude-sonnet-4-5",
-      max_tokens: 500,
+      max_tokens: 420,
       messages: [
         {
           role: "user",
-          content: `You write DALL-E 3 prompts for automotive photography. The goal is a PHOTOREALISTIC render that is clearly and specifically the user's exact car — not a generic sports car.
+          content: `Write one photorealistic DALL-E 3 prompt for an automotive render. The prompt must be CONSTRAINED to a specific vehicle and era. You are NOT given an image and must NOT invent one. Base the prompt only on the typed fields below.
 
-═══ USER'S CAR (must be recognizable in the output) ═══
-Vehicle: ${carLabel}
-Factory color: ${colorLabel}
-${car.horsepower ? `Power: ${car.horsepower}hp\n` : ""}${car.drivetrain ? `Drivetrain: ${car.drivetrain}\n` : ""}
-═══ INSTALLED MODS ═══
+═══ HARD CONSTRAINTS — never violate these ═══
+- Subject vehicle: ${carLabel}
+- Vehicle YEAR: ${car.year}  (the render must show the ${car.year} body style — NOT any earlier generation)
+- Exterior color: ${colorLabel}
+${car.drivetrain ? `- Drivetrain: ${car.drivetrain}\n` : ""}${car.horsepower ? `- Power: ${car.horsepower} hp\n` : ""}- Only the mods listed below may be visually applied. Do NOT add aftermarket parts that weren't listed.
+- No hypercars. No Koenigseggs. No fantasy body kits. No generic supercar substitution.
+- No text, no license plates, no watermarks, no people.
+
+═══ INSTALLED MODS (the only visual departures from stock allowed) ═══
 ${modList}
 
-${referenceDescription ? `═══ REAL REFERENCE PHOTO OF THIS EXACT CAR ═══\n${referenceDescription}\n` : ""}
-═══ USER'S REQUESTED LOOK / SCENE ═══
+═══ USER SCENE/LIGHTING REQUEST ═══
 ${sanitizedPrompt}
 
-═══ PROMPT REQUIREMENTS ═══
-Your DALL-E prompt MUST:
-1. LEAD with "A photorealistic photograph of a ${carLabel}" — never use a generic "sports car" phrase.
-2. Explicitly state the make, model, year, trim${car.trim ? "" : " (if known)"}, and color. The car must be identifiable as this exact model from the render.
-3. Preserve the body silhouette and signature styling cues of the ${car.make} ${car.model} — headlight shape, grille, greenhouse, rear taillight pattern.
-4. Integrate the installed mods visually (wheels, kit, stance, exhaust, wrap, etc.).
-${referenceDescription ? "5. Match the reference photo's paint color/finish, wheel style, and stance — these are real traits of this specific car.\n" : ""}6. Include the user's requested scene/lighting/setting.
-7. Professional 3/4 or side-profile automotive photography, natural lighting, sharp focus, high detail.
-8. NO text, NO watermarks, NO people, NO badging invention, NO generic supercar substitution.
-
-Output ONLY the final DALL-E prompt (one paragraph, 80-160 words). No explanation, no quotes, no preamble.`,
+═══ OUTPUT FORMAT ═══
+Write ONE paragraph (90–170 words), starting LITERALLY with "A photorealistic photograph of a ${car.year} ${car.make} ${car.model}${car.trim ? " " + car.trim : ""} in ${colorLabel}, the ${car.year} body style". Then describe the stance, wheels, and details using the mods listed. Then describe the requested scene/lighting. End with "professional automotive photography, natural lighting, sharp focus, 3/4 angle". Output the prompt text only — no quotes, no labels, no explanation.`,
         },
       ],
     });
 
-    const dallePrompt =
+    let dallePrompt =
       promptMessage.content[0].type === "text"
         ? promptMessage.content[0].text.trim().replace(/^"|"$/g, "")
-        : `A photorealistic photograph of a ${carLabel} in ${colorLabel}, ${sanitizedPrompt}, dramatic lighting, high detail, 3/4 angle`;
+        : `A photorealistic photograph of a ${car.year} ${car.make} ${car.model}${car.trim ? " " + car.trim : ""} in ${colorLabel}, the ${car.year} body style, ${sanitizedPrompt}, professional automotive photography, natural lighting, sharp focus, 3/4 angle`;
+
+    // Belt + suspenders: guarantee the year and "body style" phrase survive
+    // even if Claude rewrites the opening.
+    if (!dallePrompt.toLowerCase().includes(`${car.year}`)) {
+      dallePrompt = `A photorealistic photograph of a ${car.year} ${car.make} ${car.model}${car.trim ? " " + car.trim : ""} in ${colorLabel}, the ${car.year} body style. ${dallePrompt}`;
+    }
+    if (!/body\s+style/i.test(dallePrompt)) {
+      dallePrompt = dallePrompt.replace(
+        new RegExp(`${car.year}\\s+${car.make}\\s+${car.model}`, "i"),
+        `${car.year} ${car.make} ${car.model}, the ${car.year} body style`,
+      );
+    }
 
     console.log(`[visualize] dalle prompt (${dallePrompt.length} chars): ${dallePrompt.slice(0, 240)}...`);
 

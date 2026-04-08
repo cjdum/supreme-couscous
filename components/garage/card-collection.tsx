@@ -526,11 +526,13 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                   ref={setScrollRef(key)}
                   className="cc-scroll"
                   onWheel={(e) => {
-                    // Only hijack the wheel event if the user is clearly
-                    // scrolling horizontally (deltaX > deltaY). For vertical-
-                    // dominant scrolling let the event bubble normally so the
-                    // page scrolls as expected.
-                    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                    // Only hijack the wheel event if the user is UNAMBIGUOUSLY
+                    // scrolling horizontally. Require deltaX to be at least
+                    // double deltaY AND above a small floor, so vertical page
+                    // scroll is never intercepted by a stray trackpad nudge.
+                    const dx = Math.abs(e.deltaX);
+                    const dy = Math.abs(e.deltaY);
+                    if (dx > 20 && dx > dy * 2) {
                       e.preventDefault();
                       const el = scrollRefs.current.get(key);
                       if (el) el.scrollLeft += e.deltaX;
@@ -543,6 +545,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                     overflowY: "hidden",
                     padding: "24px 4px 24px",
                     WebkitOverflowScrolling: "touch",
+                    scrollSnapType: "x proximity",
                   }}
                 >
                   {displayGroup.map((card) => {

@@ -272,8 +272,9 @@ export function CarCard({
             style={{
               width: "100%",
               height: "100%",
-              objectFit: "cover",
+              objectFit: "contain",
               imageRendering: "pixelated",
+              background: "#0a0a18",
             }}
           />
         ) : (

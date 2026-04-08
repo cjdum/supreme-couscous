@@ -133,7 +133,7 @@ export default async function CommunityPage({ searchParams }: Props) {
               <Link
                 key={build.id}
                 href={`/community/${build.id}`}
-                className="block rounded-[18px] border border-[var(--color-border)] bg-[var(--color-bg-card)] overflow-hidden card-hover group"
+                className="block rounded-[18px] border border-[var(--color-border)] bg-[var(--color-bg-card)] overflow-hidden"
               >
                 {/* Cover photo */}
                 <div className="relative" style={{ aspectRatio: "16/9" }}>
@@ -142,7 +142,9 @@ export default async function CommunityPage({ searchParams }: Props) {
                     <img
                       src={build.cover_image_url}
                       alt={`${build.year} ${build.make} ${build.model}`}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <div

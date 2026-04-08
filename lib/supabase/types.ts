@@ -29,6 +29,39 @@ export interface PixelCardSnapshot {
   total_invested: number | null;
   build_score: number | null;
   vin_verified: boolean;
+  /** Stock baseline used at mint time so performance delta stays stable forever. */
+  stock_hp?: number | null;
+  stock_torque?: number | null;
+  stock_zero_to_sixty?: number | null;
+  stock_top_speed?: number | null;
+}
+
+export interface EstimatedPerformance {
+  hp: number;
+  torque: number;
+  zero_to_sixty: number;
+  top_speed: number;
+}
+
+export interface CardTrait {
+  id: string;
+  label: string;
+  description: string;
+  earned: boolean;
+  /** Why this was or was not earned. Shown in card detail. */
+  reason: string;
+}
+
+export interface BattleScoreBreakdown {
+  challenger: number;
+  opponent: number;
+  components: {
+    performance: { challenger: number; opponent: number; weight: number };
+    archetype: { challenger: number; opponent: number; weight: number; note: string };
+    authenticity: { challenger: number; opponent: number; weight: number };
+    builder_score: { challenger: number; opponent: number; weight: number };
+    rng: { challenger: number; opponent: number; weight: number; seed: string };
+  };
 }
 
 export interface Database {
@@ -187,6 +220,21 @@ export interface Database {
           occasion: string | null;
           rarity: string;
           is_public: boolean;
+          /** User-editable title (defaults to AI-generated cardTitle) */
+          card_title: string | null;
+          build_archetype: string | null;
+          estimated_performance: EstimatedPerformance | null;
+          /** Original AI estimate before any user edits (for authenticity scoring) */
+          ai_estimated_performance: EstimatedPerformance | null;
+          build_aggression: number | null;
+          uniqueness_score: number | null;
+          authenticity_confidence: number | null;
+          traits: CardTrait[] | null;
+          flavour_text: string | null;
+          weaknesses: string[] | null;
+          rival_archetypes: string[] | null;
+          battle_record: { wins: number; losses: number };
+          last_battle_at: string | null;
         };
         Insert: {
           id?: string;
@@ -203,6 +251,18 @@ export interface Database {
           occasion?: string | null;
           rarity?: string;
           is_public?: boolean;
+          card_title?: string | null;
+          build_archetype?: string | null;
+          estimated_performance?: EstimatedPerformance | null;
+          ai_estimated_performance?: EstimatedPerformance | null;
+          build_aggression?: number | null;
+          uniqueness_score?: number | null;
+          authenticity_confidence?: number | null;
+          traits?: CardTrait[] | null;
+          flavour_text?: string | null;
+          weaknesses?: string[] | null;
+          rival_archetypes?: string[] | null;
+          battle_record?: { wins: number; losses: number };
         };
         Update: {
           car_id?: string | null;
@@ -212,7 +272,189 @@ export interface Database {
           occasion?: string | null;
           rarity?: string;
           is_public?: boolean;
+          card_title?: string | null;
+          build_archetype?: string | null;
+          estimated_performance?: EstimatedPerformance | null;
+          build_aggression?: number | null;
+          uniqueness_score?: number | null;
+          authenticity_confidence?: number | null;
+          traits?: CardTrait[] | null;
+          flavour_text?: string | null;
+          weaknesses?: string[] | null;
+          rival_archetypes?: string[] | null;
+          battle_record?: { wins: number; losses: number };
+          last_battle_at?: string | null;
         };
+      };
+      builder_scores: {
+        Row: {
+          user_id: string;
+          documentation_quality: number;
+          community_trust: number;
+          engagement_authenticity: number;
+          build_consistency: number;
+          platform_tenure: number;
+          composite_score: number;
+          tier_label: string;
+          last_calculated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          documentation_quality?: number;
+          community_trust?: number;
+          engagement_authenticity?: number;
+          build_consistency?: number;
+          platform_tenure?: number;
+          composite_score?: number;
+          tier_label?: string;
+          last_calculated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["builder_scores"]["Insert"]>;
+      };
+      card_ratings: {
+        Row: {
+          id: string;
+          card_id: string;
+          rater_id: string;
+          rater_builder_score_at_time: number;
+          cleanliness: number;
+          creativity: number;
+          execution: number;
+          presence: number;
+          weighted_composite: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          card_id: string;
+          rater_id: string;
+          rater_builder_score_at_time?: number;
+          cleanliness: number;
+          creativity: number;
+          execution: number;
+          presence: number;
+          weighted_composite?: number;
+        };
+        Update: {
+          cleanliness?: number;
+          creativity?: number;
+          execution?: number;
+          presence?: number;
+          weighted_composite?: number;
+        };
+      };
+      card_battles: {
+        Row: {
+          id: string;
+          challenger_card_id: string;
+          opponent_card_id: string;
+          challenger_user_id: string;
+          opponent_user_id: string;
+          outcome: "win" | "loss" | "narrow_win" | "narrow_loss";
+          score_breakdown: BattleScoreBreakdown;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          challenger_card_id: string;
+          opponent_card_id: string;
+          challenger_user_id: string;
+          opponent_user_id: string;
+          outcome: "win" | "loss" | "narrow_win" | "narrow_loss";
+          score_breakdown: BattleScoreBreakdown;
+        };
+        Update: never;
+      };
+      card_credibility_signals: {
+        Row: {
+          id: string;
+          card_id: string;
+          user_id: string;
+          signal_type: "flag" | "endorse";
+          weight: number;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          card_id: string;
+          user_id: string;
+          signal_type: "flag" | "endorse";
+          weight?: number;
+          reason?: string | null;
+        };
+        Update: never;
+      };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: string;
+          payload: Record<string, unknown>;
+          read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: string;
+          payload?: Record<string, unknown>;
+          read?: boolean;
+        };
+        Update: {
+          read?: boolean;
+        };
+      };
+      achievements: {
+        Row: {
+          id: string;
+          user_id: string;
+          achievement_type: string;
+          category: "builder" | "community" | "battle" | "platform";
+          earned_at: string;
+          progress_data: Record<string, unknown>;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          achievement_type: string;
+          category: "builder" | "community" | "battle" | "platform";
+          progress_data?: Record<string, unknown>;
+        };
+        Update: {
+          progress_data?: Record<string, unknown>;
+        };
+      };
+      vehicle_stock_specs: {
+        Row: {
+          id: string;
+          year: number;
+          make: string;
+          model: string;
+          trim: string | null;
+          hp: number | null;
+          torque: number | null;
+          zero_to_sixty: number | null;
+          top_speed: number | null;
+          weight: number | null;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          year: number;
+          make: string;
+          model: string;
+          trim?: string | null;
+          hp?: number | null;
+          torque?: number | null;
+          zero_to_sixty?: number | null;
+          top_speed?: number | null;
+          weight?: number | null;
+          notes?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["vehicle_stock_specs"]["Insert"]>;
       };
       car_photos: {
         Row: {
@@ -522,3 +764,10 @@ export type ForumLike = Database["public"]["Tables"]["forum_likes"]["Row"];
 export type ForumDownvote = Database["public"]["Tables"]["forum_downvotes"]["Row"];
 export type Purchase = Database["public"]["Tables"]["purchases"]["Row"];
 export type PixelCard = Database["public"]["Tables"]["pixel_cards"]["Row"];
+export type BuilderScore = Database["public"]["Tables"]["builder_scores"]["Row"];
+export type CardRating = Database["public"]["Tables"]["card_ratings"]["Row"];
+export type CardBattle = Database["public"]["Tables"]["card_battles"]["Row"];
+export type CardCredibilitySignal = Database["public"]["Tables"]["card_credibility_signals"]["Row"];
+export type Notification = Database["public"]["Tables"]["notifications"]["Row"];
+export type Achievement = Database["public"]["Tables"]["achievements"]["Row"];
+export type VehicleStockSpec = Database["public"]["Tables"]["vehicle_stock_specs"]["Row"];

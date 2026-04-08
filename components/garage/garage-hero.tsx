@@ -178,20 +178,24 @@ export function GarageHero({
           </div>
         )}
 
-        {/* Primary badge top left */}
+        {/* Primary badge top left — links to car detail page */}
         {isPrimary && heroImage && (
           <div className="absolute top-5 left-5 z-10">
-            <div
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] font-bold tracking-[0.15em] uppercase glow-gold"
+            <Link
+              href={`/garage/${car.id}`}
+              aria-label={`Open ${carName} details`}
+              className="flex items-center gap-1.5 min-h-[44px] px-3.5 py-1.5 rounded-full text-[10px] font-bold tracking-[0.15em] uppercase glow-gold transition-all hover:scale-[1.03] active:scale-95"
               style={{
                 backgroundColor: "rgba(251,191,36,0.18)",
                 border: "1px solid rgba(251,191,36,0.40)",
                 color: "#fbbf24",
                 backdropFilter: "blur(12px)",
+                textDecoration: "none",
               }}
             >
               <Star size={9} fill="currentColor" /> Primary Build
-            </div>
+              <ChevronRight size={10} />
+            </Link>
           </div>
         )}
 

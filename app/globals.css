@@ -251,6 +251,42 @@
   .mv-text-accent { color: var(--mv-accent-text); }
   .mv-text-gold   { color: var(--mv-gold-text); }
 
+  /* ── Light-mode rescue pass #2 — hardcoded dark panel fallbacks ──
+     Many card/panel components inline `background: rgba(15,12,30,…)` or
+     similar near-black tones. In dark mode these read fine; in light mode
+     they turn into tiny black mystery boxes. We can't rewrite every inline
+     style, so we hoist the most common dark rgba() backgrounds to a theme-
+     aware panel token in light mode. */
+  :root[data-theme="light"] [style*="rgba(15,12,30"],
+  :root[data-theme="light"] [style*="rgba(15, 12, 30"],
+  :root[data-theme="light"] [style*="rgba(7,7,14"],
+  :root[data-theme="light"] [style*="rgba(5,5,12"],
+  :root[data-theme="light"] [style*="rgba(12,10,22"] {
+    background-color: var(--color-bg-card) !important;
+    color: var(--color-text-primary) !important;
+  }
+  :root[data-theme="light"] [style*="rgba(168,85,247,0.22)"],
+  :root[data-theme="light"] [style*="rgba(168,85,247,0.20)"],
+  :root[data-theme="light"] [style*="rgba(168,85,247,0.18)"],
+  :root[data-theme="light"] [style*="rgba(168,85,247,0.15)"],
+  :root[data-theme="light"] [style*="rgba(123,79,212,0.22)"],
+  :root[data-theme="light"] [style*="rgba(123,79,212,0.25)"] {
+    border-color: rgba(123,79,212,0.25) !important;
+  }
+  /* Hard-to-read mint-time labels use low-opacity text that vanishes on white */
+  :root[data-theme="light"] [style*="rgba(200,180,240"],
+  :root[data-theme="light"] [style*="rgba(220,210,250"],
+  :root[data-theme="light"] [style*="rgba(160,140,200"],
+  :root[data-theme="light"] [style*="rgba(240,230,255"] {
+    color: var(--color-text-secondary) !important;
+  }
+  /* Public card detail page has a solid #05050c background — make light mode
+     return to the normal light page bg so the judge panel stays readable. */
+  :root[data-theme="light"] main[style*="#05050c"] {
+    background-color: var(--color-bg) !important;
+    color: var(--color-text-primary) !important;
+  }
+
   * {
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;

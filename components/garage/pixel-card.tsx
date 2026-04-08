@@ -8,6 +8,7 @@ import type { CardEligibility, MintedCard } from "@/lib/pixel-card";
 import { CARD_BORDER_COLOR } from "@/lib/pixel-card";
 import { TradingCard } from "./trading-card";
 import { CardRevealCeremony } from "./card-reveal-ceremony";
+import { PreMintReviewModal, type PreMintPayload } from "./pre-mint-review-modal";
 
 interface PixelCardProps {
   carId: string;
@@ -21,7 +22,7 @@ interface PixelCardProps {
   color?: string | null;
 }
 
-type MintState = "idle" | "occasion" | "minting" | "ceremony";
+type MintState = "idle" | "occasion" | "generating" | "review" | "minting" | "ceremony";
 
 const OCCASION_EXAMPLES = [
   "Just picked her up",
@@ -41,6 +42,7 @@ export function PixelCard(props: PixelCardProps) {
   const [freshCard, setFreshCard] = useState<MintedCard | null>(null);
   const [eligibility, setEligibility] = useState<CardEligibility | null>(null);
   const [eligLoading, setEligLoading] = useState(true);
+  const [reviewPayload, setReviewPayload] = useState<PreMintPayload | null>(null);
 
   // Trim + color validation
   const hasTrim  = !!props.trim?.trim();
@@ -121,14 +123,55 @@ export function PixelCard(props: PixelCardProps) {
       return;
     }
 
-    setMintState("minting");
+    // Step 1: Generate (AI call, no saving yet) → opens the review modal.
+    setMintState("generating");
     setError(null);
 
     try {
-      const res = await fetch(`/api/cards`, {
+      const res = await fetch(`/api/cards/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ carId: props.carId, occasion, isPublic }),
+        body: JSON.stringify({ carId: props.carId, occasion }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(typeof json.error === "string" ? json.error : "Failed to generate");
+      }
+      const payload: PreMintPayload = {
+        carId: props.carId,
+        occasion,
+        isPublic,
+        cardTitle: String(json.cardTitle ?? ""),
+        buildArchetype: String(json.buildArchetype ?? "Daily Driven"),
+        estimatedPerformance: json.estimatedPerformance,
+        aiEstimatedPerformance: json.aiEstimatedPerformance,
+        buildAggression: Number(json.buildAggression ?? 5),
+        uniquenessScore: Number(json.uniquenessScore ?? 50),
+        authenticityConfidence: Number(json.authenticityConfidence ?? 60),
+        traits: Array.isArray(json.traits) ? json.traits : [],
+        flavourText: String(json.flavourText ?? ""),
+        weaknesses: Array.isArray(json.weaknesses) ? json.weaknesses : [],
+        rivalArchetypes: Array.isArray(json.rivalArchetypes) ? json.rivalArchetypes : [],
+        stockSpecs: json.stockSpecs ?? null,
+        builderScore: json.builderScore ?? null,
+      };
+      setReviewPayload(payload);
+      setMintState("review");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate");
+      haptic("heavy");
+      setMintState("idle");
+    }
+  }
+
+  async function handleConfirmMint(edited: PreMintPayload) {
+    setMintState("minting");
+    setError(null);
+    try {
+      const res = await fetch(`/api/cards/mint`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(edited),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -166,6 +209,19 @@ export function PixelCard(props: PixelCardProps) {
 
   return (
     <div>
+      {/* ── Pre-mint review modal ─────────────────────────────────────────── */}
+      {mintState === "review" && reviewPayload && (
+        <PreMintReviewModal
+          payload={reviewPayload}
+          carLabel={props.carLabel}
+          onCancel={() => {
+            setReviewPayload(null);
+            setMintState("idle");
+          }}
+          onConfirm={handleConfirmMint}
+        />
+      )}
+
       {/* ── Occasion modal ─────────────────────────────────────────────────── */}
       {mintState === "occasion" && (
         <div
@@ -483,26 +539,31 @@ export function PixelCard(props: PixelCardProps) {
       <div className="mt-4">
         <button
           onClick={handleMint}
-          disabled={!eligible || mintState === "minting" || needsProfile}
+          disabled={!eligible || mintState !== "idle" || needsProfile}
           style={{
             width: "100%", height: 44, borderRadius: 12,
-            background: !eligible || mintState === "minting" || needsProfile
+            background: !eligible || mintState !== "idle" || needsProfile
               ? "rgba(123,79,212,0.18)"
               : "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
             border: `1px solid ${eligible && !needsProfile ? "rgba(123,79,212,0.6)" : "rgba(123,79,212,0.25)"}`,
             color: eligible && !needsProfile ? "white" : "rgba(255,255,255,0.5)",
             fontFamily: "ui-monospace, monospace", fontSize: 12, fontWeight: 700,
             letterSpacing: "0.1em", textTransform: "uppercase" as const,
-            cursor: !eligible || mintState === "minting" || needsProfile ? "not-allowed" : "pointer",
+            cursor: !eligible || mintState !== "idle" || needsProfile ? "not-allowed" : "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             transition: "all 0.2s",
             boxShadow: eligible && mintState === "idle" && !needsProfile ? "0 4px 20px rgba(123,79,212,0.35)" : "none",
           }}
         >
-          {mintState === "minting" ? (
+          {mintState === "generating" ? (
             <>
               <Loader2 size={14} className="animate-spin" />
-              Minting... (up to 40s)
+              Analyzing build...
+            </>
+          ) : mintState === "minting" ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              Minting...
             </>
           ) : (
             <>
@@ -512,7 +573,7 @@ export function PixelCard(props: PixelCardProps) {
           )}
         </button>
         <p className="text-[10px] text-[var(--color-text-disabled)] mt-2 text-center">
-          Each card is a permanent snapshot. Mint as many as you like.
+          Each card is a permanent snapshot. Review before you mint.
         </p>
       </div>
     </div>

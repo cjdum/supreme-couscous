@@ -6,6 +6,8 @@ import { TradingCard } from "@/components/garage/trading-card";
 import { ERA_COLORS, safeEra } from "@/lib/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
 import { CardShareActions } from "@/components/garage/card-share-actions";
+import { CardJudgePanel } from "@/components/garage/card-judge-panel";
+import type { CardTrait } from "@/lib/supabase/types";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -91,8 +93,60 @@ export default async function PublicCardPage({ params }: Props) {
     era: string | null; card_number: number | null;
   }>;
 
+  // Ratings
+  const { data: ratingsRaw } = await supabase
+    .from("card_ratings")
+    .select("cleanliness, creativity, execution, presence, weighted_composite")
+    .eq("card_id", id);
+  const ratings = (ratingsRaw ?? []) as {
+    cleanliness: number;
+    creativity: number;
+    execution: number;
+    presence: number;
+    weighted_composite: number;
+  }[];
+  const avgRating =
+    ratings.length > 0
+      ? ratings.reduce((s, r) => s + Number(r.weighted_composite), 0) / ratings.length
+      : null;
+
+  // Battle history (last 5)
+  const { data: battleRaw } = await supabase
+    .from("card_battles")
+    .select("id, outcome, challenger_card_id, opponent_card_id, created_at")
+    .or(`challenger_card_id.eq.${id},opponent_card_id.eq.${id}`)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const battles = (battleRaw ?? []) as {
+    id: string;
+    outcome: "win" | "loss" | "narrow_win" | "narrow_loss";
+    challenger_card_id: string;
+    opponent_card_id: string;
+    created_at: string;
+  }[];
+
+  // Credibility signal counts (aggregate only — raw identities are RLS-gated)
+  const { data: sigsRaw } = await supabase
+    .from("card_credibility_signals")
+    .select("signal_type, weight")
+    .eq("card_id", id);
+  type Sig = { signal_type: "flag" | "endorse"; weight: number };
+  const sigs = (sigsRaw ?? []) as Sig[];
+  const endorseWeight = sigs.filter((s) => s.signal_type === "endorse").reduce((s, x) => s + Number(x.weight), 0);
+  const flagWeight = sigs.filter((s) => s.signal_type === "flag").reduce((s, x) => s + Number(x.weight), 0);
+
   const totalMods = snap.mod_count ?? 0;
   const totalInvested = snap.total_invested ?? 0;
+
+  // Read the new fields safely (they default to null on old rows)
+  const traits = (card as unknown as { traits: CardTrait[] | null }).traits ?? [];
+  const archetype = (card as unknown as { build_archetype: string | null }).build_archetype ?? null;
+  const authenticity = (card as unknown as { authenticity_confidence: number | null }).authenticity_confidence ?? null;
+  const uniqueness = (card as unknown as { uniqueness_score: number | null }).uniqueness_score ?? null;
+  const aggression = (card as unknown as { build_aggression: number | null }).build_aggression ?? null;
+  const weaknesses = (card as unknown as { weaknesses: string[] | null }).weaknesses ?? [];
+  const battleRecord = (card as unknown as { battle_record: { wins: number; losses: number } | null }).battle_record ?? { wins: 0, losses: 0 };
+  const cardTitle = (card as unknown as { card_title: string | null }).card_title ?? null;
 
   return (
     <main
@@ -387,6 +441,25 @@ export default async function PublicCardPage({ params }: Props) {
                 <ArrowRight size={16} className="ml-auto" style={{ color: "rgba(200,180,240,0.4)" }} />
               </Link>
             )}
+
+            {/* ── Card Judge panel — ratings, flags, traits, battles, breakdown ── */}
+            <CardJudgePanel
+              cardId={card.id}
+              cardTitle={cardTitle ?? card.nickname}
+              archetype={archetype}
+              authenticityConfidence={authenticity}
+              uniquenessScore={uniqueness}
+              buildAggression={aggression}
+              traits={traits}
+              weaknesses={weaknesses}
+              avgRating={avgRating}
+              ratingCount={ratings.length}
+              endorseWeight={endorseWeight}
+              flagWeight={flagWeight}
+              battleWins={battleRecord.wins}
+              battleLosses={battleRecord.losses}
+              battles={battles}
+            />
 
             {/* Mods list */}
             {snap.mods && snap.mods.length > 0 && (

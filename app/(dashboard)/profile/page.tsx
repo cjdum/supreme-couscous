@@ -324,6 +324,9 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* Builder Score — the new credibility metric */}
+      <BuilderScoreWidget />
+
       {/* VAULT Rating — the combined, prominent card */}
       {buildScore && (
         <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6">
@@ -730,6 +733,111 @@ export default function ProfilePage() {
       )}
 
       <div className="h-6" />
+    </div>
+  );
+}
+
+interface ServerBuilderScore {
+  documentation_quality: number;
+  community_trust: number;
+  engagement_authenticity: number;
+  build_consistency: number;
+  platform_tenure: number;
+  composite_score: number;
+  tier_label: string;
+  tier_color: string;
+  breakdown: { component: string; weight: number; raw: number; contribution: number; notes: string[] }[];
+}
+
+function BuilderScoreWidget() {
+  const [data, setData] = useState<ServerBuilderScore | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function recalc() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/builder-score/recalculate", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed");
+      setData(json.builder_score as ServerBuilderScore);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    recalc();
+  }, []);
+
+  if (error) {
+    return (
+      <div className="rounded-2xl p-4 text-xs text-[var(--color-danger)]" style={{ background: "var(--color-danger-muted)", border: "1px solid rgba(255,69,58,0.25)" }}>
+        Builder Score: {error}
+      </div>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="rounded-2xl p-5 animate-pulse" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
+        <div className="h-4 w-24 bg-[var(--color-bg-elevated)] rounded mb-3" />
+        <div className="h-10 w-28 bg-[var(--color-bg-elevated)] rounded" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl p-6" style={{ background: "var(--color-bg-card)", border: "1px solid var(--color-border)" }}>
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: data.tier_color }}>
+            Builder Score
+          </p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-5xl font-black" style={{ color: data.tier_color }}>
+              {data.composite_score}
+            </span>
+            <span className="text-xs font-bold text-[var(--color-text-muted)]">/ 1000</span>
+          </div>
+        </div>
+        <div
+          className="px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider"
+          style={{ background: `${data.tier_color}18`, color: data.tier_color, border: `1px solid ${data.tier_color}40` }}
+        >
+          {data.tier_label}
+        </div>
+      </div>
+      <div className="space-y-2">
+        {data.breakdown.map((b) => (
+          <div key={b.component}>
+            <div className="flex items-center justify-between text-[11px] mb-1">
+              <span className="text-[var(--color-text-secondary)] font-semibold">{b.component}</span>
+              <span className="text-[var(--color-text-muted)] font-mono">
+                {b.contribution} / {b.weight * 10}
+              </span>
+            </div>
+            <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--color-bg-elevated)" }}>
+              <div
+                className="h-full transition-all"
+                style={{
+                  width: `${Math.min(100, (b.contribution / (b.weight * 10)) * 100)}%`,
+                  background: data.tier_color,
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={recalc}
+        disabled={loading}
+        className="mt-4 w-full h-9 rounded-xl text-[11px] font-bold border border-[var(--color-border)] bg-[var(--color-bg-elevated)] hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)] disabled:opacity-50"
+      >
+        {loading ? "Recalculating..." : "Recalculate"}
+      </button>
     </div>
   );
 }

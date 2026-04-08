@@ -220,7 +220,10 @@ function VisualizerContent() {
   const [latestRender, setLatestRender] = useState<Render | null>(null);
   const [settingCover, setSettingCover] = useState(false);
   const [coverSet, setCoverSet] = useState(false);
-  const [activeTab, setActiveTab] = useState<"render" | "analyze">("render");
+  // Analyze tab was removed per spec (no image passing to AI).
+  // The `activeTab` state is kept (still a string union) but the user can
+  // never flip it off "render", so the analyze branch is unreachable.
+  const [activeTab] = useState<"render" | "analyze">("render");
 
   // Structured mod picker selections
   const defaultSelections: Selections = Object.fromEntries(
@@ -451,31 +454,9 @@ function VisualizerContent() {
         </div>
       </div>
 
-      {/* Tab switcher */}
-      <div className="flex bg-[var(--color-bg-card)] rounded-2xl p-1.5 my-6 gap-1 border border-[var(--color-border)] max-w-md">
-        <button
-          onClick={() => setActiveTab("render")}
-          className={`flex-1 flex items-center justify-center gap-2 min-h-[44px] h-11 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === "render"
-              ? "bg-[var(--color-accent)] text-white shadow-sm"
-              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-          }`}
-        >
-          <Sparkles size={14} />
-          Mod Visualizer
-        </button>
-        <button
-          onClick={() => setActiveTab("analyze")}
-          className={`flex-1 flex items-center justify-center gap-2 min-h-[44px] h-11 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === "analyze"
-              ? "bg-[var(--color-accent)] text-white shadow-sm"
-              : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-          }`}
-        >
-          <Eye size={14} />
-          Analyze Photo
-        </button>
-      </div>
+      {/* Analyze-Photo tab removed per spec — we no longer pass user images
+          to AI. All car understanding must come from typed fields in the
+          garage. The visualizer is the only tab now. */}
 
       {/* ── Render tab ── */}
       {activeTab === "render" && (

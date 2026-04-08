@@ -425,11 +425,10 @@ export default async function GaragePage() {
           </section>
         )}
 
-        {cars.length === 1 && (
-          <section className="mt-10">
-            <AddCarButton asCard label="Add another vehicle" />
-          </section>
-        )}
+        {/* Always-visible Add Vehicle CTA — shown regardless of car count */}
+        <section className="mt-10">
+          <AddCarButton asCard label={cars.length === 1 ? "Add another vehicle" : "Add a vehicle"} />
+        </section>
       </PageContainer>
     </div>
   );

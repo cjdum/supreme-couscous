@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   User, Bell, Globe, Lock, Palette, Trash2, Loader2, Camera, Check, AlertTriangle,
-  Sun, Moon, Settings as SettingsIcon, ChevronRight, Car as CarIcon
+  Sun, Moon, Settings as SettingsIcon, ChevronRight, Car as CarIcon, Download
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Toggle } from "@/components/ui/toggle";
@@ -476,6 +476,59 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* ── DATA EXPORT ── */}
+      <section className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden">
+        <SectionHeader icon={<Download size={14} />} title="Data export" />
+        <div className="p-6 space-y-3">
+          <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+            Download a JSON snapshot of your garage, mods, cards, ratings, battles, and achievements. This file contains everything MODVAULT has for your account.
+          </p>
+          <button
+            onClick={async () => {
+              try {
+                const supabase = createClient();
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                const [cars, mods, cards, ratings, battles, achievements, builderScore] = await Promise.all([
+                  supabase.from("cars").select("*").eq("user_id", user.id),
+                  supabase.from("mods").select("*").eq("user_id", user.id),
+                  supabase.from("pixel_cards").select("*").eq("user_id", user.id),
+                  supabase.from("card_ratings").select("*").eq("rater_id", user.id),
+                  supabase.from("card_battles").select("*").or(`challenger_user_id.eq.${user.id},opponent_user_id.eq.${user.id}`),
+                  supabase.from("achievements").select("*").eq("user_id", user.id),
+                  supabase.from("builder_scores").select("*").eq("user_id", user.id).maybeSingle(),
+                ]);
+                const snapshot = {
+                  exported_at: new Date().toISOString(),
+                  user_id: user.id,
+                  cars: cars.data ?? [],
+                  mods: mods.data ?? [],
+                  cards: cards.data ?? [],
+                  ratings: ratings.data ?? [],
+                  battles: battles.data ?? [],
+                  achievements: achievements.data ?? [],
+                  builder_score: builderScore.data ?? null,
+                };
+                const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `modvault-${user.id.slice(0, 8)}-${Date.now()}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                haptic("success");
+              } catch (err) {
+                alert(`Export failed: ${err instanceof Error ? err.message : "unknown"}`);
+              }
+            }}
+            className="inline-flex items-center gap-2 h-11 px-4 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] hover:bg-[var(--color-bg-hover)] transition-colors"
+          >
+            <Download size={13} />
+            Download JSON export
+          </button>
         </div>
       </section>
 
