@@ -4,18 +4,18 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Sparkles, ImageIcon, Download, Upload, X, Eye,
-  Wand2, Check, Star, Loader2, Camera
+  Wand2, Check, Star, Loader2, Camera, AlertCircle, ArrowRight
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { Select, Textarea } from "@/components/ui/input";
+import { Select } from "@/components/ui/input";
 import { RenderLightbox } from "@/components/ui/render-lightbox";
 import { haptic } from "@/lib/haptics";
 import type { Car, Render, CarPhoto } from "@/lib/supabase/types";
 import { formatRelativeDate } from "@/lib/utils";
+import Link from "next/link";
 
 /**
  * Lightweight markdown renderer for the streaming analyze response.
- * Supports: # / ## / ### headings, **bold**, *italic*, - bullets, paragraph breaks.
  */
 function renderMarkdown(text: string): React.ReactNode {
   if (!text) return null;
@@ -47,17 +47,9 @@ function renderMarkdown(text: string): React.ReactNode {
       if (m.index > last) parts.push(s.slice(last, m.index));
       const tok = m[0];
       if (tok.startsWith("**")) {
-        parts.push(
-          <strong key={idx++} className="font-bold text-white">
-            {tok.slice(2, -2)}
-          </strong>
-        );
+        parts.push(<strong key={idx++} className="font-bold text-white">{tok.slice(2, -2)}</strong>);
       } else {
-        parts.push(
-          <em key={idx++} className="italic">
-            {tok.slice(1, -1)}
-          </em>
-        );
+        parts.push(<em key={idx++} className="italic">{tok.slice(1, -1)}</em>);
       }
       last = m.index + tok.length;
     }
@@ -70,141 +62,148 @@ function renderMarkdown(text: string): React.ReactNode {
     const line = raw.trimEnd();
     if (line.startsWith("### ")) {
       flushList();
-      blocks.push(
-        <h4 key={`h-${i}`} className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mt-4 mb-1.5">
-          {line.slice(4)}
-        </h4>
-      );
+      blocks.push(<h4 key={`h-${i}`} className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mt-4 mb-1.5">{line.slice(4)}</h4>);
     } else if (line.startsWith("## ")) {
       flushList();
-      blocks.push(
-        <h3 key={`h-${i}`} className="text-sm font-black mt-5 mb-2 text-white">
-          {line.slice(3)}
-        </h3>
-      );
+      blocks.push(<h3 key={`h-${i}`} className="text-sm font-black mt-5 mb-2 text-white">{line.slice(3)}</h3>);
     } else if (line.startsWith("# ")) {
       flushList();
-      blocks.push(
-        <h2 key={`h-${i}`} className="text-base font-black mt-5 mb-2 text-white">
-          {line.slice(2)}
-        </h2>
-      );
+      blocks.push(<h2 key={`h-${i}`} className="text-base font-black mt-5 mb-2 text-white">{line.slice(2)}</h2>);
     } else if (/^[-*]\s+/.test(line)) {
       listBuffer.push(line.replace(/^[-*]\s+/, ""));
     } else if (line === "") {
       flushList();
     } else {
       flushList();
-      blocks.push(
-        <p key={`p-${i}`} className="text-xs leading-relaxed text-[var(--color-text-secondary)] mb-2">
-          {renderInline(line)}
-        </p>
-      );
+      blocks.push(<p key={`p-${i}`} className="text-xs leading-relaxed text-[var(--color-text-secondary)] mb-2">{renderInline(line)}</p>);
     }
   }
   flushList();
   return blocks;
 }
 
-/**
- * Scene presets — each pre-fills the prompt with a full scene description.
- * The API already leads DALL-E with the exact car details, so the user just
- * needs a scene + optional color/wheel tweaks.
- */
-interface ScenePreset {
+// ── Structured Mod Picker ──────────────────────────────────────────────────────
+
+interface ModCategory {
   id: string;
   label: string;
-  icon: string;
-  description: string;
-  buildPrompt: () => string;
+  options: { value: string; label: string; promptFragment: string | null }[];
 }
 
-const SCENE_PRESETS: ScenePreset[] = [
+const MOD_CATEGORIES: ModCategory[] = [
   {
-    id: "track",
-    label: "Track Day",
-    icon: "🏁",
-    description: "Apex of a racing circuit corner",
-    buildPrompt: () =>
-      "On a racing circuit at the apex of a corner, red-and-white curbs visible under the wheels, tire smoke curling from the rear, aggressive low 3/4 angle from the outside of the turn, track atmosphere, cinematic motorsport photography, overcast dramatic lighting.",
+    id: "wheels",
+    label: "Wheels",
+    options: [
+      { value: "stock", label: "Stock", promptFragment: null },
+      { value: "deep-dish", label: "Deep Dish", promptFragment: "deep dish multi-piece forged wheels with aggressive offset that fills the arches" },
+      { value: "multi-spoke", label: "Multi-Spoke", promptFragment: "multi-spoke lightweight forged wheels, polished lips" },
+      { value: "mesh", label: "Mesh", promptFragment: "classic mesh-style wheels with chrome lips, flush fitment" },
+      { value: "steelies", label: "Steelies", promptFragment: "old-school steel wheels with hub caps, understated sleeper look" },
+    ],
   },
   {
-    id: "drag",
-    label: "Drag Strip",
-    icon: "🛣️",
-    description: "Christmas tree lights, launching",
-    buildPrompt: () =>
-      "Launching from the starting line of a drag strip, front wheels lifting slightly, burnout smoke billowing from the rear tires, Christmas tree lights glowing in the foreground, head-on low perspective, NHRA motorsport photography, sharp focus, golden hour.",
+    id: "bodykit",
+    label: "Body Kit",
+    options: [
+      { value: "stock", label: "Stock", promptFragment: null },
+      { value: "front-splitter", label: "Front Splitter", promptFragment: "aggressive carbon fiber front splitter and canards, clean factory body otherwise" },
+      { value: "widebody", label: "Widebody", promptFragment: "full widebody kit with flared arches, wider track, stretched fitment" },
+      { value: "lip-kit", label: "Lip Kit", promptFragment: "subtle lip kit — front lip, side skirts and rear diffuser, factory-plus look" },
+      { value: "vented-hood", label: "Vented Hood", promptFragment: "functional vented carbon fiber hood with heat extractors" },
+    ],
   },
   {
-    id: "city-night",
-    label: "Neon Night",
-    icon: "🌆",
-    description: "Wet streets, neon reflections",
-    buildPrompt: () =>
-      "Parked on a wet urban street at night, neon signs and skyscraper lights reflecting off the wet asphalt and paint, moody cyberpunk Tokyo/LA atmosphere, shallow depth of field, cinematic nightlife vibe, 3/4 front angle.",
+    id: "spoiler",
+    label: "Spoiler",
+    options: [
+      { value: "none", label: "None", promptFragment: null },
+      { value: "ducktail", label: "Ducktail", promptFragment: "tasteful ducktail spoiler in body color" },
+      { value: "gt-wing", label: "GT Wing", promptFragment: "tall adjustable GT wing on trunk risers, track-focused" },
+      { value: "carbon-oem", label: "Carbon OEM+", promptFragment: "carbon fiber OEM-style spoiler, factory fitment with premium finish" },
+      { value: "whale-tail", label: "Whale Tail", promptFragment: "period-correct whale tail spoiler, wide and dramatic" },
+    ],
   },
   {
-    id: "canyon",
-    label: "Canyon Run",
-    icon: "🏔️",
-    description: "Mountain switchback, golden hour",
-    buildPrompt: () =>
-      "Carving through a switchback on a mountain canyon road at golden hour, warm sunlight raking across the bodywork, valley vistas in the background, dramatic long lens compression, automotive editorial photography.",
+    id: "exhaust",
+    label: "Exhaust",
+    options: [
+      { value: "stock", label: "Stock", promptFragment: null },
+      { value: "catback-single", label: "Catback Single", promptFragment: "aftermarket catback exhaust with single large tip, polished stainless" },
+      { value: "catback-quad", label: "Quad Tips", promptFragment: "catback exhaust system with quad rectangular tips, premium finish" },
+      { value: "side-exit", label: "Side Exit", promptFragment: "side-exit exhaust pipes emerging mid-sill, aggressive motorsport look" },
+      { value: "straight-pipe", label: "Straight Pipe", promptFragment: "raw straight-piped exhaust, minimal and aggressive" },
+    ],
   },
   {
-    id: "car-meet",
-    label: "Car Meet",
-    icon: "🚗",
-    description: "Underground parking garage meet",
-    buildPrompt: () =>
-      "Centered in a dim underground parking garage at night, surrounded by blurred enthusiast cars and soft fluorescent lighting, pop-up car-meet atmosphere, shallow depth of field isolating the subject, editorial automotive photography, cinematic film grain.",
+    id: "tint",
+    label: "Window Tint",
+    options: [
+      { value: "none", label: "None", promptFragment: null },
+      { value: "light", label: "Light (30%)", promptFragment: "lightly tinted windows at 30% VLT, subtle privacy" },
+      { value: "medium", label: "Medium (20%)", promptFragment: "medium window tint at 20% VLT, dark and purposeful" },
+      { value: "dark", label: "Dark (5%)", promptFragment: "very dark window tint at 5% VLT, blacked-out glass effect" },
+      { value: "limo", label: "Limo Tint", promptFragment: "limo-level black tint, fully opaque windows" },
+    ],
   },
   {
-    id: "studio",
-    label: "Studio",
-    icon: "📸",
-    description: "Clean studio hero shot",
-    buildPrompt: () =>
-      "Professional automotive studio shoot on a seamless dark grey backdrop with soft overhead rim lighting, perfect reflections on the paint, magazine cover quality, razor-sharp focus, 3/4 front hero angle.",
+    id: "ride",
+    label: "Ride Height",
+    options: [
+      { value: "stock", label: "Stock", promptFragment: null },
+      { value: "lowered", label: "Lowered", promptFragment: "lowered ride height on coilovers, 1–2 inch drop, slight negative camber" },
+      { value: "slammed", label: "Slammed", promptFragment: "slammed stance on air suspension, nearly touching the ground, extreme negative camber" },
+      { value: "lifted", label: "Lifted", promptFragment: "lifted on spacer leveling kit, all-terrain stance" },
+      { value: "stance", label: "Stance", promptFragment: "stanced fitment — aggressive camber, stretched tires, tucked arches" },
+    ],
   },
   {
-    id: "snow",
-    label: "Snow Run",
-    icon: "❄️",
-    description: "Fresh snow, alpine forest",
-    buildPrompt: () =>
-      "Kicking up fresh powder on a snow-covered alpine forest road, snowflakes in mid-air around the car, dramatic pine tree backdrop, crisp cold winter light, long exposure motion blur on the ground, cinematic rally photography.",
+    id: "paint",
+    label: "Paint",
+    options: [
+      { value: "stock", label: "Keep Color", promptFragment: null },
+      { value: "matte-black", label: "Matte Black", promptFragment: "full matte black respray, flat satin finish" },
+      { value: "pearl-white", label: "Pearl White", promptFragment: "pearl white respray with subtle color-shift iridescence" },
+      { value: "nardo-grey", label: "Nardo Grey", promptFragment: "Nardo grey respray, factory matte finish" },
+      { value: "two-tone", label: "Two-Tone", promptFragment: "two-tone paint — black roof and hood, contrasting body color" },
+    ],
   },
   {
-    id: "desert",
-    label: "Desert Dune",
-    icon: "🏜️",
-    description: "Golden sand, sunset glow",
-    buildPrompt: () =>
-      "Parked on a cracked salt flat / desert dune at sunset, long shadows stretching across the sand, warm golden sky with cloud bands, heat shimmer in the distance, cinematic automotive editorial photography, wide angle.",
+    id: "livery",
+    label: "Livery",
+    options: [
+      { value: "none", label: "None", promptFragment: null },
+      { value: "racing-stripe", label: "Racing Stripe", promptFragment: "twin racing stripes over the hood and roof in contrasting color" },
+      { value: "pinstripe", label: "Pinstripe", promptFragment: "subtle pinstripe detail along the lower body" },
+      { value: "full-livery", label: "Full Livery", promptFragment: "motorsport-inspired full livery with sponsor graphics, number on door" },
+      { value: "side-decal", label: "Side Decal", promptFragment: "minimal side skirt decal, tasteful script lettering" },
+    ],
   },
 ];
 
-interface DetailPreset {
-  id: "color" | "wheels";
-  label: string;
-  icon: string;
-  description: string;
+type Selections = Record<string, string>;
+
+function buildPrompt(car: Car, selections: Selections): string {
+  const carLine = `${car.year} ${car.make} ${car.model}${car.trim ? " " + car.trim : ""}, ${car.color ?? "white"}`;
+
+  const fragments: string[] = [];
+  for (const cat of MOD_CATEGORIES) {
+    const selected = selections[cat.id] ?? cat.options[0].value;
+    const opt = cat.options.find((o) => o.value === selected);
+    if (opt?.promptFragment) fragments.push(opt.promptFragment);
+  }
+
+  const modLine = fragments.length > 0 ? fragments.join(". ") + "." : "";
+
+  return (
+    `Pixel art sprite of a ${carLine}. 3/4 front driver side view. ` +
+    (modLine ? modLine + " " : "") +
+    `Retro 16-bit pixel art style. Hard square pixels, no anti-aliasing, no blur. ` +
+    `Flat dark background #0a0a18. No text, no logos. Style: Super Nintendo racing game sprite.`
+  );
 }
 
-const DETAIL_PRESETS: DetailPreset[] = [
-  { id: "color", label: "Color Change", icon: "🎨", description: "Respray in a new color" },
-  { id: "wheels", label: "New Wheels", icon: "🔧", description: "Try a different wheel style" },
-];
-
-const WHEEL_STYLES = [
-  { value: "deep-dish", label: "Deep Dish" },
-  { value: "mesh", label: "Multi-spoke Mesh" },
-  { value: "spoke", label: "5-spoke Forged" },
-  { value: "split", label: "Split 5" },
-  { value: "concave", label: "Concave" },
-];
+// ── Main Component ─────────────────────────────────────────────────────────────
 
 function VisualizerContent() {
   const searchParams = useSearchParams();
@@ -214,7 +213,6 @@ function VisualizerContent() {
   const [cars, setCars] = useState<Car[]>([]);
   const [selectedCarId, setSelectedCarId] = useState(preselectedCarId ?? "");
   const [carPhotos, setCarPhotos] = useState<CarPhoto[]>([]);
-  const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [renders, setRenders] = useState<Render[]>([]);
@@ -222,24 +220,48 @@ function VisualizerContent() {
   const [latestRender, setLatestRender] = useState<Render | null>(null);
   const [settingCover, setSettingCover] = useState(false);
   const [coverSet, setCoverSet] = useState(false);
+  const [activeTab, setActiveTab] = useState<"render" | "analyze">("render");
 
-  // Color / wheels popover
-  const [detailPopover, setDetailPopover] = useState<null | "color" | "wheels">(null);
-  const [colorInput, setColorInput] = useState("");
-  const [wheelStyle, setWheelStyle] = useState<string>("deep-dish");
+  // Structured mod picker selections
+  const defaultSelections: Selections = Object.fromEntries(
+    MOD_CATEGORIES.map((c) => [c.id, c.options[0].value])
+  );
+  const [selections, setSelections] = useState<Selections>(defaultSelections);
 
+  // Stock vs Modded comparison state
+  const [stockImageUrl, setStockImageUrl] = useState<string | null>(null);
+  const [moddedRender, setModdedRender] = useState<Render | null>(null);
+
+  // Analyze tab
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [uploadedMediaType, setUploadedMediaType] = useState<"image/jpeg" | "image/png" | "image/webp" | "image/gif">("image/jpeg");
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisText, setAnalysisText] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<"render" | "analyze">("render");
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [expandedRender, setExpandedRender] = useState<Render | null>(null);
 
   const selectedCar = cars.find((c) => c.id === selectedCarId) ?? null;
   const carLabel = selectedCar ? `${selectedCar.year} ${selectedCar.make} ${selectedCar.model}` : "your car";
+
+  // Car profile completeness gate
+  const missingFields: string[] = [];
+  if (selectedCar) {
+    if (!selectedCar.year) missingFields.push("year");
+    if (!selectedCar.make) missingFields.push("make");
+    if (!selectedCar.model) missingFields.push("model");
+    if (!selectedCar.trim) missingFields.push("trim");
+    if (!selectedCar.color) missingFields.push("color");
+  }
+  const carProfileComplete = selectedCar != null && missingFields.length === 0;
+
+  // Active selections (non-default)
+  const activeSelections = Object.entries(selections).filter(([catId, val]) => {
+    const cat = MOD_CATEGORIES.find((c) => c.id === catId);
+    if (!cat) return false;
+    const opt = cat.options.find((o) => o.value === val);
+    return !!opt?.promptFragment;
+  });
 
   useEffect(() => {
     const supabase = createClient();
@@ -273,8 +295,7 @@ function VisualizerContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load photos whenever selected car changes — these are shown as thumbnails
-  // so the user knows which photos are being used as reference for DALL-E.
+  // Load photos when car changes (used as stock reference)
   useEffect(() => {
     if (!selectedCarId) { setCarPhotos([]); return; }
     const supabase = createClient();
@@ -290,41 +311,24 @@ function VisualizerContent() {
       });
   }, [selectedCarId]);
 
-  function applyScenePreset(preset: ScenePreset) {
-    setPrompt(preset.buildPrompt());
-    haptic("light");
-  }
-
-  function applyColorChange() {
-    if (!colorInput.trim()) return;
-    setPrompt(
-      `Respray the car in ${colorInput.trim()} — keep every other detail identical (wheels, stance, kit). Clean studio/showroom setting, glossy professional finish, 3/4 front hero angle.`
-    );
-    setDetailPopover(null);
-    setColorInput("");
-    haptic("light");
-  }
-
-  function applyWheelChange() {
-    const style = WHEEL_STYLES.find((w) => w.value === wheelStyle)?.label ?? "deep dish";
-    setPrompt(
-      `Swap the wheels to aftermarket ${style} wheels, staggered fitment, aggressive offset that fills the arches perfectly. Keep the paint, body kit, and stance. Clean 3/4 front angle, natural daylight, photorealistic.`
-    );
-    setDetailPopover(null);
-    haptic("light");
-  }
-
   async function handleGenerate() {
-    if (!selectedCarId || !prompt.trim()) return;
+    if (!selectedCarId || !carProfileComplete) return;
     setLoading(true);
     setError(null);
+    setModdedRender(null);
     haptic("light");
+
+    // Capture stock image before generating
+    const stockPhoto = carPhotos.find((p) => p.is_cover) ?? carPhotos[0];
+    setStockImageUrl(stockPhoto?.url ?? selectedCar?.cover_image_url ?? null);
+
+    const prompt = buildPrompt(selectedCar!, selections);
 
     try {
       const res = await fetch("/api/ai/visualize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ car_id: selectedCarId, prompt: prompt.trim() }),
+        body: JSON.stringify({ car_id: selectedCarId, prompt }),
       });
 
       const json = await res.json();
@@ -333,46 +337,11 @@ function VisualizerContent() {
       const newRender = json.render as Render;
       setRenders((prev) => [newRender, ...prev]);
       setLatestRender(newRender);
+      setModdedRender(newRender);
       setCoverSet(false);
       haptic("success");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Feature 18 — Imagine: fan out to N diverse interpretations in one shot.
-  async function handleImagine() {
-    if (!selectedCarId || !prompt.trim() || loading) return;
-    setLoading(true);
-    setError(null);
-    haptic("medium");
-
-    try {
-      const res = await fetch("/api/ai/imagine", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          car_id: selectedCarId,
-          prompt: prompt.trim(),
-          count: 4,
-        }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Imagine failed");
-
-      const newRenders = (json.renders ?? []) as Render[];
-      if (newRenders.length === 0) {
-        throw new Error("No renders returned");
-      }
-      setRenders((prev) => [...newRenders, ...prev]);
-      setLatestRender(newRenders[0]);
-      setCoverSet(false);
-      haptic("success");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Imagine failed");
     } finally {
       setLoading(false);
     }
@@ -400,15 +369,18 @@ function VisualizerContent() {
     }
   }
 
+  function handleDownload(render: Render) {
+    if (!render.image_url) return;
+    const a = document.createElement("a");
+    a.href = render.image_url;
+    a.download = `modvault-render-${render.id.slice(0, 8)}.jpg`;
+    a.click();
+  }
+
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 8 * 1024 * 1024) {
-      setError("Image must be under 8MB");
-      return;
-    }
-
+    if (file.size > 8 * 1024 * 1024) { setError("Image must be under 8MB"); return; }
     const reader = new FileReader();
     reader.onload = (ev) => {
       const result = ev.target?.result as string;
@@ -447,7 +419,7 @@ function VisualizerContent() {
 
       if (!res.ok || !res.body) {
         const json = await res.json().catch(() => ({}));
-        throw new Error(json.error ?? "Analysis failed");
+        throw new Error((json as { error?: string }).error ?? "Analysis failed");
       }
 
       const reader = res.body.getReader();
@@ -467,14 +439,6 @@ function VisualizerContent() {
     }
   }
 
-  function handleDownload(render: Render) {
-    if (!render.image_url) return;
-    const a = document.createElement("a");
-    a.href = render.image_url;
-    a.download = `modvault-render-${render.id.slice(0, 8)}.jpg`;
-    a.click();
-  }
-
   return (
     <div className="px-5 sm:px-8 py-6 max-w-6xl mx-auto">
       <div className="flex items-center gap-3 mb-1">
@@ -483,7 +447,7 @@ function VisualizerContent() {
         </div>
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight truncate">Visualizer</h1>
-          <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">Describe a scene. See it rendered on your car.</p>
+          <p className="text-xs text-[var(--color-text-muted)] mt-0.5 truncate">Pick mods. See your build rendered.</p>
         </div>
       </div>
 
@@ -498,7 +462,7 @@ function VisualizerContent() {
           }`}
         >
           <Sparkles size={14} />
-          Generate Render
+          Mod Visualizer
         </button>
         <button
           onClick={() => setActiveTab("analyze")}
@@ -513,184 +477,151 @@ function VisualizerContent() {
         </button>
       </div>
 
-      {/* Render tab */}
+      {/* ── Render tab ── */}
       {activeTab === "render" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* LEFT: Form */}
-            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 sm:p-6 space-y-5">
-              {cars.length > 0 && (
-                <Select
-                  label="Vehicle"
-                  value={selectedCarId}
-                  onChange={(e) => setSelectedCarId(e.target.value)}
-                  options={cars.map((c) => ({
-                    value: c.id,
-                    label: `${c.year} ${c.make} ${c.model}${c.nickname ? ` (${c.nickname})` : ""}`,
-                  }))}
-                />
-              )}
-
-              {/* Reference photos — so the user knows the AI sees their car */}
-              {selectedCar && (
-                <div className="rounded-2xl bg-[var(--color-accent-muted)] border border-[rgba(59,130,246,0.25)] p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Sparkles size={12} className="text-[#60A5FA]" />
-                    <p className="text-[10px] font-bold text-[#60A5FA] uppercase tracking-wider">
-                      Using your {carLabel} as reference
-                    </p>
-                  </div>
-                  {carPhotos.length > 0 ? (
-                    <>
-                      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                        {carPhotos.map((photo) => (
-                          <div
-                            key={photo.id}
-                            className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border border-[rgba(255,255,255,0.12)]"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={photo.url}
-                              alt="Reference"
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                            {photo.is_cover && (
-                              <div className="absolute top-0.5 left-0.5">
-                                <Star size={9} fill="#fbbf24" stroke="#fbbf24" />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-[var(--color-text-muted)] mt-2.5 leading-relaxed">
-                        AI will match your car&apos;s color, wheels and stance to these photos.
-                      </p>
-                    </>
-                  ) : (
-                    <div className="flex items-start gap-2.5">
-                      <Camera size={13} className="text-[var(--color-text-muted)] mt-0.5 flex-shrink-0" />
-                      <p className="text-[10px] text-[var(--color-text-muted)] leading-relaxed">
-                        No photos uploaded yet. AI will use your car&apos;s year/make/model/color from the garage. Upload real photos in the car detail page for more accurate renders.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Scene presets — one tap fills the prompt with full scene, no retyping */}
-              <div>
-                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                  Quick scenes
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {SCENE_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => applyScenePreset(preset)}
-                      className="px-2 py-3 rounded-xl border bg-[var(--color-bg-elevated)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-white hover:bg-[var(--color-accent-muted)] text-center transition-all cursor-pointer min-h-[68px]"
-                      title={preset.description}
-                    >
-                      <div className="text-base mb-0.5">{preset.icon}</div>
-                      <div className="text-[10px] font-bold uppercase tracking-wider leading-tight">{preset.label}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Detail tweaks — color change, wheels */}
-              <div>
-                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                  Detail tweaks
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {DETAIL_PRESETS.map((preset) => (
-                    <div key={preset.id} className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setDetailPopover(detailPopover === preset.id ? null : preset.id)}
-                        className={`w-full px-3 py-3 rounded-xl border text-center transition-all cursor-pointer min-h-[68px] ${
-                          detailPopover === preset.id
-                            ? "bg-[var(--color-accent-muted)] border-[var(--color-accent)] text-white"
-                            : "bg-[var(--color-bg-elevated)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-accent)] hover:text-white"
-                        }`}
-                        title={preset.description}
-                      >
-                        <div className="text-base mb-0.5">{preset.icon}</div>
-                        <div className="text-[10px] font-bold uppercase tracking-wider">{preset.label}</div>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Color popover */}
-                {detailPopover === "color" && (
-                  <div className="mt-2 rounded-2xl bg-[var(--color-bg-elevated)] border border-[var(--color-accent)] p-4">
-                    <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                      What color?
-                    </p>
-                    <input
-                      type="text"
-                      value={colorInput}
-                      onChange={(e) => setColorInput(e.target.value)}
-                      placeholder="e.g. Nardo grey, matte black, pearl white"
-                      className="w-full h-11 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] px-3 text-sm text-white placeholder-[var(--color-text-muted)] outline-none focus:border-[var(--color-accent)]"
-                      onKeyDown={(e) => e.key === "Enter" && applyColorChange()}
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={applyColorChange}
-                      disabled={!colorInput.trim()}
-                      className="mt-2 w-full h-11 rounded-lg bg-[var(--color-accent)] text-white text-xs font-bold disabled:opacity-40 cursor-pointer"
-                    >
-                      Apply color
-                    </button>
-                  </div>
-                )}
-
-                {/* Wheels popover */}
-                {detailPopover === "wheels" && (
-                  <div className="mt-2 rounded-2xl bg-[var(--color-bg-elevated)] border border-[var(--color-accent)] p-4">
-                    <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">
-                      Wheel style
-                    </p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {WHEEL_STYLES.map((w) => (
-                        <button
-                          key={w.value}
-                          type="button"
-                          onClick={() => setWheelStyle(w.value)}
-                          className={`h-11 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
-                            wheelStyle === w.value
-                              ? "bg-[var(--color-accent)] text-white"
-                              : "bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[var(--color-text-secondary)]"
-                          }`}
-                        >
-                          {w.label}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={applyWheelChange}
-                      className="mt-2 w-full h-11 rounded-lg bg-[var(--color-accent)] text-white text-xs font-bold cursor-pointer"
-                    >
-                      Apply wheels
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <Textarea
-                label="Prompt"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe what you want to see, or tap a scene button above."
-                rows={5}
-                hint="Your car's year/make/model/color and installed mods are always sent with the prompt — you don't need to repeat them."
+          {/* Car selector */}
+          {cars.length > 0 && (
+            <div className="max-w-xs">
+              <Select
+                label="Vehicle"
+                value={selectedCarId}
+                onChange={(e) => {
+                  setSelectedCarId(e.target.value);
+                  setModdedRender(null);
+                  setStockImageUrl(null);
+                }}
+                options={cars.map((c) => ({
+                  value: c.id,
+                  label: `${c.year} ${c.make} ${c.model}${c.nickname ? ` (${c.nickname})` : ""}`,
+                }))}
               />
+            </div>
+          )}
+
+          {/* Profile gate */}
+          {selectedCar && !carProfileComplete && (
+            <div
+              className="rounded-2xl p-4 flex items-start gap-3"
+              style={{
+                background: "rgba(255,149,0,0.08)",
+                border: "1px solid rgba(255,149,0,0.3)",
+              }}
+            >
+              <AlertCircle size={16} className="text-[#ff9500] flex-shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-[#ff9500]">Car profile incomplete</p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1">
+                  Fill in <span className="text-white font-semibold">{missingFields.join(", ")}</span> before generating a render.
+                </p>
+                <Link
+                  href={`/garage/${selectedCar.id}`}
+                  className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-[#ff9500] hover:text-white transition-colors"
+                >
+                  Edit car profile <ArrowRight size={11} />
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Main layout: picker left, preview right */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* LEFT: Structured mod picker */}
+            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 sm:p-6 space-y-5">
+              <div>
+                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1">
+                  Pick your mods
+                </p>
+                <p className="text-[10px] text-[var(--color-text-muted)]">
+                  Selections auto-build the DALL-E prompt — no typing needed.
+                </p>
+              </div>
+
+              {/* Category pickers */}
+              <div className="space-y-4">
+                {MOD_CATEGORIES.map((cat) => (
+                  <div key={cat.id}>
+                    <p
+                      style={{
+                        fontFamily: "ui-monospace, monospace",
+                        fontSize: 9, fontWeight: 800,
+                        letterSpacing: "0.14em", textTransform: "uppercase",
+                        color: "rgba(200,180,240,0.55)", marginBottom: 6,
+                      }}
+                    >
+                      {cat.label}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {cat.options.map((opt) => {
+                        const isSelected = (selections[cat.id] ?? cat.options[0].value) === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() =>
+                              setSelections((prev) => ({ ...prev, [cat.id]: opt.value }))
+                            }
+                            style={{
+                              padding: "5px 11px",
+                              borderRadius: 20,
+                              fontFamily: "ui-monospace, monospace",
+                              fontSize: 10, fontWeight: 700,
+                              letterSpacing: "0.06em",
+                              cursor: "pointer",
+                              transition: "all 120ms ease",
+                              background: isSelected
+                                ? "linear-gradient(135deg, rgba(123,79,212,0.55) 0%, rgba(168,85,247,0.45) 100%)"
+                                : "var(--mv-panel-bg)",
+                              border: `1px solid ${isSelected ? "rgba(168,85,247,0.6)" : "rgba(168,85,247,0.15)"}`,
+                              color: isSelected ? "#e9d5ff" : "rgba(200,180,240,0.5)",
+                              boxShadow: isSelected ? "0 0 10px rgba(168,85,247,0.2)" : "none",
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Active selection chips */}
+              {activeSelections.length > 0 && (
+                <div>
+                  <p
+                    style={{
+                      fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 800,
+                      letterSpacing: "0.14em", textTransform: "uppercase",
+                      color: "rgba(200,180,240,0.55)", marginBottom: 6,
+                    }}
+                  >
+                    Selected Mods
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeSelections.map(([catId, val]) => {
+                      const cat = MOD_CATEGORIES.find((c) => c.id === catId)!;
+                      const opt = cat.options.find((o) => o.value === val)!;
+                      return (
+                        <span
+                          key={catId}
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 5,
+                            padding: "3px 9px", borderRadius: 12,
+                            background: "rgba(59,130,246,0.12)",
+                            border: "1px solid rgba(59,130,246,0.3)",
+                            fontFamily: "ui-monospace, monospace",
+                            fontSize: 9, fontWeight: 700, letterSpacing: "0.08em",
+                            color: "#93c5fd",
+                          }}
+                        >
+                          <span style={{ color: "rgba(147,197,253,0.55)", fontWeight: 600 }}>{cat.label}:</span>
+                          {opt.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {error && (
                 <div className="rounded-xl bg-[var(--color-danger-muted)] border border-[rgba(255,69,58,0.15)] px-4 py-3 text-xs text-[var(--color-danger)]" role="alert">
@@ -698,112 +629,168 @@ function VisualizerContent() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2.5">
-                <button
-                  onClick={handleGenerate}
-                  disabled={!selectedCarId || !prompt.trim() || loading}
-                  className="rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-[0_8px_32px_rgba(59,130,246,0.3)]"
-                  style={{ minHeight: "52px" }}
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={16} />
-                      Generate Render
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleImagine}
-                  disabled={!selectedCarId || !prompt.trim() || loading}
-                  className="rounded-2xl bg-[var(--color-bg-elevated)] border border-[var(--color-border-bright)] text-white text-sm font-bold flex items-center justify-center gap-2 px-5 hover:bg-[var(--color-bg-hover)] hover:border-[var(--color-accent)] transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                  style={{ minHeight: "52px" }}
-                  title="Generate 4 diverse interpretations at once"
-                >
-                  <Wand2 size={16} className="text-[var(--color-accent-bright)]" />
-                  Imagine ×4
-                </button>
-              </div>
+              <button
+                onClick={handleGenerate}
+                disabled={!selectedCarId || !carProfileComplete || loading}
+                className="w-full rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none cursor-pointer shadow-[0_8px_32px_rgba(59,130,246,0.3)]"
+                style={{ minHeight: "52px" }}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} />
+                    Generate
+                  </>
+                )}
+              </button>
               {loading && (
                 <p className="text-[11px] text-center text-[var(--color-text-muted)]">
-                  DALL-E 3 rendering — single takes ~20s, Imagine ×4 takes ~45s
+                  DALL-E rendering — takes ~20s
                 </p>
               )}
             </div>
 
-            {/* RIGHT: Preview */}
-            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 sm:p-6 flex flex-col">
-              <div className="flex items-center justify-between mb-4 gap-2">
-                <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider truncate">
-                  {loading ? "Rendering..." : latestRender ? "Latest Render" : "Preview"}
-                </p>
-                {latestRender?.image_url && (
-                  <div className="flex gap-1.5 flex-shrink-0">
-                    <button
-                      onClick={() => handleDownload(latestRender)}
-                      className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] flex items-center justify-center hover:border-[var(--color-border-bright)] cursor-pointer"
-                      aria-label="Download"
-                    >
-                      <Download size={14} className="text-[var(--color-text-secondary)]" />
-                    </button>
+            {/* RIGHT: Stock vs Modded comparison / Preview */}
+            <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 sm:p-6 flex flex-col gap-4">
+              {moddedRender ? (
+                <>
+                  {/* Stock vs Modded */}
+                  <p
+                    style={{
+                      fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 800,
+                      letterSpacing: "0.14em", textTransform: "uppercase",
+                      color: "rgba(200,180,240,0.55)",
+                    }}
+                  >
+                    Stock vs Modded
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Stock */}
+                    <div>
+                      <p
+                        style={{
+                          fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700,
+                          letterSpacing: "0.1em", textTransform: "uppercase",
+                          color: "rgba(200,180,240,0.4)", marginBottom: 5,
+                        }}
+                      >
+                        Stock
+                      </p>
+                      <div className="rounded-xl overflow-hidden border border-[var(--color-border)] aspect-square bg-[var(--color-bg-elevated)] flex items-center justify-center">
+                        {stockImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={stockImageUrl} alt="Stock" className="w-full h-full object-cover" />
+                        ) : (
+                          <Camera size={20} className="text-[var(--color-text-disabled)]" />
+                        )}
+                      </div>
+                    </div>
+                    {/* Modded */}
+                    <div>
+                      <p
+                        style={{
+                          fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700,
+                          letterSpacing: "0.1em", textTransform: "uppercase",
+                          color: "rgba(147,197,253,0.7)", marginBottom: 5,
+                        }}
+                      >
+                        Modded
+                      </p>
+                      <button
+                        onClick={() => setExpandedRender(moddedRender)}
+                        className="w-full rounded-xl overflow-hidden border border-[rgba(59,130,246,0.35)] block cursor-pointer"
+                        style={{ aspectRatio: "1", boxShadow: "0 0 14px rgba(59,130,246,0.25)" }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={moddedRender.image_url ?? ""}
+                          alt="Modded"
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
 
-              <div className="flex-1 flex items-center justify-center min-h-[280px]">
-                {loading ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
-                    <p className="text-xs text-[var(--color-text-muted)]">Building your render...</p>
+                  {/* Save to gallery */}
+                  <button
+                    onClick={() => setAsCover(moddedRender)}
+                    disabled={settingCover || coverSet}
+                    className="w-full min-h-[44px] h-11 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-bold flex items-center justify-center gap-2 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {settingCover ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : coverSet ? (
+                      <>
+                        <Check size={13} className="text-[var(--color-success)]" /> Saved as cover
+                      </>
+                    ) : (
+                      <>
+                        <Star size={13} /> Save to car gallery
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+                    {loading ? "Rendering..." : latestRender ? "Latest Render" : "Preview"}
+                  </p>
+                  <div className="flex-1 flex items-center justify-center min-h-[280px]">
+                    {loading ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-12 h-12 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+                        <p className="text-xs text-[var(--color-text-muted)]">Building your render...</p>
+                      </div>
+                    ) : latestRender?.image_url ? (
+                      <div className="w-full">
+                        <button
+                          onClick={() => setExpandedRender(latestRender)}
+                          className="block w-full rounded-2xl overflow-hidden border border-[var(--color-border)] cursor-pointer group"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={latestRender.image_url}
+                            alt={latestRender.user_prompt}
+                            className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        </button>
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => handleDownload(latestRender)}
+                            className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] flex items-center justify-center hover:border-[var(--color-border-bright)] cursor-pointer"
+                            aria-label="Download"
+                          >
+                            <Download size={14} className="text-[var(--color-text-secondary)]" />
+                          </button>
+                          <button
+                            onClick={() => setAsCover(latestRender)}
+                            disabled={settingCover || coverSet}
+                            className="flex-1 min-h-[44px] h-11 rounded-lg bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-bold flex items-center justify-center gap-2 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {settingCover ? <Loader2 size={13} className="animate-spin" /> :
+                             coverSet ? <><Check size={13} className="text-[var(--color-success)]" /> Saved</> :
+                             <><Star size={13} /> Set as cover</>}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <ImageIcon size={32} className="mx-auto text-[var(--color-text-disabled)] mb-3" />
+                        <p className="text-sm font-bold text-[var(--color-text-secondary)]">No render yet</p>
+                        <p className="text-xs text-[var(--color-text-muted)] mt-1.5">Pick mods and tap Generate</p>
+                      </div>
+                    )}
                   </div>
-                ) : latestRender?.image_url ? (
-                  <div className="w-full">
-                    <button
-                      onClick={() => setExpandedRender(latestRender)}
-                      className="block w-full rounded-2xl overflow-hidden border border-[var(--color-border)] cursor-pointer group"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={latestRender.image_url}
-                        alt={latestRender.user_prompt}
-                        className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                    </button>
-                    <p className="text-[11px] text-[var(--color-text-secondary)] mt-3 line-clamp-2 break-words">{latestRender.user_prompt}</p>
-                    <button
-                      onClick={() => setAsCover(latestRender)}
-                      disabled={settingCover || coverSet}
-                      className="w-full mt-3 min-h-[44px] h-11 rounded-xl bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-xs font-bold flex items-center justify-center gap-2 hover:border-[var(--color-gold)] hover:text-[var(--color-gold)] transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {settingCover ? (
-                        <Loader2 size={13} className="animate-spin" />
-                      ) : coverSet ? (
-                        <>
-                          <Check size={13} className="text-[var(--color-success)]" /> Cover updated
-                        </>
-                      ) : (
-                        <>
-                          <Star size={13} /> Set as car cover photo
-                        </>
-                      )}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <ImageIcon size={32} className="mx-auto text-[var(--color-text-disabled)] mb-3" />
-                    <p className="text-sm font-bold text-[var(--color-text-secondary)]">No render yet</p>
-                    <p className="text-xs text-[var(--color-text-muted)] mt-1.5">Tap a scene to begin</p>
-                  </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Render Gallery (masonry) */}
+          {/* Render Gallery */}
           <div>
             <h2 className="text-base font-bold tracking-tight mb-4">Render Gallery</h2>
             {loadingRenders ? (
@@ -816,7 +803,7 @@ function VisualizerContent() {
               <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] py-16 text-center">
                 <ImageIcon size={22} className="mx-auto text-[var(--color-text-disabled)] mb-3" />
                 <p className="text-sm font-bold text-[var(--color-text-secondary)]">No renders yet</p>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1.5">Describe a mod above</p>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1.5">Pick mods above and generate your first render</p>
               </div>
             ) : (
               <div className="masonry-grid">
@@ -835,7 +822,7 @@ function VisualizerContent() {
                           className="w-full object-cover transition-transform duration-500 group-hover:scale-110"
                           style={{ aspectRatio: "4/3" }}
                         />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/15 backdrop-blur-sm text-white text-xs font-bold">
                             <Eye size={13} /> View Full Size
                           </div>
@@ -846,11 +833,8 @@ function VisualizerContent() {
                         <p className="text-xs text-[var(--color-text-muted)]">No image</p>
                       </div>
                     )}
-                    <div className="flex items-start justify-between gap-3 p-4">
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-[var(--color-text-secondary)] leading-relaxed line-clamp-2 break-words">{render.user_prompt}</p>
-                        <p className="text-[10px] text-[var(--color-text-muted)] mt-1">{formatRelativeDate(render.created_at)}</p>
-                      </div>
+                    <div className="p-4">
+                      <p className="text-[10px] text-[var(--color-text-muted)]">{formatRelativeDate(render.created_at)}</p>
                     </div>
                   </div>
                 ))}
@@ -860,7 +844,7 @@ function VisualizerContent() {
         </div>
       )}
 
-      {/* Analyze tab */}
+      {/* ── Analyze tab ── */}
       {activeTab === "analyze" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
           <div className="rounded-3xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-6">
@@ -929,13 +913,9 @@ function VisualizerContent() {
               className="w-full mt-5 min-h-[48px] h-12 rounded-2xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
             >
               {analyzing ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" /> Analyzing...
-                </>
+                <><Loader2 size={16} className="animate-spin" /> Analyzing...</>
               ) : (
-                <>
-                  <Eye size={16} /> Analyze Photo
-                </>
+                <><Eye size={16} /> Analyze Photo</>
               )}
             </button>
           </div>
@@ -973,7 +953,7 @@ function VisualizerContent() {
         </div>
       )}
 
-      {/* Reusable fullscreen render lightbox with zoom + pan */}
+      {/* Fullscreen lightbox */}
       {expandedRender && expandedRender.image_url && (
         <RenderLightbox
           src={expandedRender.image_url}

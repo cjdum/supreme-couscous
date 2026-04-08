@@ -823,3 +823,27 @@ alter table pixel_cards add column if not exists occasion text;
 
 -- Drop cooldown tracker — no longer used
 alter table cars drop column if exists last_card_minted_at;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- MIGRATION v13: Card rarity + public feed
+-- Adds rarity tier (Common/Uncommon/Rare/Ultra Rare/Legendary) assigned at mint
+-- time and an is_public flag controlling community feed visibility.
+-- Run this block in Supabase SQL Editor.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Rarity tier: assigned algorithmically at mint time
+alter table pixel_cards add column if not exists rarity text not null default 'Common';
+
+-- Public feed visibility: true by default, user can opt out at mint time
+alter table pixel_cards add column if not exists is_public boolean not null default true;
+
+-- Index for fast feed queries
+create index if not exists pixel_cards_is_public_idx on pixel_cards(is_public, minted_at desc)
+  where is_public = true;
+
+-- Update RLS: allow anyone (including unauthenticated) to read public cards.
+-- The existing "pixel_cards: owner all" policy continues to cover owner reads/writes.
+drop policy if exists "pixel_cards: public feed read" on pixel_cards;
+create policy "pixel_cards: public feed read"
+  on pixel_cards for select
+  using (is_public = true);

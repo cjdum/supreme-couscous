@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Car, GalleryHorizontal, BarChart2, MessageSquare, Zap } from "lucide-react";
+import { Car, GalleryHorizontal, Globe, MessageSquare, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/garage", icon: Car, label: "Garage" },
   { href: "/cards", icon: GalleryHorizontal, label: "Cards" },
+  { href: "/feed", icon: Globe, label: "Feed" },
   { href: "/visualizer", icon: Zap, label: "Render" },
   { href: "/chat", icon: MessageSquare, label: "AI" },
-  { href: "/stats", icon: BarChart2, label: "Stats" },
 ];
 
 export function BottomNav() {

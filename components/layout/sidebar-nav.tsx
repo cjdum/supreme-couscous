@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Car, Sparkles, MessageSquare, Zap, BarChart2, User, LogOut, Settings, GalleryHorizontal } from "lucide-react";
+import { Car, Sparkles, MessageSquare, Zap, BarChart2, User, LogOut, Settings, GalleryHorizontal, Globe } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { loadPreferences } from "@/lib/preferences";
@@ -15,6 +15,7 @@ interface SidebarNavProps {
 const NAV_ITEMS = [
   { href: "/garage", icon: Car, label: "Garage", shortcut: "G" },
   { href: "/cards", icon: GalleryHorizontal, label: "Cards", shortcut: "" },
+  { href: "/feed", icon: Globe, label: "Feed", shortcut: "" },
   { href: "/visualizer", icon: Zap, label: "Visualizer", shortcut: "V" },
   { href: "/chat", icon: MessageSquare, label: "AI Chat", shortcut: "C" },
   { href: "/forum", icon: Sparkles, label: "Forum", shortcut: "" },

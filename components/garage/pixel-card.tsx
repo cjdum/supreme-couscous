@@ -36,6 +36,7 @@ export function PixelCard(props: PixelCardProps) {
   const router = useRouter();
   const [mintState, setMintState] = useState<MintState>("idle");
   const [occasionInput, setOccasionInput] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [freshCard, setFreshCard] = useState<MintedCard | null>(null);
   const [eligibility, setEligibility] = useState<CardEligibility | null>(null);
@@ -127,7 +128,7 @@ export function PixelCard(props: PixelCardProps) {
       const res = await fetch(`/api/cards`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ carId: props.carId, occasion }),
+        body: JSON.stringify({ carId: props.carId, occasion, isPublic }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -267,6 +268,39 @@ export function PixelCard(props: PixelCardProps) {
                   {ex}
                 </button>
               ))}
+            </div>
+
+            {/* Public toggle */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "10px 14px", borderRadius: 12, marginBottom: 14,
+              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(123,79,212,0.18)",
+            }}>
+              <div>
+                <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, fontWeight: 700, color: "rgba(240,230,255,0.85)", letterSpacing: "0.08em", margin: 0 }}>
+                  Share in community feed?
+                </p>
+                <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, color: "rgba(160,140,200,0.5)", letterSpacing: "0.04em", margin: "2px 0 0" }}>
+                  {isPublic ? "Visible to everyone at /feed" : "Private — only you can see it"}
+                </p>
+              </div>
+              <button
+                onClick={() => setIsPublic((v) => !v)}
+                style={{
+                  width: 44, height: 24, borderRadius: 12, flexShrink: 0,
+                  background: isPublic ? "rgba(123,79,212,0.75)" : "rgba(255,255,255,0.1)",
+                  border: `1px solid ${isPublic ? "rgba(168,85,247,0.6)" : "rgba(255,255,255,0.15)"}`,
+                  position: "relative", cursor: "pointer", transition: "all 0.2s",
+                  padding: 0,
+                }}
+              >
+                <div style={{
+                  width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                  position: "absolute", top: 2, transition: "left 0.2s",
+                  left: isPublic ? 22 : 2,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                }} />
+              </button>
             </div>
 
             {/* Mint button */}

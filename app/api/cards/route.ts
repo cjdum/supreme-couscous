@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimit, AI_RATE_LIMIT } from "@/lib/rate-limit";
 import type { PixelCardSnapshot } from "@/lib/supabase/types";
-import { randomEra } from "@/lib/pixel-card";
+import { randomEra, assignRarity } from "@/lib/pixel-card";
 
 /**
  * POST /api/cards
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Slow down — try again in a minute." }, { status: 429 });
   }
 
-  let body: { carId?: string; occasion?: string };
+  let body: { carId?: string; occasion?: string; isPublic?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -62,6 +62,9 @@ export async function POST(req: Request) {
   if (!occasion) {
     return NextResponse.json({ error: "Occasion note is required" }, { status: 400 });
   }
+
+  // is_public defaults to true unless explicitly set to false
+  const isPublic = body.isPublic !== false;
 
   // ── 1. Load car (fresh from DB — never state/props) ────────────────────
   const { data: carRaw } = await supabase
@@ -149,8 +152,9 @@ export async function POST(req: Request) {
     vin_verified:   car.vin_verified,
   };
 
-  // ── 5. Assign era (random, permanent) ──────────────────────────────────
+  // ── 5. Assign era (random, permanent) + rarity ─────────────────────────
   const era = randomEra();
+  const rarity = assignRarity(mods.length, totalInvested, null, Math.random());
 
   // ── 6. Run nickname + flavor text + DALL-E in parallel ──────────────────
   const openai = getOpenAI();
@@ -328,9 +332,11 @@ Return only the 3-word name. Nothing else.`,
       flavor_text:    flavorText ?? null,
       era,
       occasion,
+      rarity,
+      is_public:      isPublic,
       // card_number is auto-assigned by the sequence
     })
-    .select("id, user_id, car_id, car_snapshot, pixel_card_url, nickname, hp, mod_count, minted_at, card_number, flavor_text, era, occasion")
+    .select("id, user_id, car_id, car_snapshot, pixel_card_url, nickname, hp, mod_count, minted_at, card_number, flavor_text, era, occasion, rarity, is_public")
     .single();
 
   if (insErr || !cardRaw) {

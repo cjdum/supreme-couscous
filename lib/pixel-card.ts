@@ -1,7 +1,7 @@
 /**
  * Pixel Card — shared types + constants.
  *
- * No rarity. No tiers. Cards are uniform memory snapshots.
+ * Rarity tiers: Common / Uncommon / Rare / Ultra Rare / Legendary
  * Eligibility: ≥1 real photo. No cooldown.
  */
 
@@ -34,8 +34,73 @@ export function safeEra(era: string | null | undefined): Era {
   return (ERAS as readonly string[]).includes(era ?? "") ? (era as Era) : "Chrome";
 }
 
+// ── Rarity system ─────────────────────────────────────────────────────────────
+export const RARITIES = ["Common", "Uncommon", "Rare", "Ultra Rare", "Legendary"] as const;
+export type Rarity = typeof RARITIES[number];
+
+export const RARITY_COLORS: Record<Rarity, { bg: string; text: string; border: string; glow: string }> = {
+  Common:       { bg: "rgba(160,160,160,0.10)", text: "#9ca3af", border: "rgba(160,160,160,0.28)", glow: "rgba(160,160,160,0.12)" },
+  Uncommon:     { bg: "rgba(48,209,88,0.12)",   text: "#30d158", border: "rgba(48,209,88,0.35)",   glow: "rgba(48,209,88,0.20)" },
+  Rare:         { bg: "rgba(59,130,246,0.14)",  text: "#60a5fa", border: "rgba(59,130,246,0.40)",  glow: "rgba(59,130,246,0.25)" },
+  "Ultra Rare": { bg: "rgba(168,85,247,0.16)",  text: "#c084fc", border: "rgba(168,85,247,0.50)", glow: "rgba(168,85,247,0.35)" },
+  Legendary:    { bg: "rgba(245,215,110,0.18)", text: "#f5d76e", border: "rgba(245,215,110,0.55)", glow: "rgba(245,215,110,0.40)" },
+};
+
+/**
+ * Assign rarity at mint time based on mod count, total invested, build score,
+ * and a small random factor. Called server-side during minting.
+ *
+ * @param modCount      Number of installed mods at mint time
+ * @param totalInvested Total $ invested across all installed mods
+ * @param buildScore    Current build score (or null)
+ * @param randomFactor  A value 0–1 (Math.random()) for small variance
+ */
+export function assignRarity(
+  modCount: number,
+  totalInvested: number,
+  buildScore: number | null,
+  randomFactor: number,
+): Rarity {
+  let score = 0;
+
+  // Mod count (max 4)
+  if (modCount >= 20) score += 4;
+  else if (modCount >= 10) score += 3;
+  else if (modCount >= 5) score += 2;
+  else if (modCount >= 2) score += 1;
+
+  // Total invested (max 4)
+  if (totalInvested >= 20000) score += 4;
+  else if (totalInvested >= 10000) score += 3;
+  else if (totalInvested >= 5000) score += 2;
+  else if (totalInvested >= 1000) score += 1;
+
+  // Build score (max 4)
+  const bs = buildScore ?? 0;
+  if (bs >= 800) score += 4;
+  else if (bs >= 400) score += 3;
+  else if (bs >= 150) score += 2;
+  else if (bs >= 50) score += 1;
+
+  // Random luck (max 3): 5% get +3, 20% get +1
+  if (randomFactor > 0.95) score += 3;
+  else if (randomFactor > 0.75) score += 1;
+
+  // Map total (0–15) to tier
+  if (score >= 12) return "Legendary";
+  if (score >= 9)  return "Ultra Rare";
+  if (score >= 6)  return "Rare";
+  if (score >= 3)  return "Uncommon";
+  return "Common";
+}
+
+/** Safe rarity lookup — falls back to Common for unknown strings. */
+export function safeRarity(rarity: string | null | undefined): Rarity {
+  return (RARITIES as readonly string[]).includes(rarity ?? "") ? (rarity as Rarity) : "Common";
+}
+
 // ── MintedCard ────────────────────────────────────────────────────────────────
-/** Shape of a card row from the pixel_cards table (schema v10+, v11 columns added). */
+/** Shape of a card row from the pixel_cards table. */
 export interface MintedCard {
   id: string;
   user_id: string;
@@ -46,18 +111,17 @@ export interface MintedCard {
   hp: number | null;
   mod_count: number | null;
   minted_at: string;
-  /** Global sequential card number (v11). May be null on pre-v11 cards. */
   card_number: number | null;
-  /** AI-generated 2-sentence poetic description (v11). */
   flavor_text: string | null;
-  /** Collectible era: Dawn / Chrome / Turbo / Neon / Apex (v11). */
   era: string;
-  /** Occasion note frozen onto the card at mint time (v12). */
   occasion: string | null;
+  /** Rarity tier (v13): Common / Uncommon / Rare / Ultra Rare / Legendary */
+  rarity: string;
+  /** Whether card appears in the public community feed (v13). Default true. */
+  is_public: boolean;
 }
 
 // ── CardEligibility ────────────────────────────────────────────────────────────
-/** Eligibility response from GET /api/cards/eligibility */
 export interface CardEligibility {
   eligible: boolean;
   hasPhoto: boolean;

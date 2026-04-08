@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles, ChevronLeft, ChevronRight, ChevronDown, ArrowLeftRight } from "lucide-react";
+import { Sparkles, ChevronLeft, ChevronRight, ChevronDown, ArrowLeftRight, Share2 } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { CardViewerModal } from "./card-viewer-modal";
 import { CompareCardsModal } from "./compare-cards-modal";
-import { ERAS, ERA_COLORS, safeEra, type Era } from "@/lib/pixel-card";
+import { ERAS, ERA_COLORS, RARITY_COLORS, safeEra, safeRarity, type Era } from "@/lib/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
 
 interface CardCollectionProps {
@@ -525,6 +525,17 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                 <div
                   ref={setScrollRef(key)}
                   className="cc-scroll"
+                  onWheel={(e) => {
+                    // Only hijack the wheel event if the user is clearly
+                    // scrolling horizontally (deltaX > deltaY). For vertical-
+                    // dominant scrolling let the event bubble normally so the
+                    // page scrolls as expected.
+                    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                      e.preventDefault();
+                      const el = scrollRefs.current.get(key);
+                      if (el) el.scrollLeft += e.deltaX;
+                    }
+                  }}
                   style={{
                     display: "flex",
                     gap: "1.5rem",
@@ -539,6 +550,8 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                     const edition = editionOf.get(card.id) ?? 1;
                     const era = safeEra(card.era);
                     const eraStyle = ERA_COLORS[era];
+                    const rarity = safeRarity(card.rarity);
+                    const rarityStyle = RARITY_COLORS[rarity];
                     const mintedDate = new Date(card.minted_at).toLocaleDateString(undefined, {
                       month: "short", day: "numeric", year: "numeric",
                     });
@@ -583,6 +596,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                           vinVerified={cardSnap.vin_verified}
                           cardNumber={card.card_number}
                           era={card.era}
+                          rarity={card.rarity}
                           flavorText={card.flavor_text}
                           occasion={card.occasion}
                           mods={cardSnap.mods ?? []}
@@ -597,8 +611,8 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                           interactive
                         />
 
-                        {/* Era badge + card# */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", justifyContent: "center" }}>
+                        {/* Era badge + rarity badge */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", justifyContent: "center" }}>
                           <div style={{
                             display: "flex", alignItems: "center", gap: 4,
                             padding: "2px 7px", borderRadius: 12,
@@ -612,6 +626,19 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                               {era}
                             </span>
                           </div>
+                          <div style={{
+                            display: "flex", alignItems: "center", gap: 3,
+                            padding: "2px 6px", borderRadius: 12,
+                            background: rarityStyle.bg, border: `1px solid ${rarityStyle.border}`,
+                            boxShadow: rarity === "Legendary" ? `0 0 8px ${rarityStyle.glow}` : "none",
+                          }}>
+                            <span style={{
+                              fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 900,
+                              letterSpacing: "0.12em", textTransform: "uppercase" as const, color: rarityStyle.text,
+                            }}>
+                              {rarity}
+                            </span>
+                          </div>
                           {card.card_number != null && (
                             <span style={{
                               fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700,
@@ -622,7 +649,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                           )}
                         </div>
 
-                        {/* Edition + mint date + occasion */}
+                        {/* Edition + mint date + occasion + share */}
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                           {totalEditions > 1 && (
                             <p style={{
@@ -651,6 +678,37 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                               &ldquo;{card.occasion}&rdquo;
                             </p>
                           )}
+                          {/* Share button — copies /c/[id] to clipboard */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const url = `${window.location.origin}/c/${card.id}`;
+                              navigator.clipboard.writeText(url).catch(() => {});
+                            }}
+                            title="Copy share link"
+                            style={{
+                              marginTop: 4,
+                              display: "inline-flex", alignItems: "center", gap: 4,
+                              padding: "3px 8px", borderRadius: 8,
+                              background: "rgba(123,79,212,0.1)", border: "1px solid rgba(123,79,212,0.2)",
+                              color: "rgba(200,180,240,0.5)",
+                              fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700,
+                              letterSpacing: "0.1em", textTransform: "uppercase",
+                              cursor: "pointer",
+                              transition: "all 150ms ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background = "rgba(123,79,212,0.2)";
+                              (e.currentTarget as HTMLButtonElement).style.color = "rgba(200,180,240,0.85)";
+                            }}
+                            onMouseLeave={(e) => {
+                              (e.currentTarget as HTMLButtonElement).style.background = "rgba(123,79,212,0.1)";
+                              (e.currentTarget as HTMLButtonElement).style.color = "rgba(200,180,240,0.5)";
+                            }}
+                          >
+                            <Share2 size={9} />
+                            Share
+                          </button>
                         </div>
                       </button>
                     );

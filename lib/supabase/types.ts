@@ -185,6 +185,8 @@ export interface Database {
           flavor_text: string | null;
           era: string;
           occasion: string | null;
+          rarity: string;
+          is_public: boolean;
         };
         Insert: {
           id?: string;
@@ -199,6 +201,8 @@ export interface Database {
           flavor_text?: string | null;
           era?: string;
           occasion?: string | null;
+          rarity?: string;
+          is_public?: boolean;
         };
         Update: {
           car_id?: string | null;
@@ -206,6 +210,8 @@ export interface Database {
           flavor_text?: string | null;
           era?: string;
           occasion?: string | null;
+          rarity?: string;
+          is_public?: boolean;
         };
       };
       car_photos: {

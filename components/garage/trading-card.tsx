@@ -2,7 +2,7 @@
 
 import { useRef, useState, useCallback } from "react";
 import { Share2, ShieldCheck, RotateCcw } from "lucide-react";
-import { CARD_BORDER_COLOR, CARD_BORDER_GLOW, CARD_GOLD, ERA_COLORS, safeEra } from "@/lib/pixel-card";
+import { CARD_BORDER_COLOR, CARD_BORDER_GLOW, CARD_GOLD, ERA_COLORS, RARITY_COLORS, safeEra, safeRarity } from "@/lib/pixel-card";
 
 export interface TradingCardData {
   cardUrl: string;
@@ -14,6 +14,7 @@ export interface TradingCardData {
   vinVerified?: boolean;
   cardNumber?: number | null;
   era?: string | null;
+  rarity?: string | null;
   flavorText?: string | null;
   occasion?: string | null;
   mods?: string[];
@@ -66,6 +67,7 @@ export function TradingCard({
   vinVerified = false,
   cardNumber,
   era: eraProp,
+  rarity: rarityProp,
   flavorText,
   occasion,
   mods = [],
@@ -83,8 +85,11 @@ export function TradingCard({
   flipped: flippedProp,
   onFlipChange,
 }: TradingCardProps) {
-  const era      = safeEra(eraProp);
-  const eraStyle = ERA_COLORS[era];
+  const era         = safeEra(eraProp);
+  const eraStyle    = ERA_COLORS[era];
+  const rarity      = safeRarity(rarityProp);
+  const rarityStyle = RARITY_COLORS[rarity];
+  const isLegendary = rarity === "Legendary";
 
   // outerRef is the tilt div (center-center scaled)
   const outerRef   = useRef<HTMLDivElement>(null);
@@ -205,8 +210,18 @@ export function TradingCard({
         .tc-idle-${scaleKey}:hover {
           animation-play-state: paused;
         }
+        /* Legendary card: animated gold border shimmer */
+        @keyframes legendaryShimmer_${scaleKey} {
+          0%   { box-shadow: 0 0 18px rgba(245,215,110,0.55), 0 0 6px rgba(245,215,110,0.3), 0 10px 36px rgba(0,0,0,0.75); border-color: rgba(245,215,110,0.65); }
+          50%  { box-shadow: 0 0 36px rgba(245,215,110,0.85), 0 0 16px rgba(245,215,110,0.55), 0 10px 36px rgba(0,0,0,0.75); border-color: rgba(245,215,110,0.95); }
+          100% { box-shadow: 0 0 18px rgba(245,215,110,0.55), 0 0 6px rgba(245,215,110,0.3), 0 10px 36px rgba(0,0,0,0.75); border-color: rgba(245,215,110,0.65); }
+        }
+        .tc-legendary-${scaleKey} {
+          animation: legendaryShimmer_${scaleKey} 2.4s ease-in-out infinite !important;
+        }
         @media (prefers-reduced-motion: reduce) {
           .tc-idle-${scaleKey} { animation: none !important; }
+          .tc-legendary-${scaleKey} { animation: none !important; }
         }
       `}</style>
 
@@ -254,15 +269,19 @@ export function TradingCard({
           >
 
             {/* ══════════ FRONT FACE ═══════════════════════════════════ */}
-            <div style={{
+            <div
+              className={isLegendary ? `tc-legendary-${scaleKey}` : ""}
+              style={{
               position: "absolute",
               inset: 0,
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",
               transform: "rotateY(0deg) translateZ(0.1px)",
               borderRadius: 14,
-              border: `2px solid ${CARD_BORDER_COLOR}`,
-              boxShadow: `0 0 22px ${eraStyle.glow}, 0 0 6px ${CARD_BORDER_GLOW}, 0 10px 36px rgba(0,0,0,0.75)`,
+              border: `2px solid ${isLegendary ? "rgba(245,215,110,0.65)" : CARD_BORDER_COLOR}`,
+              boxShadow: isLegendary
+                ? `0 0 18px rgba(245,215,110,0.55), 0 0 6px rgba(245,215,110,0.3), 0 10px 36px rgba(0,0,0,0.75)`
+                : `0 0 22px ${eraStyle.glow}, 0 0 6px ${CARD_BORDER_GLOW}, 0 10px 36px rgba(0,0,0,0.75)`,
               // Solid opaque base color FIRST to prevent any transparency bleed,
               // textures layered on top.
               backgroundColor: "#0b0b14",
@@ -361,23 +380,35 @@ export function TradingCard({
                 </div>
               </div>
 
-              {/* ERA STRIP */}
+              {/* ERA STRIP — era badge left, rarity badge right */}
               <div style={{
                 height: ERA_H, flexShrink: 0,
-                display: "flex", alignItems: "center", justifyContent: "center",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "0 8px",
                 background: "rgba(5,5,12,0.92)",
                 borderTop: `1px solid rgba(123,79,212,0.15)`,
                 borderBottom: `1px solid rgba(123,79,212,0.15)`,
               }}>
                 <div style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "3px 12px", borderRadius: 20,
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "2px 8px", borderRadius: 20,
                   background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
-                  boxShadow: `0 0 10px ${eraStyle.glow}`,
+                  boxShadow: `0 0 8px ${eraStyle.glow}`,
                 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: eraStyle.text, boxShadow: `0 0 6px ${eraStyle.text}` }} />
-                  <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 900, letterSpacing: "0.22em", textTransform: "uppercase" as const, color: eraStyle.text }}>
-                    {era} Era
+                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: eraStyle.text, boxShadow: `0 0 4px ${eraStyle.text}` }} />
+                  <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase" as const, color: eraStyle.text }}>
+                    {era}
+                  </span>
+                </div>
+                {/* Rarity badge */}
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  padding: "2px 7px", borderRadius: 20,
+                  background: rarityStyle.bg, border: `1px solid ${rarityStyle.border}`,
+                  boxShadow: isLegendary ? `0 0 10px ${rarityStyle.glow}` : "none",
+                }}>
+                  <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: rarityStyle.text }}>
+                    {rarity}
                   </span>
                 </div>
               </div>
