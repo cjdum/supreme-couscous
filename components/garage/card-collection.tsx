@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles, ChevronLeft, ChevronRight, ArrowUpDown } from "lucide-react";
+import { Sparkles, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 import { TradingCard } from "./trading-card";
 import { CardViewerModal } from "./card-viewer-modal";
-import { ERA_COLORS, safeEra } from "@/lib/pixel-card";
+import { ERAS, ERA_COLORS, safeEra, type Era } from "@/lib/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
 
 interface CardCollectionProps {
@@ -22,35 +22,87 @@ interface ViewState {
   startIndex: number;
 }
 
-type SortMode = "newest" | "oldest" | "number-desc" | "number-asc";
+type SortMode =
+  | "newest"
+  | "oldest"
+  | "number-asc"
+  | "number-desc"
+  | "hp-desc"
+  | "hp-asc"
+  | "mods-desc"
+  | "mods-asc"
+  | "spent-desc"
+  | "spent-asc";
 
 const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-  { value: "newest", label: "Newest first" },
-  { value: "oldest", label: "Oldest first" },
-  { value: "number-asc", label: "Card # ↑" },
-  { value: "number-desc", label: "Card # ↓" },
+  { value: "newest",      label: "Newest first" },
+  { value: "oldest",      label: "Oldest first" },
+  { value: "number-asc",  label: "Card # — low to high" },
+  { value: "number-desc", label: "Card # — high to low" },
+  { value: "hp-desc",     label: "Horsepower — high to low" },
+  { value: "hp-asc",      label: "Horsepower — low to high" },
+  { value: "mods-desc",   label: "Mod count — high to low" },
+  { value: "mods-asc",    label: "Mod count — low to high" },
+  { value: "spent-desc",  label: "Invested — high to low" },
+  { value: "spent-asc",   label: "Invested — low to high" },
 ];
+
+type EraFilter = "all" | Era;
 
 export function CardCollection({ cards, carLabels, hideSectionHeader = false }: CardCollectionProps) {
   const [view, setView] = useState<ViewState | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
+  const [eraFilter, setEraFilter] = useState<EraFilter>("all");
 
   const sortGroup = useCallback(
     (group: MintedCard[]): MintedCard[] => {
       const copy = [...group];
+      const num  = (v: number | null | undefined, fallback: number) => (v == null ? fallback : v);
       switch (sortMode) {
         case "newest":
           return copy.sort((a, b) => new Date(b.minted_at).getTime() - new Date(a.minted_at).getTime());
         case "oldest":
           return copy.sort((a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime());
         case "number-asc":
-          return copy.sort((a, b) => (a.card_number ?? Infinity) - (b.card_number ?? Infinity));
+          return copy.sort((a, b) => num(a.card_number, Infinity) - num(b.card_number, Infinity));
         case "number-desc":
-          return copy.sort((a, b) => (b.card_number ?? -Infinity) - (a.card_number ?? -Infinity));
+          return copy.sort((a, b) => num(b.card_number, -Infinity) - num(a.card_number, -Infinity));
+        case "hp-desc":
+          return copy.sort((a, b) => num(b.hp, -Infinity) - num(a.hp, -Infinity));
+        case "hp-asc":
+          return copy.sort((a, b) => num(a.hp, Infinity) - num(b.hp, Infinity));
+        case "mods-desc":
+          return copy.sort((a, b) => num(b.mod_count, -Infinity) - num(a.mod_count, -Infinity));
+        case "mods-asc":
+          return copy.sort((a, b) => num(a.mod_count, Infinity) - num(b.mod_count, Infinity));
+        case "spent-desc":
+          return copy.sort(
+            (a, b) => num(b.car_snapshot?.total_invested, -Infinity) - num(a.car_snapshot?.total_invested, -Infinity),
+          );
+        case "spent-asc":
+          return copy.sort(
+            (a, b) => num(a.car_snapshot?.total_invested, Infinity) - num(b.car_snapshot?.total_invested, Infinity),
+          );
       }
     },
     [sortMode],
   );
+
+  // Apply era filter up-front so every downstream list (groups, counts, keyboard nav) stays consistent.
+  const visibleCards = useMemo(
+    () => (eraFilter === "all" ? cards : cards.filter((c) => safeEra(c.era) === eraFilter)),
+    [cards, eraFilter],
+  );
+
+  // Per-era counts for the filter chips
+  const eraCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of cards) {
+      const e = safeEra(c.era);
+      m[e] = (m[e] ?? 0) + 1;
+    }
+    return m;
+  }, [cards]);
   // Refs for each car's scroll container (keyed by car key)
   const scrollRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   // Refs for each focusable card button (keyed by card.id) — used for keyboard focus ring + scroll-into-view
@@ -76,40 +128,37 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
   // Populated during render below. Used for keyboard navigation.
   const flatOrderRef = useRef<string[]>([]);
 
-  // Group cards by car_id, maintain a stable car order (first appearance, sorted by oldest mint)
+  // Group visible cards by car_id
   const { groups, carOrder } = useMemo(() => {
     const map = new Map<string, MintedCard[]>();
-    // Collect into groups (cards already sorted desc by minted_at from the server)
-    for (const c of cards) {
+    for (const c of visibleCards) {
       const key = c.car_id ?? `orphan:${c.id}`;
       const arr = map.get(key) ?? [];
       arr.push(c);
       map.set(key, arr);
     }
-    // Within each group, sort oldest → newest for edition numbering, keep display newest→oldest
     const carOrder: string[] = [];
-    for (const key of map.keys()) {
-      carOrder.push(key);
-    }
-    // Each group: sort oldest first for edition numbers
-    const editionMap = new Map<string, MintedCard[]>();
-    for (const [key, arr] of map.entries()) {
-      const sorted = [...arr].sort((a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime());
-      editionMap.set(key, sorted);
-    }
-    return { groups: map, carOrder, editionMap };
-  }, [cards]);
+    for (const key of map.keys()) carOrder.push(key);
+    return { groups: map, carOrder };
+  }, [visibleCards]);
 
-  // Edition lookup: card.id → edition number within its car group
+  // Edition lookup: card.id → edition number within its FULL car group (independent of filters).
+  // Uses the unfiltered `cards` prop so edition numbers stay stable when the user filters by era.
   const editionOf = useMemo(() => {
     const m = new Map<string, number>();
-    for (const arr of groups.values()) {
-      // arr is desc (newest first) — sort oldest first for edition numbering
+    const full = new Map<string, MintedCard[]>();
+    for (const c of cards) {
+      const key = c.car_id ?? `orphan:${c.id}`;
+      const arr = full.get(key) ?? [];
+      arr.push(c);
+      full.set(key, arr);
+    }
+    for (const arr of full.values()) {
       const sorted = [...arr].sort((a, b) => new Date(a.minted_at).getTime() - new Date(b.minted_at).getTime());
       sorted.forEach((c, i) => m.set(c.id, i + 1));
     }
     return m;
-  }, [groups]);
+  }, [cards]);
 
   // Build ordered flat list of displayed card ids (same order we render below)
   // Display order honors the selected sortMode.
@@ -215,56 +264,153 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
           </div>
         )}
 
-        {/* ── Sort selector ─────────────────────────────────────────── */}
-        <div
-          className="flex items-center justify-end mb-6 gap-2 flex-wrap"
-        >
-          <div
-            className="flex items-center gap-1.5 text-[var(--color-text-muted)]"
-            style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase" }}
-          >
-            <ArrowUpDown size={11} />
-            Sort
-          </div>
-          <div
-            className="flex items-center gap-1 p-1 rounded-xl"
-            style={{
-              background: "rgba(15,12,30,0.55)",
-              border: "1px solid rgba(168,85,247,0.22)",
-              backdropFilter: "blur(6px)",
-            }}
-          >
-            {SORT_OPTIONS.map((opt) => {
-              const active = sortMode === opt.value;
+        {/* ── Toolbar: era filter chips + sort dropdown ────────────── */}
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+          {/* Era filter chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setEraFilter("all")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 20,
+                background: eraFilter === "all" ? "rgba(168,85,247,0.2)" : "rgba(15,12,30,0.55)",
+                border: `1px solid ${eraFilter === "all" ? "rgba(168,85,247,0.55)" : "rgba(168,85,247,0.15)"}`,
+                color: eraFilter === "all" ? "#e9d5ff" : "rgba(200,180,240,0.55)",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: 10,
+                fontWeight: 800,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                cursor: "pointer",
+                transition: "all 150ms ease",
+              }}
+            >
+              All · {cards.length}
+            </button>
+            {ERAS.map((era) => {
+              const count = eraCounts[era] ?? 0;
+              if (count === 0) return null;
+              const active = eraFilter === era;
+              const style = ERA_COLORS[era];
               return (
                 <button
-                  key={opt.value}
-                  onClick={() => setSortMode(opt.value)}
+                  key={era}
+                  onClick={() => setEraFilter(active ? "all" : era)}
                   style={{
                     padding: "6px 12px",
-                    borderRadius: 8,
-                    background: active ? "rgba(168,85,247,0.2)" : "transparent",
-                    border: active ? "1px solid rgba(168,85,247,0.55)" : "1px solid transparent",
-                    color: active ? "#e9d5ff" : "rgba(200,180,240,0.55)",
+                    borderRadius: 20,
+                    background: active ? style.bg : "rgba(15,12,30,0.55)",
+                    border: `1px solid ${active ? style.border : "rgba(168,85,247,0.15)"}`,
+                    color: active ? style.text : "rgba(200,180,240,0.55)",
                     fontFamily: "ui-monospace, monospace",
                     fontSize: 10,
-                    fontWeight: 700,
-                    letterSpacing: "0.1em",
+                    fontWeight: 800,
+                    letterSpacing: "0.14em",
                     textTransform: "uppercase",
                     cursor: "pointer",
+                    boxShadow: active ? `0 0 14px ${style.glow}` : "none",
                     transition: "all 150ms ease",
-                    boxShadow: active ? "0 0 12px rgba(168,85,247,0.25)" : "none",
+                    display: "inline-flex", alignItems: "center", gap: 6,
                   }}
                 >
-                  {opt.label}
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: style.text }} />
+                  {era} · {count}
                 </button>
               );
             })}
           </div>
+
+          {/* Sort dropdown */}
+          <div
+            className="flex items-center gap-2"
+            style={{ fontFamily: "ui-monospace, monospace" }}
+          >
+            <label
+              htmlFor="cc-sort"
+              style={{
+                fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase",
+                color: "rgba(200,180,240,0.55)", fontWeight: 800,
+              }}
+            >
+              Sort by
+            </label>
+            <div
+              className="relative"
+              style={{
+                background: "rgba(15,12,30,0.65)",
+                border: "1px solid rgba(168,85,247,0.3)",
+                borderRadius: 10,
+                boxShadow: "0 0 14px rgba(168,85,247,0.12)",
+              }}
+            >
+              <select
+                id="cc-sort"
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as SortMode)}
+                style={{
+                  appearance: "none",
+                  WebkitAppearance: "none",
+                  MozAppearance: "none",
+                  background: "transparent",
+                  border: "none",
+                  color: "#e9d5ff",
+                  fontFamily: "ui-monospace, monospace",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  padding: "8px 36px 8px 14px",
+                  cursor: "pointer",
+                  outline: "none",
+                  minWidth: 220,
+                }}
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} style={{ background: "#13072b", color: "#e9d5ff" }}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={14}
+                style={{
+                  position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)",
+                  color: "rgba(200,180,240,0.7)", pointerEvents: "none",
+                }}
+              />
+            </div>
+          </div>
         </div>
+
+        {/* Showing count */}
+        {eraFilter !== "all" && (
+          <p
+            className="mb-5"
+            style={{
+              fontFamily: "ui-monospace, monospace",
+              fontSize: 10,
+              color: "rgba(200,180,240,0.5)",
+              letterSpacing: "0.08em",
+            }}
+          >
+            Showing {visibleCards.length} of {cards.length} cards
+          </p>
+        )}
+
+        {visibleCards.length === 0 && (
+          <div
+            style={{
+              textAlign: "center", padding: "60px 20px",
+              fontFamily: "ui-monospace, monospace", fontSize: 11,
+              color: "rgba(200,180,240,0.4)", letterSpacing: "0.1em",
+            }}
+          >
+            No cards match this filter.
+          </div>
+        )}
 
         {/* ── Cards grouped by car, each with a section header ─────────── */}
         <style>{`
+          .cc-scroll { scrollbar-width: none; }
           .cc-scroll::-webkit-scrollbar { display: none; }
         `}</style>
         <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
@@ -335,7 +481,11 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                   )}
                 </div>
 
-                {/* Cards horizontal scroll for this car */}
+                {/* Cards horizontal scroll for this car.
+                    NOTE: overflow-x: auto implicitly clips overflow-y in most
+                    browsers, which would crop the focus ring + glow. We add
+                    generous vertical padding so the ring renders entirely
+                    inside the scroll viewport. */}
                 <div
                   ref={setScrollRef(key)}
                   className="cc-scroll"
@@ -343,9 +493,9 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                     display: "flex",
                     gap: "1.5rem",
                     overflowX: "auto",
-                    paddingBottom: "0.75rem",
+                    overflowY: "hidden",
+                    padding: "24px 4px 24px",
                     WebkitOverflowScrolling: "touch",
-                    scrollbarWidth: "none",
                   }}
                 >
                   {displayGroup.map((card) => {
