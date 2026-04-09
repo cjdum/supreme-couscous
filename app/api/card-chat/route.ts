@@ -263,8 +263,15 @@ export async function POST(request: Request) {
         "Generate your opening line. Reference something specific about this car or the occasion it was minted for. No greetings. No 'Hello.' Make it feel like you've been waiting — like you have something to say the moment someone finally pays attention.",
     });
   } else {
-    // Normal chat: include history + current message
-    for (const turn of history) {
+    // Normal chat: include history + current message.
+    // Anthropic requires messages to start with the "user" role.
+    // The history may start with the opening assistant greeting — drop any
+    // leading assistant messages so the first turn sent is always user.
+    let historyStart = 0;
+    while (historyStart < history.length && history[historyStart].role === "assistant") {
+      historyStart++;
+    }
+    for (const turn of history.slice(historyStart)) {
       anthropicMessages.push({ role: turn.role, content: turn.content });
     }
     anthropicMessages.push({ role: "user", content: message });

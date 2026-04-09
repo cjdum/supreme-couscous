@@ -64,10 +64,10 @@ export function PixelCard(props: PixelCardProps) {
   const [eligLoading, setEligLoading] = useState(true);
   const [summonStep, setSummonStep] = useState<"conjuring" | "painting" | "binding">("conjuring");
 
-  // Trim + color validation
+  // Only a real photo is required to mint — trim/color are optional (used for better pixel art).
   const hasTrim  = !!props.trim?.trim();
   const hasColor = !!props.color?.trim();
-  const needsProfile = !hasTrim || !hasColor;
+  const needsProfile = false; // no longer block minting on trim/color
 
   // ── Fetch eligibility (initial + polling fallback every 10s) ────────────
   const fetchEligibility = useCallback(async () => {
@@ -504,42 +504,15 @@ export function PixelCard(props: PixelCardProps) {
         </div>
       )}
 
-      {/* ── Requirements list ──────────────────────────────────────────────── */}
-      <div className="mt-4 space-y-2">
-        <RequirementRow
-          met={hasPhoto}
-          icon={<Camera size={13} />}
-          label="Upload a real photo"
-          detail={hasPhoto ? "Done" : "Required"}
-        />
-        <RequirementRow
-          met={hasTrim}
-          icon={<Lock size={13} />}
-          label="Set car trim"
-          detail={hasTrim ? "Done" : "Required"}
-        />
-        <RequirementRow
-          met={hasColor}
-          icon={<Lock size={13} />}
-          label="Set exterior color"
-          detail={hasColor ? "Done" : "Required"}
-        />
-      </div>
-
-      {/* ── Profile requirement warning ────────────────────────────────────── */}
-      {needsProfile && (
-        <div
-          role="alert"
-          className="mt-3 rounded-xl border px-3.5 py-2.5 text-[11px]"
-          style={{
-            background: "rgba(245,166,35,0.08)",
-            borderColor: "rgba(245,166,35,0.3)",
-            color: "rgba(245,166,35,0.9)",
-            fontFamily: "ui-monospace, monospace",
-            lineHeight: 1.6,
-          }}
-        >
-          Fill in your car&rsquo;s trim and color before minting a card. Edit the car details above to add them.
+      {/* ── Only gate: real photo ─────────────────────────────────────────── */}
+      {!hasPhoto && (
+        <div className="mt-4">
+          <RequirementRow
+            met={false}
+            icon={<Camera size={13} />}
+            label="Upload a real photo to unlock minting"
+            detail="Required"
+          />
         </div>
       )}
 
@@ -557,20 +530,20 @@ export function PixelCard(props: PixelCardProps) {
       <div className="mt-4">
         <button
           onClick={handleMint}
-          disabled={!eligible || mintState !== "idle" || needsProfile}
+          disabled={!eligible || mintState !== "idle"}
           style={{
             width: "100%", height: 44, borderRadius: 12,
-            background: !eligible || mintState !== "idle" || needsProfile
-              ? "rgba(123,79,212,0.18)"
-              : "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-            border: `1px solid ${eligible && !needsProfile ? "rgba(123,79,212,0.6)" : "rgba(123,79,212,0.25)"}`,
-            color: eligible && !needsProfile ? "white" : "rgba(255,255,255,0.5)",
+            background: eligible && mintState === "idle"
+              ? "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)"
+              : "rgba(123,79,212,0.18)",
+            border: `1px solid ${eligible ? "rgba(123,79,212,0.6)" : "rgba(123,79,212,0.25)"}`,
+            color: eligible ? "white" : "rgba(255,255,255,0.5)",
             fontFamily: "ui-monospace, monospace", fontSize: 12, fontWeight: 700,
             letterSpacing: "0.1em", textTransform: "uppercase" as const,
-            cursor: !eligible || mintState !== "idle" || needsProfile ? "not-allowed" : "pointer",
+            cursor: eligible && mintState === "idle" ? "pointer" : "not-allowed",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             transition: "all 0.2s",
-            boxShadow: eligible && mintState === "idle" && !needsProfile ? "0 4px 20px rgba(123,79,212,0.35)" : "none",
+            boxShadow: eligible && mintState === "idle" ? "0 4px 20px rgba(123,79,212,0.35)" : "none",
           }}
         >
           <Sparkles size={14} />

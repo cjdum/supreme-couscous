@@ -78,6 +78,33 @@ export function MintPageClient({ cars, aliveCard }: MintPageClientProps) {
     setBurned(true);
   }
 
+  // Skip ceremony — silently retire the card via the burn API, no animation
+  async function handleSkipCeremony() {
+    if (!aliveCard) return;
+    setBurnedCarId(aliveCard.carId);
+    setBurnPhase("fetching_words"); // reuse the loading spinner
+    try {
+      const res = await fetch("/api/cards/burn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId: aliveCard.id }),
+      });
+      if (!res.ok) {
+        const j = await res.json();
+        setBurnError(j.error ?? "Could not retire card");
+        setBurnPhase("idle");
+        return;
+      }
+    } catch {
+      setBurnError("Something went wrong. Try again.");
+      setBurnPhase("idle");
+      return;
+    }
+    // Retired — skip straight to mint
+    setBurnPhase("done");
+    setBurned(true);
+  }
+
   // ── Fetching plea loading screen ──────────────────────────────────────────
   if (burnPhase === "fetching_plea") {
     return (
@@ -296,6 +323,7 @@ export function MintPageClient({ cars, aliveCard }: MintPageClientProps) {
         aliveCard={burned ? null : aliveCard}
         autoMintCarId={burned ? burnedCarId : null}
         onInitiateBurn={handleInitiateBurn}
+        onSkipCeremony={handleSkipCeremony}
       />
     </>
   );

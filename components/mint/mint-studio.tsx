@@ -39,6 +39,8 @@ interface MintStudioProps {
   /** When set (after a burn), skip car selection and go straight to this car */
   autoMintCarId?: string | null;
   onInitiateBurn: () => void;
+  /** Skip the burn ceremony — quietly retire the card and go straight to minting */
+  onSkipCeremony: () => void;
 }
 
 type Phase = "select" | "mint";
@@ -199,6 +201,7 @@ interface AliveWithBurnProps {
   onBurnClick: () => void;
   onBurnCancel: () => void;
   onBurnConfirm: () => void;
+  onSkipCeremony: () => void;
 }
 
 function AliveWithBurn({
@@ -207,6 +210,7 @@ function AliveWithBurn({
   onBurnClick,
   onBurnCancel,
   onBurnConfirm,
+  onSkipCeremony,
 }: AliveWithBurnProps) {
   return (
     <div
@@ -269,6 +273,45 @@ function AliveWithBurn({
             }}
           >
             This is permanent. Your card&rsquo;s last words will be spoken.
+          </p>
+
+          {/* Divider */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", marginTop: 4 }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+            <span style={{ fontSize: 10, color: "rgba(200,190,255,0.2)", letterSpacing: "0.08em", fontFamily: "ui-monospace, monospace" }}>or</span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
+          </div>
+
+          {/* Skip ceremony option */}
+          <button
+            type="button"
+            onClick={onSkipCeremony}
+            className="skip-ceremony-btn"
+            style={{
+              width: "100%",
+              padding: "12px 0",
+              borderRadius: 12,
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              color: "rgba(200,190,255,0.45)",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "background 150ms ease, color 150ms ease",
+            }}
+          >
+            Skip the drama — just mint a new card
+          </button>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 10,
+              color: "rgba(200,190,255,0.2)",
+              textAlign: "center",
+              letterSpacing: "0.01em",
+            }}
+          >
+            Quietly retires the current card. No ceremony.
           </p>
         </div>
       ) : (
@@ -747,6 +790,7 @@ export function MintStudio({
   aliveCard,
   autoMintCarId,
   onInitiateBurn,
+  onSkipCeremony,
 }: MintStudioProps) {
   // If autoMintCarId is provided (after burn), skip car selection
   const autoMintCar = autoMintCarId ? (cars.find(c => c.id === autoMintCarId) ?? null) : null;
@@ -853,6 +897,7 @@ export function MintStudio({
               setBurnState("idle");
               onInitiateBurn();
             }}
+            onSkipCeremony={onSkipCeremony}
           />
         )}
 
@@ -905,6 +950,15 @@ export function MintStudio({
         }
         .confirm-burn-btn:focus-visible {
           outline: 2px solid rgba(220,38,38,0.7);
+          outline-offset: 2px;
+        }
+
+        .skip-ceremony-btn:hover {
+          background: rgba(255,255,255,0.06) !important;
+          color: rgba(200,190,255,0.65) !important;
+        }
+        .skip-ceremony-btn:focus-visible {
+          outline: 2px solid rgba(200,190,255,0.4);
           outline-offset: 2px;
         }
 

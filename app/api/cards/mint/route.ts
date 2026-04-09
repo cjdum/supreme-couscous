@@ -91,20 +91,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Review payload incomplete" }, { status: 400 });
   }
 
-  // ── Enforce one alive card at a time ──────────────────────────────────
-  const { data: aliveCheck } = await supabase
-    .from("pixel_cards")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("status", "alive")
-    .maybeSingle();
-  if (aliveCheck) {
-    return NextResponse.json(
-      { error: "You already have a living card. Burn it before minting a new one." },
-      { status: 409 },
-    );
-  }
-
   // ── Load car ───────────────────────────────────────────────────────────
   const { data: carRaw } = await supabase
     .from("cars")
@@ -119,12 +105,6 @@ export async function POST(req: Request) {
     top_speed: number | null; vin_verified: boolean;
   } | null;
   if (!car) return NextResponse.json({ error: "Car not found" }, { status: 404 });
-  if (!car.trim?.trim() || !car.color?.trim()) {
-    return NextResponse.json(
-      { error: "Fill in your car's trim and color before minting a card." },
-      { status: 400 },
-    );
-  }
 
   // ── Photo check ────────────────────────────────────────────────────────
   const { data: photosRaw } = await supabase
@@ -150,8 +130,9 @@ export async function POST(req: Request) {
   const totalInvested = modRows.reduce((s, m) => s + (m.cost ?? 0), 0);
 
   // ── Build the frozen snapshot ───────────────────────────────────────────
-  const colorLabel = car.color!.trim();
-  const trimLabel = car.trim!.trim();
+  // trim and color are now optional — fall back gracefully for pixel art
+  const colorLabel = car.color?.trim() || "custom color";
+  const trimLabel  = car.trim?.trim()  || "";
 
   const snapshot: PixelCardSnapshot = {
     make: car.make,
@@ -198,9 +179,7 @@ export async function POST(req: Request) {
 
   let pixelCardUrl: string;
   try {
-    // Metadata-only prompt — no photo reference ever reaches the image model.
-    // Hard year lock + trim hint so DALL-E renders the correct generation body.
-    const pixelPrompt = `Pixel art sprite of a ${car.year} ${car.make} ${car.model} ${trimLabel}. Render the ${car.year} model-year body style exactly — not an earlier or later generation. Retro 16-bit video game style, Super Nintendo era racing game car sprite. Hard square pixels only. No anti-aliasing, no blur, no gradients, no realism, no photographic detail. Car body color: ${colorLabel}. Three-quarter front angle. Car fills the frame, centered. Flat dark background #0a0a18. No text, no logos, no license plates, no people, no shadows, no reflections. Chunky blocky pixels. Low resolution sprite aesthetic.`;
+    const pixelPrompt = `Pixel art sprite of a ${car.year} ${car.make} ${car.model}, the ${car.year} body style (not any earlier generation). Retro 16-bit video game style. Hard square pixels, no anti-aliasing, no blur, no gradients. Car body color: ${colorLabel}. 3/4 front angle. Car fills the frame. Flat dark background #0a0a18. No text, no logos, no license plates. Chunky blocky pixels only. Style reference: Super Nintendo racing game car sprite.`;
     const imageResponse = await openai.images.generate({
       model: "dall-e-2",
       prompt: pixelPrompt,

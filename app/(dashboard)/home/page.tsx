@@ -119,20 +119,53 @@ export default async function HomePage() {
           {latestCard ? (
             <>
               <HeroCardViewer card={latestCard} carLabel={primaryCarLabel!} scale={1.1} />
-              <div className="text-center">
+
+              {/* Card info panel — always visible, no click needed */}
+              <div
+                className="w-full max-w-sm text-center"
+                style={{ display: "flex", flexDirection: "column", gap: 8 }}
+              >
+                {latestCard.flavor_text && (
+                  <p
+                    style={{
+                      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      color: "rgba(220,205,255,0.8)",
+                      fontStyle: "italic",
+                      margin: 0,
+                    }}
+                  >
+                    &ldquo;{latestCard.flavor_text}&rdquo;
+                  </p>
+                )}
+                {latestCard.occasion && (
+                  <p
+                    style={{
+                      fontFamily: "ui-monospace, monospace",
+                      fontSize: 10,
+                      color: "rgba(168,85,247,0.6)",
+                      letterSpacing: "0.08em",
+                      margin: 0,
+                    }}
+                  >
+                    {latestCard.occasion}
+                  </p>
+                )}
                 <p
                   className="text-[10px] font-bold uppercase"
                   style={{
                     fontFamily: "ui-monospace, monospace",
                     letterSpacing: "0.18em",
-                    color: "rgba(200,180,240,0.55)",
+                    color: "rgba(200,180,240,0.4)",
+                    margin: 0,
                   }}
                 >
                   {totalCards} {totalCards === 1 ? "card" : "cards"} minted
                 </p>
                 <Link
                   href="/card-chat"
-                  className="inline-block mt-2 text-[11px] font-bold uppercase tracking-wider"
+                  className="inline-block text-[11px] font-bold uppercase tracking-wider"
                   style={{
                     fontFamily: "ui-monospace, monospace",
                     color: "rgba(168,85,247,0.85)",
