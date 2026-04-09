@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Car, GalleryHorizontal, Sparkles, Users } from "lucide-react";
+import { Home, Car, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { href: "/home",      icon: Home,              label: "Home" },
-  { href: "/mint",      icon: Sparkles,          label: "Mint" },
-  { href: "/garage",    icon: Car,               label: "Garage" },
-  { href: "/cards",     icon: GalleryHorizontal, label: "Ghosts" },
-  { href: "/community", icon: Users,             label: "Community" },
+  { href: "/home",      icon: Home,     label: "Home" },
+  { href: "/mint",      icon: Sparkles, label: "Mint" },
+  { href: "/garage",    icon: Car,      label: "Garage" },
+  { href: "/community", icon: Users,    label: "Community" },
 ];
 
 export function BottomNav() {

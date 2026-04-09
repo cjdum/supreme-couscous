@@ -332,7 +332,7 @@ function LivingCard({ card }: { card: TimelineCard }) {
           {/* CTA */}
           <div style={{ marginTop: 18 }}>
             <Link
-              href="/card-chat"
+              href="/home"
               style={{
                 display: "inline-flex",
                 alignItems: "center",

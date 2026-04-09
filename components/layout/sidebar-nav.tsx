@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Car, Sparkles, User, LogOut, Settings, GalleryHorizontal, Users } from "lucide-react";
+import { Home, Car, Sparkles, User, LogOut, Settings, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { loadPreferences } from "@/lib/preferences";
@@ -13,11 +13,10 @@ interface SidebarNavProps {
 }
 
 const NAV_ITEMS = [
-  { href: "/home",       icon: Home,              label: "Home",       shortcut: "H" },
-  { href: "/mint",       icon: Sparkles,          label: "Mint",       shortcut: "M" },
-  { href: "/garage",     icon: Car,               label: "Garage",     shortcut: "G" },
-  { href: "/cards",      icon: GalleryHorizontal, label: "Ghosts",     shortcut: "C" },
-  { href: "/community",  icon: Users,             label: "Community",  shortcut: "" },
+  { href: "/home",       icon: Home,     label: "Home",       shortcut: "H" },
+  { href: "/mint",       icon: Sparkles, label: "Mint",       shortcut: "M" },
+  { href: "/garage",     icon: Car,      label: "Garage",     shortcut: "G" },
+  { href: "/community",  icon: Users,    label: "Community",  shortcut: "" },
 ];
 
 export function SidebarNav({ username }: SidebarNavProps) {

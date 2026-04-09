@@ -247,7 +247,7 @@ export default async function CarDetailPage({ params, searchParams }: Props) {
           </div>
 
           <Link
-            href="/card-chat"
+            href="/home"
             className="block rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
           >
             <MessageSquare size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />

@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { Wrench, Ghost, MessageSquare } from "lucide-react";
+
+// ---- Note on actions: /card-chat and /cards are folded into /home and /mint
+// respectively. These Link hrefs point at the new locations.
 import { createClient } from "@/lib/supabase/server";
 import { getPrimaryCar } from "@/lib/supabase/get-primary-car";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
@@ -65,7 +68,7 @@ export default async function GaragePage() {
             </Link>
 
             <Link
-              href="/card-chat"
+              href="/home"
               className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
             >
               <div>
@@ -76,7 +79,7 @@ export default async function GaragePage() {
             </Link>
 
             <Link
-              href="/cards"
+              href="/mint"
               className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
             >
               <div>
