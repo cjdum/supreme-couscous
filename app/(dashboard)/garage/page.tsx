@@ -1,255 +1,348 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Plus, X, ChevronRight, Car as CarIcon, Loader2 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { Wrench, Award, GalleryHorizontal, MessageSquare, Swords } from "lucide-react";
+import { HeroCardViewer } from "@/components/garage/hero-card-viewer";
+import { createClient } from "@/lib/supabase/server";
+import { OnboardingFlow } from "@/components/garage/onboarding-flow";
+import { AddCarButton } from "@/components/garage/add-car-button";
+import { GarageHero } from "@/components/garage/garage-hero";
+import { CarsRail } from "@/components/garage/cars-rail";
+import { BuildTimeline } from "@/components/garage/build-timeline";
+import { PageContainer } from "@/components/ui/page-container";
+import { QuickStatsWidget } from "@/components/garage/quick-stats-widget";
+import { calculateBuildScore } from "@/lib/build-score";
+import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
+import type { MintedCard } from "@/lib/pixel-card";
 
-interface Car {
-  id: string;
-  year: number;
-  make: string;
-  model: string;
-  color: string | null;
-  cover_image_url: string | null;
-}
+export const metadata = { title: "Garage — MODVAULT" };
 
-export default function GaragePage() {
-  const router = useRouter();
-  const [cars, setCars] = useState<Car[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
+export default async function GaragePage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const [year, setYear] = useState("");
-  const [make, setMake] = useState("");
-  const [model, setModel] = useState("");
-  const [color, setColor] = useState("");
+  const { data: profileRaw } = await supabase
+    .from("profiles")
+    .select("username")
+    .eq("user_id", user!.id)
+    .maybeSingle();
+  const username = (profileRaw as { username: string } | null)?.username ?? "you";
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { router.push("/login"); return; }
-      const { data } = await supabase
-        .from("cars")
-        .select("id, year, make, model, color, cover_image_url")
-        .eq("user_id", user.id)
-        .order("is_primary", { ascending: false })
-        .order("created_at", { ascending: false });
-      setCars((data ?? []) as Car[]);
-      setLoading(false);
+  const { data: carsRaw } = await supabase
+    .from("cars")
+    .select("*")
+    .eq("user_id", user!.id)
+    .order("created_at", { ascending: false });
+  const cars = ((carsRaw ?? []) as CarType[]).sort((a, b) => {
+    if (a.is_primary && !b.is_primary) return -1;
+    if (!a.is_primary && b.is_primary) return 1;
+    return 0;
+  });
+
+  if (cars.length === 0) {
+    return <OnboardingFlow />;
+  }
+
+  const carIds = cars.map((c) => c.id);
+  type ModStat = {
+    id: string;
+    car_id: string;
+    name: string;
+    category: ModCategory;
+    cost: number | null;
+    status: string;
+    install_date: string | null;
+    created_at: string;
+    notes: string | null;
+    shop_name: string | null;
+    is_diy: boolean;
+  };
+  let modStats: ModStat[] = [];
+  if (carIds.length) {
+    const { data } = await supabase
+      .from("mods")
+      .select("id, car_id, name, category, cost, status, install_date, created_at, notes, shop_name, is_diy")
+      .in("car_id", carIds);
+    modStats = (data ?? []) as ModStat[];
+  }
+
+  const statsMap = new Map<string, { count: number; total: number }>();
+  for (const mod of modStats) {
+    const existing = statsMap.get(mod.car_id) ?? { count: 0, total: 0 };
+    statsMap.set(mod.car_id, {
+      count: existing.count + (mod.status === "installed" ? 1 : 0),
+      total: existing.total + (mod.status === "installed" ? (mod.cost ?? 0) : 0),
     });
-  }, [router]);
-
-  async function handleAddCar(e: React.FormEvent) {
-    e.preventDefault();
-    if (!year.trim() || !make.trim() || !model.trim()) return;
-    const parsedYear = parseInt(year, 10);
-    if (isNaN(parsedYear) || parsedYear < 1886 || parsedYear > new Date().getFullYear() + 2) {
-      setAddError("Enter a valid year");
-      return;
-    }
-    setSaving(true);
-    setAddError(null);
-    try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not signed in");
-
-      // Check if this user already has any cars — first car becomes primary
-      const { count } = await supabase
-        .from("cars")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id);
-      const isPrimary = (count ?? 0) === 0;
-
-      const { data: inserted, error: insErr } = await supabase
-        .from("cars")
-        .insert({
-          user_id: user.id,
-          year: parsedYear,
-          make: make.trim(),
-          model: model.trim(),
-          color: color.trim() || null,
-          is_primary: isPrimary,
-        })
-        .select("id")
-        .single();
-
-      if (insErr) throw new Error(insErr.message);
-      if (!inserted) throw new Error("Insert returned nothing");
-
-      setShowAdd(false);
-      setYear(""); setMake(""); setModel(""); setColor("");
-      router.push(`/garage/${inserted.id}`);
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : "Failed to add car");
-    } finally {
-      setSaving(false);
-    }
   }
 
-  if (loading) {
-    return (
-      <div className="px-5 sm:px-8 py-10 max-w-2xl mx-auto space-y-3">
-        {[1, 2].map((i) => <div key={i} className="skeleton h-20 rounded-2xl" />)}
-      </div>
-    );
+  const primaryCar = cars.find((c) => c.is_primary) ?? cars[0];
+  const primaryStats = statsMap.get(primaryCar.id) ?? { count: 0, total: 0 };
+  const otherCars = cars.filter((c) => c.id !== primaryCar.id);
+
+  // Latest render for the primary car (used as cinematic background)
+  const { data: renderRaw } = await supabase
+    .from("renders")
+    .select("image_url")
+    .eq("car_id", primaryCar.id)
+    .not("image_url", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const latestRenderUrl = (renderRaw as { image_url: string | null } | null)?.image_url ?? null;
+
+  const totalInvested = Array.from(statsMap.values()).reduce((s, v) => s + v.total, 0);
+
+  const buildScore = calculateBuildScore({
+    cars: cars as Parameters<typeof calculateBuildScore>[0]["cars"],
+    mods: modStats,
+  });
+
+  // Top mods by cost for share card
+  const primaryMods = modStats.filter((m) => m.car_id === primaryCar.id && m.status === "installed");
+  const categoryTotals = primaryMods.reduce<Record<string, number>>((acc, m) => {
+    acc[m.category] = (acc[m.category] ?? 0) + (m.cost ?? 0);
+    return acc;
+  }, {});
+  const topCategoryEntry = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
+  const topCategory = (topCategoryEntry?.[0] as ModCategory | undefined) ?? null;
+
+  const topMods = [...primaryMods]
+    .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0))
+    .slice(0, 3)
+    .map((m) => ({ name: m.name, category: m.category, cost: m.cost }));
+
+  // Build timeline mods
+  const timelineMods = modStats
+    .filter((m) => m.car_id === primaryCar.id && m.status === "installed")
+    .map((m) => ({
+      id: m.id, name: m.name, category: m.category, cost: m.cost,
+      install_date: m.install_date, created_at: m.created_at,
+      shop_name: m.shop_name, is_diy: m.is_diy, notes: m.notes,
+    }));
+
+  // All minted cards
+  const { data: userCardsRaw } = await supabase
+    .from("pixel_cards")
+    .select("*")
+    .eq("user_id", user!.id)
+    .order("minted_at", { ascending: false });
+  const userCards = (userCardsRaw ?? []) as MintedCard[];
+
+  // Group cards by car_id
+  const cardsByCarId = new Map<string, MintedCard[]>();
+  for (const card of userCards) {
+    if (!card.car_id) continue;
+    const arr = cardsByCarId.get(card.car_id) ?? [];
+    arr.push(card);
+    cardsByCarId.set(card.car_id, arr);
   }
+
+  // Primary car's latest card
+  const primaryLatestCard = cardsByCarId.get(primaryCar.id)?.[0] ?? null;
+  const primaryCardCount = cardsByCarId.get(primaryCar.id)?.length ?? 0;
+  const primaryCarLabel = `${primaryCar.year} ${primaryCar.make} ${primaryCar.model}`;
+
+  // Quick stats data
+  const allInstalledMods = modStats.filter((m) => m.status === "installed");
+  const mostRecentMod = allInstalledMods.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )[0] ?? null;
+
+  const allWishlistMods = modStats.filter((m) => m.status === "wishlist");
+  const nextPlannedMod = allWishlistMods[0] ?? null;
+
+  const carLabelMap = new Map(cars.map((c) => [c.id, `${c.year} ${c.make} ${c.model}`]));
+  const primaryModList = primaryMods.map((m) => m.name).join(", ") || "none";
 
   return (
-    <div className="px-5 sm:px-8 py-8 max-w-2xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-black tracking-tight">Garage</h1>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[var(--color-accent)] text-white text-xs font-bold hover:brightness-110 transition-all cursor-pointer"
-        >
-          <Plus size={14} aria-hidden="true" />
-          Add car
-        </button>
-      </div>
+    <div className="min-h-dvh animate-fade">
+      {/* ── Cinematic hero ── */}
+      <GarageHero
+        car={primaryCar}
+        modCount={primaryStats.count}
+        totalInvested={primaryStats.total}
+        isPrimary={!!cars.find((c) => c.is_primary)}
+        username={username}
+        buildScore={buildScore.score}
+        buildLevel={buildScore.level}
+        topCategory={topCategory}
+        topMods={topMods}
+        latestRenderUrl={latestRenderUrl}
+      />
 
-      {/* Add car form */}
-      {showAdd && (
-        <div className="mb-6 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-bold">New car</p>
-            <button
-              onClick={() => { setShowAdd(false); setAddError(null); }}
-              className="text-[var(--color-text-muted)] hover:text-white transition-colors cursor-pointer"
-              aria-label="Cancel"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <form onSubmit={handleAddCar} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">
-                  Year
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                  placeholder="2024"
-                  maxLength={4}
-                  required
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">
-                  Color
-                </label>
-                <input
-                  type="text"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  placeholder="Arctic White"
-                  className="w-full"
-                />
+      <PageContainer maxWidth="7xl" className="mt-10">
+
+        {/* ── Hero Card ── */}
+        <section className="mb-10">
+          {primaryLatestCard ? (
+            <div className="flex flex-col items-center gap-5">
+              {/* Click opens modal viewer — no navigation away */}
+              <HeroCardViewer card={primaryLatestCard} carLabel={primaryCarLabel} scale={1.0} />
+              <div className="text-center">
+                <p
+                  style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 800,
+                    letterSpacing: "0.18em", textTransform: "uppercase",
+                    color: "rgba(200,180,240,0.45)",
+                  }}
+                >
+                  {primaryCarLabel} · {primaryCardCount} {primaryCardCount === 1 ? "card" : "cards"} minted
+                </p>
+                <Link
+                  href="/cards"
+                  style={{
+                    display: "inline-block", marginTop: 6,
+                    fontFamily: "ui-monospace, monospace", fontSize: 9, fontWeight: 700,
+                    letterSpacing: "0.1em", textTransform: "uppercase",
+                    color: "rgba(168,85,247,0.7)",
+                    textDecoration: "none",
+                  }}
+                >
+                  View collection →
+                </Link>
               </div>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">
-                Make
-              </label>
-              <input
-                type="text"
-                value={make}
-                onChange={(e) => setMake(e.target.value)}
-                placeholder="Porsche"
-                required
-                className="w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-1.5">
-                Model
-              </label>
-              <input
-                type="text"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="911 Carrera"
-                required
-                className="w-full"
-              />
-            </div>
-            {addError && (
-              <p className="text-xs text-[var(--color-danger)]">{addError}</p>
-            )}
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full h-10 rounded-xl bg-[var(--color-accent)] text-white text-sm font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer"
+          ) : (
+            /* No card yet — quiet nudge */
+            <div
+              style={{
+                width: 280, height: 240,
+                borderRadius: 14,
+                background: "linear-gradient(158deg, rgba(123,79,212,0.08) 0%, rgba(168,85,247,0.05) 100%)",
+                border: "1px dashed rgba(123,79,212,0.25)",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                gap: 10, margin: "0 auto",
+              }}
             >
-              {saving ? <Loader2 size={14} className="animate-spin" /> : "Add car"}
-            </button>
-          </form>
-        </div>
-      )}
-
-      {cars.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-          <CarIcon size={32} className="text-[var(--color-text-muted)]" aria-hidden="true" />
-          <p className="text-sm text-[var(--color-text-secondary)]">No cars yet.</p>
-          <button
-            onClick={() => setShowAdd(true)}
-            className="text-sm font-bold text-[var(--color-accent)] hover:text-[var(--color-accent-bright)] transition-colors cursor-pointer"
-          >
-            Add your first car →
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {cars.map((car) => (
-            <Link
-              key={car.id}
-              href={`/garage/${car.id}`}
-              className="flex items-center gap-4 p-4 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] hover:border-[var(--color-border-bright)] hover:bg-[var(--color-bg-elevated)] transition-all group"
-            >
-              <div
-                className="w-16 h-12 rounded-xl flex-shrink-0 overflow-hidden"
+              <GalleryHorizontal size={24} style={{ color: "rgba(168,85,247,0.35)" }} />
+              <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, color: "rgba(200,180,240,0.5)", letterSpacing: "0.06em", textAlign: "center", margin: 0 }}>
+                No cards yet
+              </p>
+              <Link
+                href="/mint"
                 style={{
-                  background: car.cover_image_url
-                    ? undefined
-                    : "radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.12) 0%, rgba(0,0,0,0.4) 100%)",
+                  fontFamily: "ui-monospace, monospace", fontSize: 10, fontWeight: 700,
+                  color: "rgba(168,85,247,0.6)", textDecoration: "none", letterSpacing: "0.08em",
                 }}
               >
-                {car.cover_image_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={car.cover_image_url}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </div>
+                Go to Mint →
+              </Link>
+            </div>
+          )}
+        </section>
 
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-[var(--color-text-primary)] truncate">
-                  {car.year} {car.make} {car.model}
-                </p>
-                {car.color && (
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">{car.color}</p>
-                )}
-              </div>
+        {/* ── Quick Stats + Quick Actions ── */}
+        <section className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr,1fr] gap-5">
+            {/* Quick Stats */}
+            <QuickStatsWidget
+              totalInvested={totalInvested}
+              mostRecentMod={mostRecentMod ? {
+                name: mostRecentMod.name,
+                carLabel: carLabelMap.get(mostRecentMod.car_id) ?? primaryCarLabel,
+                createdAt: mostRecentMod.created_at,
+              } : null}
+              nextPlannedMod={nextPlannedMod ? {
+                name: nextPlannedMod.name,
+                carLabel: carLabelMap.get(nextPlannedMod.car_id) ?? primaryCarLabel,
+              } : null}
+              buildScore={buildScore.score}
+              buildLevel={buildScore.level}
+              nextThreshold={buildScore.nextThreshold ?? null}
+              progress={buildScore.progress}
+              primaryCarId={primaryCar.id}
+              primaryCarLabel={primaryCarLabel}
+              primaryCarModList={primaryModList}
+            />
 
-              <ChevronRight
-                size={16}
-                className="text-[var(--color-text-muted)] group-hover:text-[var(--color-text-secondary)] flex-shrink-0 transition-colors"
-                aria-hidden="true"
-              />
-            </Link>
-          ))}
-        </div>
-      )}
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 gap-3 content-start">
+              <Link
+                href={`/garage/${primaryCar.id}#mods`}
+                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Add a Mod</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Log an install</p>
+                </div>
+                <Wrench size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
+              </Link>
+
+              <Link
+                href={`/chat?carId=${primaryCar.id}`}
+                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Ask VAULT AI</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">What&apos;s next?</p>
+                </div>
+                <MessageSquare size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
+              </Link>
+
+              <Link
+                href="/cards"
+                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[var(--color-text-primary)]">My Cards</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                    {userCards.length === 0 ? "None minted yet" : `${userCards.length} minted`}
+                  </p>
+                </div>
+                <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
+              </Link>
+
+              <Link
+                href="/battles"
+                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+              >
+                <div>
+                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Battles</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Challenge builds</p>
+                </div>
+                <Swords size={20} className="text-[#ef4444] group-hover:scale-110 transition-transform flex-shrink-0" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Build Timeline ── */}
+        {timelineMods.length > 0 && (
+          <section className="mt-10">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight">Build Timeline</h2>
+                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Every mod, in order. Tap to expand.</p>
+              </div>
+              <Link
+                href={`/garage/${primaryCar.id}`}
+                className="text-xs font-semibold text-[var(--color-accent-bright)] hover:text-white transition-colors px-3 py-2"
+              >
+                View all
+              </Link>
+            </div>
+            <BuildTimeline mods={timelineMods} />
+          </section>
+        )}
+
+        {/* ── Other vehicles rail ── */}
+        {otherCars.length > 0 && (
+          <section className="mt-10">
+            <div className="mb-4">
+              <h2 className="text-lg font-bold tracking-tight">Other Vehicles</h2>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                Drag to reorder. {otherCars.length} {otherCars.length === 1 ? "car" : "cars"}.
+              </p>
+            </div>
+            <CarsRail cars={otherCars} stats={statsMap} cardsByCarId={cardsByCarId} />
+          </section>
+        )}
+
+        {/* Always-visible Add Vehicle CTA — shown regardless of car count */}
+        <section className="mt-10">
+          <AddCarButton asCard label={cars.length === 1 ? "Add another vehicle" : "Add a vehicle"} />
+        </section>
+      </PageContainer>
     </div>
   );
 }

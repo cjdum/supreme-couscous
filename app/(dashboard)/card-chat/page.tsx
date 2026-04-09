@@ -1,120 +1,383 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Send } from "lucide-react";
+import { Send, ArrowUpRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import type { PixelCardSnapshot } from "@/lib/supabase/types";
 
-interface LiveCard {
-  id: string;
-  pixel_card_url: string;
-  car_label: string;
-  personality: string | null;
-}
+// ── Types ────────────────────────────────────────────────────────────────────
 
-interface Turn {
+interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
-export default function CardChatPage() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const cardIdParam = searchParams.get("cardId");
+interface LiveCard {
+  id: string;
+  card_title: string | null;
+  nickname: string;
+  pixel_card_url: string;
+  build_archetype: string | null;
+  car_snapshot: PixelCardSnapshot;
+  occasion: string | null;
+  minted_at: string;
+  // personality is optional — not yet in schema but may exist
+  personality?: string | null;
+}
 
+// ── Personality label ────────────────────────────────────────────────────────
+
+const ARCHETYPE_TO_PERSONALITY: Record<string, string> = {
+  "Track Weapon":    "The Veteran",
+  "Show Stopper":    "The Diva",
+  "Sleeper":         "The Conspiracy Theorist",
+  "Street Brawler":  "The Veteran",
+  "Daily Driven":    "The Anxious One",
+  "Restomod":        "The Philosopher",
+  "Stance Build":    "The Hypebeast",
+  "Time Attack":     "The Stoic",
+  "Cruiser":         "The Philosopher",
+  "Drift Build":     "The Hypebeast",
+  "Grand Tourer":    "The Diva",
+  "Rally Build":     "The Veteran",
+  "Show & Go":       "The Hypebeast",
+  "Hypermiler":      "The Anxious One",
+};
+
+function resolvePersonality(card: LiveCard): string {
+  if (card.personality) return card.personality;
+  return ARCHETYPE_TO_PERSONALITY[card.build_archetype ?? ""] ?? "The Stoic";
+}
+
+// ── Sub-components ───────────────────────────────────────────────────────────
+
+function TypingIndicator() {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 h-5"
+      aria-label="Card is typing"
+    >
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="w-2 h-2 rounded-full"
+          style={{
+            background: "rgba(168,85,247,0.7)",
+            animation: `cardTypingPulse 1.2s ease-in-out ${i * 0.18}s infinite`,
+          }}
+        />
+      ))}
+      <style jsx>{`
+        @keyframes cardTypingPulse {
+          0%, 60%, 100% {
+            opacity: 0.3;
+            transform: translateY(0);
+          }
+          30% {
+            opacity: 1;
+            transform: translateY(-3px);
+          }
+        }
+      `}</style>
+    </span>
+  );
+}
+
+function SkeletonLoader() {
+  return (
+    <div
+      style={{ background: "#08080f", minHeight: "100dvh" }}
+      className="flex flex-col"
+    >
+      {/* Header skeleton */}
+      <div
+        style={{
+          background: "rgba(255,255,255,0.03)",
+          borderBottom: "1px solid rgba(168,85,247,0.15)",
+          padding: "12px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 8,
+            background: "rgba(168,85,247,0.1)",
+            animation: "skeletonPulse 1.5s ease-in-out infinite",
+          }}
+        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div
+            style={{
+              width: 120,
+              height: 14,
+              borderRadius: 4,
+              background: "rgba(168,85,247,0.1)",
+              animation: "skeletonPulse 1.5s ease-in-out infinite",
+            }}
+          />
+          <div
+            style={{
+              width: 80,
+              height: 10,
+              borderRadius: 4,
+              background: "rgba(168,85,247,0.07)",
+              animation: "skeletonPulse 1.5s ease-in-out 0.2s infinite",
+            }}
+          />
+        </div>
+      </div>
+      <style jsx global>{`
+        @keyframes skeletonPulse {
+          0%, 100% { opacity: 0.5; }
+          50% { opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function NoCardState() {
+  return (
+    <div
+      style={{
+        background: "#08080f",
+        minHeight: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 20,
+        padding: "24px",
+        textAlign: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: 20,
+          background: "rgba(107,70,193,0.12)",
+          border: "2px solid rgba(107,70,193,0.25)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 28,
+            lineHeight: 1,
+            fontFamily: "ui-monospace, monospace",
+            color: "rgba(168,85,247,0.4)",
+          }}
+        >
+          ?
+        </span>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <p
+          style={{
+            fontFamily: "ui-monospace, monospace",
+            fontSize: 14,
+            fontWeight: 700,
+            color: "rgba(220,200,255,0.8)",
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+          }}
+        >
+          No living card
+        </p>
+        <p
+          style={{
+            fontFamily: "ui-monospace, monospace",
+            fontSize: 11,
+            color: "rgba(160,140,200,0.4)",
+            letterSpacing: "0.04em",
+            maxWidth: 260,
+            lineHeight: 1.6,
+          }}
+        >
+          You have no living card to chat with. Go mint one.
+        </p>
+      </div>
+
+      <Link
+        href="/mint"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "11px 22px",
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+          border: "1px solid rgba(123,79,212,0.5)",
+          color: "white",
+          fontFamily: "ui-monospace, monospace",
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          textDecoration: "none",
+          boxShadow: "0 4px 20px rgba(123,79,212,0.35)",
+        }}
+      >
+        Mint a Card
+        <ArrowUpRight size={13} />
+      </Link>
+    </div>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
+
+export default function CardChatPage() {
   const [card, setCard] = useState<LiveCard | null>(null);
   const [loading, setLoading] = useState(true);
-  const [speech, setSpeech] = useState<string>("");
-  const [speaking, setSpeaking] = useState(false);
-  const [shaking, setShaking] = useState(false);
-  const [history, setHistory] = useState<Turn[]>([]);
+  const [noCard, setNoCard] = useState(false);
+
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false);
+  const [openingPending, setOpeningPending] = useState(false);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const openingCalledRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const userScrolledUpRef = useRef(false);
 
-  // ── Load the living card (by id or the one alive card) ──────────────
+  // ── Fetch alive card ───────────────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { router.push("/login"); return; }
+      if (!user) {
+        setLoading(false);
+        setNoCard(true);
+        return;
+      }
 
-      let query = supabase
+      const { data } = await supabase
         .from("pixel_cards")
-        .select("id, pixel_card_url, car_snapshot, personality, status")
-        .eq("user_id", user.id);
+        .select(
+          "id, card_title, nickname, pixel_card_url, build_archetype, car_snapshot, occasion, minted_at",
+        )
+        .eq("user_id", user.id)
+        .order("minted_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      query = cardIdParam
-        ? query.eq("id", cardIdParam)
-        : query.eq("status", "alive");
+      if (!data) {
+        setLoading(false);
+        setNoCard(true);
+        return;
+      }
 
-      const { data } = await query.maybeSingle();
-      if (!data) { router.push("/home"); return; }
-
-      const row = data as {
-        id: string;
-        pixel_card_url: string;
-        car_snapshot: { year: number; make: string; model: string };
-        personality: string | null;
-        status: string;
-      };
-      const snap = row.car_snapshot;
-      setCard({
-        id: row.id,
-        pixel_card_url: row.pixel_card_url,
-        car_label: `${snap.year} ${snap.make} ${snap.model}`,
-        personality: row.personality,
-      });
+      setCard(data as LiveCard);
       setLoading(false);
     });
-  }, [cardIdParam, router]);
+  }, []);
 
-  // ── Pixelate the card to canvas ─────────────────────────────────────
+  // ── Fetch opening line once card is loaded ─────────────────────────────────
+  const fetchOpeningLine = useCallback(async (cardId: string) => {
+    setOpeningPending(true);
+    setMessages([{ role: "assistant", content: "" }]);
+
+    try {
+      const res = await fetch("/api/card-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId, history: [] }),
+      });
+
+      if (!res.ok || !res.body) {
+        const json = await res.json().catch(() => ({}));
+        setMessages([
+          {
+            role: "assistant",
+            content:
+              (json as { error?: string }).error ??
+              "Something went wrong loading the opening line.",
+          },
+        ]);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        fullText += decoder.decode(value, { stream: true });
+        setMessages([{ role: "assistant", content: fullText }]);
+      }
+    } catch {
+      setMessages([
+        { role: "assistant", content: "Connection error loading opening line." },
+      ]);
+    } finally {
+      setOpeningPending(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (!card?.pixel_card_url) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (card) {
+      fetchOpeningLine(card.id);
+    }
+  }, [card, fetchOpeningLine]);
 
-    const img = new window.Image();
-    img.crossOrigin = "anonymous";
-    img.src = card.pixel_card_url;
-
-    const draw = (source: HTMLImageElement) => {
-      const aspect = source.naturalHeight / (source.naturalWidth || 1);
-      const PX = 64;
-      const PY = Math.round(PX * aspect);
-      const tiny = document.createElement("canvas");
-      tiny.width = PX;
-      tiny.height = PY;
-      const tctx = tiny.getContext("2d");
-      if (!tctx) return;
-      tctx.imageSmoothingEnabled = false;
-      tctx.drawImage(source, 0, 0, PX, PY);
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.imageSmoothingEnabled = false;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(tiny, 0, 0, canvas.width, canvas.height);
+  // ── Scroll tracking ────────────────────────────────────────────────────────
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      userScrolledUpRef.current = scrollHeight - (scrollTop + clientHeight) > 100;
     };
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
 
-    img.onload = () => draw(img);
-    img.onerror = () => {
-      const fallback = new window.Image();
-      fallback.src = card.pixel_card_url;
-      fallback.onload = () => draw(fallback);
-    };
-  }, [card?.pixel_card_url]);
+  // Auto-scroll on new messages
+  useEffect(() => {
+    if (userScrolledUpRef.current) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages]);
 
-  // ── Streaming send helper ────────────────────────────────────────────
-  async function sendMessage(message: string, priorHistory: Turn[]) {
-    if (!card) return;
-    setSpeaking(true);
-    setShaking(true);
-    setSpeech("");
-    setError(null);
+  // ── Auto-grow textarea ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const maxHeight = 22 * 3 + 28;
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+  }, [input]);
+
+  // ── Send a message ─────────────────────────────────────────────────────────
+  async function sendMessage(text: string) {
+    if (!text.trim() || streaming || openingPending || !card) return;
+
+    userScrolledUpRef.current = false;
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+
+    const cleanHistory: Message[] = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    const userMsg: Message = { role: "user", content: text.trim() };
+    const nextMessages = [...cleanHistory, userMsg];
+    setMessages([...nextMessages, { role: "assistant", content: "" }]);
+    setInput("");
+    setStreaming(true);
 
     try {
       const res = await fetch("/api/card-chat", {
@@ -122,222 +385,428 @@ export default function CardChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cardId: card.id,
-          message,
-          history: priorHistory,
+          message: text.trim(),
+          history: cleanHistory.slice(-16).map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Chat failed");
+      if (!res.ok || !res.body) {
+        const json = await res.json().catch(() => ({}));
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          {
+            role: "assistant",
+            content:
+              (json as { error?: string }).error ??
+              "Something went wrong. Please try again.",
+          },
+        ]);
+        return;
       }
-      if (!res.body) throw new Error("No stream");
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let acc = "";
+      let fullText = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        acc += chunk;
-        setSpeech(acc);
-      }
-
-      // Save turn to history (skip if this was the opening line)
-      if (message) {
-        setHistory((prev) => [
-          ...prev,
-          { role: "user", content: message },
-          { role: "assistant", content: acc },
+        fullText += decoder.decode(value, { stream: true });
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: "assistant", content: fullText },
         ]);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Chat failed");
+    } catch {
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        { role: "assistant", content: "Connection error. Please try again." },
+      ]);
     } finally {
-      setSpeaking(false);
-      // Let shake run a beat longer than stream for dramatic effect
-      setTimeout(() => setShaking(false), 300);
+      setStreaming(false);
+      inputRef.current?.focus();
     }
   }
 
-  // ── Kick off opening line on first load ─────────────────────────────
-  useEffect(() => {
-    if (!card || openingCalledRef.current) return;
-    openingCalledRef.current = true;
-    sendMessage("", []);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card]);
-
-  // ── User submits a message ──────────────────────────────────────────
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || speaking) return;
-    setInput("");
-    await sendMessage(text, history);
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
+    }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100dvh-64px)]">
-        <Loader2 size={22} className="animate-spin text-[var(--color-text-muted)]" />
-      </div>
-    );
-  }
+  // ── Render states ──────────────────────────────────────────────────────────
 
-  if (!card) return null;
+  if (loading) return <SkeletonLoader />;
+  if (noCard || !card) return <NoCardState />;
 
-  const CARD_W = 260;
-  const CARD_H = Math.round(CARD_W * 1.4);
+  const personality = resolvePersonality(card);
+  const { year, make, model } = card.car_snapshot;
+  const displayName = card.card_title || card.nickname;
+  const isWaiting = streaming || openingPending;
 
   return (
-    <div className="px-5 sm:px-8 pt-6 pb-6 max-w-md mx-auto flex flex-col min-h-[calc(100dvh-64px)]">
-      <style>{`
-        @keyframes chat-shake {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); }
-          20%      { transform: translate(-2px, 1px) rotate(-0.5deg); }
-          40%      { transform: translate(2px, -1px) rotate(0.5deg); }
-          60%      { transform: translate(-1px, 2px) rotate(-0.3deg); }
-          80%      { transform: translate(1px, -2px) rotate(0.3deg); }
-        }
-        @keyframes bubble-in {
-          0%   { opacity: 0; transform: translateY(6px) scale(0.96); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .shake { animation: chat-shake 0.25s linear infinite; }
-        .bubble-in { animation: bubble-in 0.22s ease-out; }
-      `}</style>
-
-      {/* Back link */}
-      <Link
-        href="/home"
-        className="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--color-text-muted)] hover:text-white transition-colors mb-6"
+    <div
+      style={{
+        background: "#08080f",
+        minHeight: "100dvh",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* ── Page header ──────────────────────────────────────────────────── */}
+      <header
+        style={{
+          flexShrink: 0,
+          borderBottom: "1px solid rgba(168,85,247,0.15)",
+          background: "rgba(255,255,255,0.02)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          padding: "12px 16px",
+        }}
       >
-        <ArrowLeft size={13} aria-hidden="true" />
-        Home
-      </Link>
+        <div
+          style={{
+            maxWidth: 720,
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          {/* Card image thumbnail */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={card.pixel_card_url}
+            alt={displayName}
+            width={40}
+            height={40}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 8,
+              objectFit: "cover",
+              border: "1px solid rgba(168,85,247,0.3)",
+              flexShrink: 0,
+              imageRendering: "pixelated",
+            }}
+          />
 
-      {/* Card + bubble */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-5">
-        <div style={{ position: "relative", width: CARD_W, height: CARD_H }}>
-          <div
-            className={shaking ? "shake" : ""}
-            style={{ filter: "drop-shadow(0 20px 40px rgba(59,130,246,0.22))" }}
-          >
-            <canvas
-              ref={canvasRef}
-              width={CARD_W}
-              height={CARD_H}
+          {/* Card name + personality + living dot */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
               style={{
-                width: CARD_W,
-                height: CARD_H,
-                borderRadius: 14,
-                imageRendering: "pixelated",
-                display: "block",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
               }}
-              aria-label="Living card"
+            >
+              <span
+                style={{
+                  fontFamily: "ui-monospace, monospace",
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: "rgba(220,200,255,0.95)",
+                  letterSpacing: "0.03em",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 160,
+                }}
+              >
+                {displayName}
+              </span>
+
+              {/* Personality chip */}
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  background: "rgba(107,70,193,0.25)",
+                  border: "1px solid rgba(168,85,247,0.3)",
+                  fontFamily: "ui-monospace, monospace",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "rgba(192,132,252,0.9)",
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {personality}
+              </span>
+
+              {/* Living dot */}
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontFamily: "ui-monospace, monospace",
+                  fontSize: 10,
+                  color: "rgba(74,222,128,0.8)",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "#4ade80",
+                    boxShadow: "0 0 6px rgba(74,222,128,0.7)",
+                    display: "inline-block",
+                  }}
+                />
+                Living
+              </span>
+            </div>
+
+            <p
+              style={{
+                fontFamily: "ui-monospace, monospace",
+                fontSize: 10,
+                color: "rgba(148,120,190,0.55)",
+                marginTop: 2,
+                letterSpacing: "0.04em",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {year} {make} {model}
+            </p>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Messages area ────────────────────────────────────────────────── */}
+      <div
+        ref={messagesContainerRef}
+        style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}
+      >
+        <div
+          style={{
+            maxWidth: 720,
+            margin: "0 auto",
+            padding: "24px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {messages.map((msg, i) => {
+            const isUser = msg.role === "user";
+            const isLast = i === messages.length - 1;
+            const showTyping = !isUser && isLast && isWaiting && !msg.content;
+
+            return (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  justifyContent: isUser ? "flex-end" : "flex-start",
+                }}
+              >
+                {/* Card avatar — shown left of card messages */}
+                {!isUser && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={card.pixel_card_url}
+                    alt=""
+                    aria-hidden="true"
+                    width={28}
+                    height={28}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 6,
+                      objectFit: "cover",
+                      border: "1px solid rgba(168,85,247,0.2)",
+                      flexShrink: 0,
+                      marginRight: 8,
+                      imageRendering: "pixelated",
+                      alignSelf: "flex-end",
+                      marginBottom: 2,
+                    }}
+                  />
+                )}
+
+                <div
+                  style={{
+                    maxWidth: "75%",
+                    padding: "10px 14px",
+                    borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                    background: isUser
+                      ? "rgba(168,85,247,0.5)"
+                      : "rgba(107,70,193,0.3)",
+                    border: `1px solid ${
+                      isUser
+                        ? "rgba(168,85,247,0.4)"
+                        : "rgba(168,85,247,0.3)"
+                    }`,
+                    color: "rgba(240,230,255,0.95)",
+                    fontSize: 14,
+                    lineHeight: 1.55,
+                    fontFamily:
+                      "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                    wordBreak: "break-word",
+                    // Subtle fade-in
+                    animation: "msgFadeIn 200ms ease both",
+                  }}
+                >
+                  {showTyping ? (
+                    <TypingIndicator />
+                  ) : (
+                    <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>
+                      {msg.content}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* ── Input bar ────────────────────────────────────────────────────── */}
+      <footer
+        style={{
+          flexShrink: 0,
+          borderTop: "1px solid rgba(168,85,247,0.15)",
+          background: "rgba(255,255,255,0.02)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          padding: "12px 16px",
+          paddingBottom: "max(12px, env(safe-area-inset-bottom))",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 720,
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 8,
+          }}
+        >
+          {/* Textarea */}
+          <div
+            style={{
+              flex: 1,
+              borderRadius: 16,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(168,85,247,0.2)",
+              transition: "border-color 150ms",
+            }}
+            onFocus={(e) => {
+              (e.currentTarget as HTMLDivElement).style.borderColor =
+                "rgba(168,85,247,0.5)";
+            }}
+            onBlur={(e) => {
+              (e.currentTarget as HTMLDivElement).style.borderColor =
+                "rgba(168,85,247,0.2)";
+            }}
+          >
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                isWaiting
+                  ? `${displayName} is thinking...`
+                  : `Say something to ${displayName}...`
+              }
+              rows={1}
+              disabled={isWaiting}
+              aria-label="Message"
+              style={{
+                width: "100%",
+                resize: "none",
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                padding: "12px 16px",
+                color: "rgba(230,215,255,0.95)",
+                fontSize: 14,
+                lineHeight: 1.5,
+                fontFamily:
+                  "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                minHeight: 48,
+                maxHeight: 100,
+                display: "block",
+                opacity: isWaiting ? 0.5 : 1,
+              }}
             />
           </div>
 
-          {/* Speech bubble overlay */}
-          {speech && (
-            <div
-              className="bubble-in"
+          {/* Send button */}
+          <button
+            type="button"
+            onClick={() => sendMessage(input)}
+            disabled={!input.trim() || isWaiting}
+            aria-label="Send message"
+            style={{
+              width: 48,
+              height: 48,
+              minWidth: 48,
+              minHeight: 48,
+              borderRadius: 14,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: input.trim() && !isWaiting ? "pointer" : "default",
+              flexShrink: 0,
+              background:
+                input.trim() && !isWaiting
+                  ? "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)"
+                  : "rgba(255,255,255,0.05)",
+              border: input.trim() && !isWaiting
+                ? "1px solid rgba(123,79,212,0.5)"
+                : "1px solid rgba(168,85,247,0.15)",
+              opacity: !input.trim() || isWaiting ? 0.4 : 1,
+              transition: "background 150ms, opacity 150ms",
+              boxShadow:
+                input.trim() && !isWaiting
+                  ? "0 2px 12px rgba(123,79,212,0.4)"
+                  : "none",
+            }}
+          >
+            <Send
+              size={15}
               style={{
-                position: "absolute",
-                left: "50%",
-                bottom: "-12px",
-                transform: "translate(-50%, 100%)",
-                minWidth: 220,
-                maxWidth: 320,
-                padding: "14px 16px",
-                borderRadius: 14,
-                background: "rgba(20,20,22,0.95)",
-                border: "1.5px solid rgba(59,130,246,0.35)",
-                boxShadow: "0 12px 36px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)",
-                color: "#f5f5f7",
-                fontSize: 14,
-                lineHeight: 1.45,
-                fontStyle: "italic",
-                textAlign: "left",
+                color:
+                  input.trim() && !isWaiting
+                    ? "white"
+                    : "rgba(168,85,247,0.5)",
               }}
-            >
-              {/* Bubble tail */}
-              <span
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  top: -8,
-                  left: "50%",
-                  width: 14,
-                  height: 14,
-                  transform: "translateX(-50%) rotate(45deg)",
-                  background: "rgba(20,20,22,0.95)",
-                  borderLeft: "1.5px solid rgba(59,130,246,0.35)",
-                  borderTop: "1.5px solid rgba(59,130,246,0.35)",
-                }}
-              />
-              &ldquo;{speech}&rdquo;
-              {speaking && (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    display: "inline-block",
-                    width: 6,
-                    height: 14,
-                    marginLeft: 4,
-                    verticalAlign: "text-bottom",
-                    background: "#60A5FA",
-                    animation: "pulse 1s ease-in-out infinite",
-                  }}
-                />
-              )}
-            </div>
-          )}
+            />
+          </button>
         </div>
+      </footer>
 
-        <p
-          style={{
-            marginTop: speech ? 80 : 20,
-            fontFamily: "ui-monospace,monospace",
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "rgba(255,255,255,0.45)",
-          }}
-        >
-          {card.personality ?? "Your card"} · {card.car_label}
-        </p>
-      </div>
-
-      {error && (
-        <p className="text-xs text-[var(--color-danger)] text-center mt-3" role="alert">
-          {error}
-        </p>
-      )}
-
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="mt-6 flex items-end gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={speaking ? "Wait, it's talking…" : "Say something…"}
-          disabled={speaking}
-          maxLength={300}
-          className="flex-1 h-11 px-4 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] text-sm disabled:opacity-60"
-        />
-        <button
-          type="submit"
-          disabled={speaking || !input.trim()}
-          className="h-11 w-11 rounded-xl bg-[var(--color-accent)] text-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110 cursor-pointer transition-all"
-          aria-label="Send"
-        >
-          <Send size={15} aria-hidden="true" />
-        </button>
-      </form>
+      {/* ── Global keyframe styles ────────────────────────────────────────── */}
+      <style jsx global>{`
+        @keyframes msgFadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

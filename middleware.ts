@@ -38,8 +38,8 @@ async function handleAuthCallback(
   tokenHash: string | null,
   type: string | null,
 ): Promise<NextResponse> {
-  const next = request.nextUrl.searchParams.get("next") ?? "/home";
-  const safeNext = next.startsWith("/") ? next : "/home";
+  const next = request.nextUrl.searchParams.get("next") ?? "/garage";
+  const safeNext = next.startsWith("/") ? next : "/garage";
   const origin = request.nextUrl.origin;
 
   // Create a redirect response — cookies will be set directly on this
