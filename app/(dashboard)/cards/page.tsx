@@ -9,7 +9,7 @@ type FullCard = MintedCard & {
   personality?: string | null;
   card_level?: number | null;
   card_title?: string | null;
-  status?: string;
+  status?: string | null;
   burned_at?: string | null;
   last_words?: string | null;
 };
@@ -21,39 +21,37 @@ export default async function CardsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Alive card (only one should exist)
-  const { data: liveCardRaw } = await supabase
+  // Fetch ALL cards newest first — we'll sort into live/ghost/all below
+  const { data: allCardsRaw } = await supabase
     .from("pixel_cards")
     .select("*")
     .eq("user_id", user.id)
-    .eq("status", "alive")
-    .maybeSingle();
+    .order("minted_at", { ascending: false });
 
-  // Ghost cards — burned history, newest burn first
-  const { data: ghostsRaw } = await supabase
-    .from("pixel_cards")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("status", "ghost")
-    .order("burned_at", { ascending: false });
+  const allCards = (allCardsRaw ?? []) as FullCard[];
 
-  // Fallback: if status column not yet migrated, show most recent as live and rest as ghosts
-  let liveCard: FullCard | null = liveCardRaw as FullCard | null;
-  let ghosts: FullCard[] = (ghostsRaw ?? []) as FullCard[];
+  // Detect whether the status column has been populated for this user's cards.
+  // Pre-migration cards have status=null so we fall back gracefully.
+  const hasStatusData = allCards.some(c => c.status === "alive" || c.status === "ghost");
 
-  if (!liveCardRaw && !ghostsRaw) {
-    // status column might not exist yet — fall back to all cards
-    const { data: allRaw } = await supabase
-      .from("pixel_cards")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("minted_at", { ascending: false });
-    const all = (allRaw ?? []) as FullCard[];
-    liveCard = all[0] ?? null;
-    ghosts = all.slice(1);
+  let liveCard: FullCard | null;
+  let ghosts: FullCard[];
+
+  if (hasStatusData) {
+    liveCard = allCards.find(c => c.status === "alive") ?? null;
+    ghosts = allCards.filter(c => c.status === "ghost")
+      .sort((a, b) => {
+        const da = a.burned_at ? new Date(a.burned_at).getTime() : 0;
+        const db = b.burned_at ? new Date(b.burned_at).getTime() : 0;
+        return db - da;
+      });
+  } else {
+    // Pre-migration: treat most recent as the living card, rest are historical
+    liveCard = allCards[0] ?? null;
+    ghosts = allCards.slice(1);
   }
 
-  // Car labels for display
+  // Car labels
   const { data: carsRaw } = await supabase
     .from("cars")
     .select("id, year, make, model")
@@ -66,7 +64,12 @@ export default async function CardsPage() {
 
   return (
     <div className="min-h-dvh animate-fade">
-      <CardHub liveCard={liveCard} ghosts={ghosts} carLabels={carLabels} />
+      <CardHub
+        liveCard={liveCard}
+        ghosts={ghosts}
+        allCards={allCards}
+        carLabels={carLabels}
+      />
     </div>
   );
 }

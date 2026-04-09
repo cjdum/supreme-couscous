@@ -57,6 +57,7 @@ export default async function MintPage() {
     const snap = aliveCardRaw.car_snapshot;
     aliveCard = {
       id: aliveCardRaw.id,
+      carId: aliveCardRaw.car_id ?? "",
       cardTitle: (aliveCardRaw as AnyCard & { card_title?: string | null }).card_title ?? null,
       nickname: aliveCardRaw.nickname,
       pixelCardUrl: aliveCardRaw.pixel_card_url,

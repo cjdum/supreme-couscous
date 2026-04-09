@@ -21,10 +21,14 @@ export function MintPageClient({ cars, aliveCard }: MintPageClientProps) {
   const [lastWords, setLastWords] = useState<string | null>(null);
   const [burnError, setBurnError] = useState<string | null>(null);
   const [burned, setBurned] = useState(false);
+  // Track which car was burned so we auto-mint the same car after
+  const [burnedCarId, setBurnedCarId] = useState<string | null>(null);
 
   // Step 1: Fetch the card's plea
   async function handleInitiateBurn() {
     if (!aliveCard) return;
+    // Remember the car so we can auto-mint it after the burn
+    setBurnedCarId(aliveCard.carId);
     setBurnPhase("fetching_plea");
     setBurnError(null);
 
@@ -290,6 +294,7 @@ export function MintPageClient({ cars, aliveCard }: MintPageClientProps) {
       <MintStudio
         cars={cars}
         aliveCard={burned ? null : aliveCard}
+        autoMintCarId={burned ? burnedCarId : null}
         onInitiateBurn={handleInitiateBurn}
       />
     </>

@@ -23,6 +23,7 @@ export interface MintableCar {
 
 export interface AliveCardInfo {
   id: string;
+  carId: string;
   cardTitle: string | null;
   nickname: string;
   pixelCardUrl: string;
@@ -35,6 +36,8 @@ export interface AliveCardInfo {
 interface MintStudioProps {
   cars: MintableCar[];
   aliveCard: AliveCardInfo | null;
+  /** When set (after a burn), skip car selection and go straight to this car */
+  autoMintCarId?: string | null;
   onInitiateBurn: () => void;
 }
 
@@ -742,10 +745,14 @@ function MintPhase({ car, onBack }: MintPhaseProps) {
 export function MintStudio({
   cars,
   aliveCard,
+  autoMintCarId,
   onInitiateBurn,
 }: MintStudioProps) {
-  const [phase, setPhase] = useState<Phase>("select");
-  const [selected, setSelected] = useState<MintableCar | null>(null);
+  // If autoMintCarId is provided (after burn), skip car selection
+  const autoMintCar = autoMintCarId ? (cars.find(c => c.id === autoMintCarId) ?? null) : null;
+
+  const [phase, setPhase] = useState<Phase>(autoMintCar ? "mint" : "select");
+  const [selected, setSelected] = useState<MintableCar | null>(autoMintCar);
   const [burnState, setBurnState] = useState<BurnState>("idle");
 
   function handleSelect(car: MintableCar) {
