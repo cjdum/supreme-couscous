@@ -48,14 +48,15 @@ interface Post {
   profiles: { username: string };
 }
 
+// Card-first order: Cards is the product, Builds and Discussion are supporting.
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-  { id: "builds",     label: "Builds",     icon: Globe },
   { id: "cards",      label: "Cards",      icon: GalleryHorizontal },
+  { id: "builds",     label: "Builds",     icon: Globe },
   { id: "discussion", label: "Discussion", icon: MessageSquare },
 ];
 
 export default function CommunityPage() {
-  const [tab, setTab] = useState<Tab>("builds");
+  const [tab, setTab] = useState<Tab>("cards");
 
   /* ─── Builds state ─────────── */
   const [builds,       setBuilds]       = useState<Build[]>([]);

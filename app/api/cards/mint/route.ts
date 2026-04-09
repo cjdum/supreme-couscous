@@ -198,7 +198,9 @@ export async function POST(req: Request) {
 
   let pixelCardUrl: string;
   try {
-    const pixelPrompt = `Pixel art sprite of a ${car.year} ${car.make} ${car.model}, the ${car.year} body style (not any earlier generation). Retro 16-bit video game style. Hard square pixels, no anti-aliasing, no blur, no gradients. Car body color: ${colorLabel}. 3/4 front angle. Car fills the frame. Flat dark background #0a0a18. No text, no logos, no license plates. Chunky blocky pixels only. Style reference: Super Nintendo racing game car sprite.`;
+    // Metadata-only prompt — no photo reference ever reaches the image model.
+    // Hard year lock + trim hint so DALL-E renders the correct generation body.
+    const pixelPrompt = `Pixel art sprite of a ${car.year} ${car.make} ${car.model} ${trimLabel}. Render the ${car.year} model-year body style exactly — not an earlier or later generation. Retro 16-bit video game style, Super Nintendo era racing game car sprite. Hard square pixels only. No anti-aliasing, no blur, no gradients, no realism, no photographic detail. Car body color: ${colorLabel}. Three-quarter front angle. Car fills the frame, centered. Flat dark background #0a0a18. No text, no logos, no license plates, no people, no shadows, no reflections. Chunky blocky pixels. Low resolution sprite aesthetic.`;
     const imageResponse = await openai.images.generate({
       model: "dall-e-2",
       prompt: pixelPrompt,

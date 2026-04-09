@@ -2,13 +2,30 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Unlock, Sparkles, Camera, Loader2, CheckCircle2, ArrowRight, X } from "lucide-react";
+import { Lock, Unlock, Sparkles, Camera, CheckCircle2, ArrowRight, X } from "lucide-react";
 import { haptic } from "@/lib/haptics";
 import type { CardEligibility, MintedCard } from "@/lib/pixel-card";
+import type { EstimatedPerformance, CardTrait } from "@/lib/supabase/types";
 import { CARD_BORDER_COLOR } from "@/lib/pixel-card";
 import { TradingCard } from "./trading-card";
 import { CardRevealCeremony } from "./card-reveal-ceremony";
-import { PreMintReviewModal, type PreMintPayload } from "./pre-mint-review-modal";
+
+interface MintPayload {
+  carId: string;
+  occasion: string;
+  isPublic: boolean;
+  cardTitle: string;
+  buildArchetype: string;
+  estimatedPerformance: EstimatedPerformance;
+  aiEstimatedPerformance: EstimatedPerformance;
+  buildAggression: number;
+  uniquenessScore: number;
+  authenticityConfidence: number;
+  traits: CardTrait[];
+  flavourText: string;
+  weaknesses: string[];
+  rivalArchetypes: string[];
+}
 
 interface PixelCardProps {
   carId: string;
@@ -24,7 +41,8 @@ interface PixelCardProps {
   autoMint?: boolean;
 }
 
-type MintState = "idle" | "occasion" | "generating" | "review" | "minting" | "ceremony";
+// Simplified mint flow: idle → occasion → summoning (generate+mint chained) → ceremony
+type MintState = "idle" | "occasion" | "summoning" | "ceremony";
 
 const OCCASION_EXAMPLES = [
   "Just picked her up",
@@ -44,7 +62,7 @@ export function PixelCard(props: PixelCardProps) {
   const [freshCard, setFreshCard] = useState<MintedCard | null>(null);
   const [eligibility, setEligibility] = useState<CardEligibility | null>(null);
   const [eligLoading, setEligLoading] = useState(true);
-  const [reviewPayload, setReviewPayload] = useState<PreMintPayload | null>(null);
+  const [summonStep, setSummonStep] = useState<"conjuring" | "painting" | "binding">("conjuring");
 
   // Trim + color validation
   const hasTrim  = !!props.trim?.trim();
@@ -137,63 +155,57 @@ export function PixelCard(props: PixelCardProps) {
       return;
     }
 
-    // Step 1: Generate (AI call, no saving yet) → opens the review modal.
-    setMintState("generating");
+    // No review form — chain generate → mint directly behind the summoning overlay.
+    setMintState("summoning");
+    setSummonStep("conjuring");
     setError(null);
 
     try {
-      const res = await fetch(`/api/cards/generate`, {
+      // Step 1: AI generates stats + flavor text (no persistence yet).
+      const genRes = await fetch(`/api/cards/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ carId: props.carId, occasion }),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(typeof json.error === "string" ? json.error : "Failed to generate");
+      const genJson = await genRes.json().catch(() => ({}));
+      if (!genRes.ok) {
+        throw new Error(typeof genJson.error === "string" ? genJson.error : "Failed to conjure");
       }
-      const payload: PreMintPayload = {
+
+      // Step 2: Commit the mint (pixel art generation + DB row).
+      setSummonStep("painting");
+      const mintPayload: MintPayload = {
         carId: props.carId,
         occasion,
         isPublic,
-        cardTitle: String(json.cardTitle ?? ""),
-        buildArchetype: String(json.buildArchetype ?? "Daily Driven"),
-        estimatedPerformance: json.estimatedPerformance,
-        aiEstimatedPerformance: json.aiEstimatedPerformance,
-        buildAggression: Number(json.buildAggression ?? 5),
-        uniquenessScore: Number(json.uniquenessScore ?? 50),
-        authenticityConfidence: Number(json.authenticityConfidence ?? 60),
-        traits: Array.isArray(json.traits) ? json.traits : [],
-        flavourText: String(json.flavourText ?? ""),
-        weaknesses: Array.isArray(json.weaknesses) ? json.weaknesses : [],
-        rivalArchetypes: Array.isArray(json.rivalArchetypes) ? json.rivalArchetypes : [],
-        stockSpecs: json.stockSpecs ?? null,
-        builderScore: json.builderScore ?? null,
+        cardTitle: String(genJson.cardTitle ?? ""),
+        buildArchetype: String(genJson.buildArchetype ?? "Daily Driven"),
+        estimatedPerformance: genJson.estimatedPerformance,
+        aiEstimatedPerformance: genJson.aiEstimatedPerformance,
+        buildAggression: Number(genJson.buildAggression ?? 5),
+        uniquenessScore: Number(genJson.uniquenessScore ?? 50),
+        authenticityConfidence: Number(genJson.authenticityConfidence ?? 60),
+        traits: Array.isArray(genJson.traits) ? genJson.traits : [],
+        flavourText: String(genJson.flavourText ?? ""),
+        weaknesses: Array.isArray(genJson.weaknesses) ? genJson.weaknesses : [],
+        rivalArchetypes: Array.isArray(genJson.rivalArchetypes) ? genJson.rivalArchetypes : [],
       };
-      setReviewPayload(payload);
-      setMintState("review");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to generate");
-      haptic("heavy");
-      setMintState("idle");
-    }
-  }
 
-  async function handleConfirmMint(edited: PreMintPayload) {
-    setMintState("minting");
-    setError(null);
-    try {
-      const res = await fetch(`/api/cards/mint`, {
+      const mintRes = await fetch(`/api/cards/mint`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(edited),
+        body: JSON.stringify(mintPayload),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(typeof json.error === "string" ? json.error : "Failed to mint");
+      const mintJson = await mintRes.json().catch(() => ({}));
+      if (!mintRes.ok) {
+        throw new Error(typeof mintJson.error === "string" ? mintJson.error : "Failed to bind");
       }
-      setFreshCard(json.card as MintedCard);
+
+      setSummonStep("binding");
+      setFreshCard(mintJson.card as MintedCard);
       haptic("success");
-      setMintState("ceremony");
+      // Small hold on "binding" so the last step is visible before ceremony takes over.
+      setTimeout(() => setMintState("ceremony"), 400);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to mint");
       haptic("heavy");
@@ -223,17 +235,9 @@ export function PixelCard(props: PixelCardProps) {
 
   return (
     <div>
-      {/* ── Pre-mint review modal ─────────────────────────────────────────── */}
-      {mintState === "review" && reviewPayload && (
-        <PreMintReviewModal
-          payload={reviewPayload}
-          carLabel={props.carLabel}
-          onCancel={() => {
-            setReviewPayload(null);
-            setMintState("idle");
-          }}
-          onConfirm={handleConfirmMint}
-        />
+      {/* ── Summoning overlay (generate + mint chained, no review form) ───── */}
+      {mintState === "summoning" && (
+        <SummoningOverlay step={summonStep} />
       )}
 
       {/* ── Occasion modal ─────────────────────────────────────────────────── */}
@@ -351,7 +355,7 @@ export function PixelCard(props: PixelCardProps) {
                   Share in community feed?
                 </p>
                 <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, color: "rgba(160,140,200,0.5)", letterSpacing: "0.04em", margin: "2px 0 0" }}>
-                  {isPublic ? "Visible to everyone at /feed" : "Private — only you can see it"}
+                  {isPublic ? "Visible to everyone in Community" : "Private — only you can see it"}
                 </p>
               </div>
               <button
@@ -569,22 +573,8 @@ export function PixelCard(props: PixelCardProps) {
             boxShadow: eligible && mintState === "idle" && !needsProfile ? "0 4px 20px rgba(123,79,212,0.35)" : "none",
           }}
         >
-          {mintState === "generating" ? (
-            <>
-              <Loader2 size={14} className="animate-spin" />
-              Analyzing build...
-            </>
-          ) : mintState === "minting" ? (
-            <>
-              <Loader2 size={14} className="animate-spin" />
-              Minting...
-            </>
-          ) : (
-            <>
-              <Sparkles size={14} />
-              {hasCard ? "Mint another card" : "Mint card"}
-            </>
-          )}
+          <Sparkles size={14} />
+          {hasCard ? "Mint another card" : "Mint card"}
         </button>
         <p className="text-[10px] text-[var(--color-text-disabled)] mt-2 text-center">
           Each card is a permanent snapshot. Review before you mint.
@@ -624,6 +614,232 @@ function RequirementRow({
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Summoning overlay — fullscreen "card is being born" animation.
+// Replaces the previous review form. User just waits (typically 20–40s) while
+// generate → mint chains behind the scenes.
+// ─────────────────────────────────────────────────────────────────────────────
+const STEP_LABELS: Record<"conjuring" | "painting" | "binding", string> = {
+  conjuring: "Consulting the archives",
+  painting:  "Painting the pixels",
+  binding:   "Binding to the vault",
+};
+
+const STEP_INDEX: Record<"conjuring" | "painting" | "binding", number> = {
+  conjuring: 0,
+  painting:  1,
+  binding:   2,
+};
+
+function SummoningOverlay({ step }: { step: "conjuring" | "painting" | "binding" }) {
+  const idx = STEP_INDEX[step];
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={`Minting card: ${STEP_LABELS[step]}`}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 10000,
+        background: "radial-gradient(ellipse at 50% 45%, rgba(35,15,70,0.96) 0%, rgba(3,3,10,0.98) 65%)",
+        backdropFilter: "blur(14px)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        animation: "mvSummonFade 0.35s ease-out",
+      }}
+    >
+      <style>{`
+        @keyframes mvSummonFade { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes mvOrbPulse {
+          0%, 100% { transform: scale(1); opacity: 0.9; }
+          50%      { transform: scale(1.08); opacity: 1; }
+        }
+        @keyframes mvOrbSpin { to { transform: rotate(360deg); } }
+        @keyframes mvOrbSpinReverse { to { transform: rotate(-360deg); } }
+        @keyframes mvDustFloat {
+          0%   { transform: translate(0, 0)   scale(1);    opacity: 0; }
+          20%  { opacity: 0.8; }
+          80%  { opacity: 0.5; }
+          100% { transform: translate(var(--dx), var(--dy)) scale(0.4); opacity: 0; }
+        }
+        @keyframes mvStepFade {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .mv-orb-inner, .mv-orb-ring, .mv-dust, .mv-step-text { animation: none !important; }
+        }
+      `}</style>
+
+      {/* Central orb — concentric rings + pulsing core */}
+      <div
+        style={{
+          position: "relative",
+          width: 180,
+          height: 180,
+          marginBottom: 48,
+        }}
+      >
+        {/* Outer ring */}
+        <div
+          className="mv-orb-ring"
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            border: "1px solid rgba(168,85,247,0.35)",
+            boxShadow: "0 0 60px rgba(123,79,212,0.25), inset 0 0 40px rgba(123,79,212,0.15)",
+            animation: "mvOrbSpin 14s linear infinite",
+          }}
+        />
+        {/* Middle ring (reverse) */}
+        <div
+          className="mv-orb-ring"
+          style={{
+            position: "absolute",
+            inset: 20,
+            borderRadius: "50%",
+            border: "1px dashed rgba(200,140,255,0.3)",
+            animation: "mvOrbSpinReverse 9s linear infinite",
+          }}
+        />
+        {/* Inner pulsing core */}
+        <div
+          className="mv-orb-inner"
+          style={{
+            position: "absolute",
+            inset: 48,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle at 40% 40%, rgba(220,180,255,0.95) 0%, rgba(168,85,247,0.7) 35%, rgba(88,28,180,0.3) 70%, transparent 100%)",
+            boxShadow:
+              "0 0 40px rgba(168,85,247,0.7), 0 0 80px rgba(123,79,212,0.4)",
+            animation: "mvOrbPulse 2.4s ease-in-out infinite",
+          }}
+        />
+        <Sparkles
+          size={22}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            color: "rgba(255,255,255,0.92)",
+            filter: "drop-shadow(0 0 8px rgba(255,255,255,0.6))",
+          }}
+        />
+
+        {/* Floating pixel dust — 12 particles on random vectors */}
+        {Array.from({ length: 12 }).map((_, i) => {
+          const angle = (i / 12) * Math.PI * 2;
+          const dist = 120 + (i % 3) * 18;
+          const dx = Math.cos(angle) * dist;
+          const dy = Math.sin(angle) * dist;
+          const delay = (i * 0.18) % 2.2;
+          return (
+            <span
+              key={i}
+              className="mv-dust"
+              style={
+                {
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  width: 4,
+                  height: 4,
+                  borderRadius: 1,
+                  background: i % 2 === 0 ? "rgba(220,180,255,0.9)" : "rgba(168,85,247,0.85)",
+                  boxShadow: "0 0 6px rgba(168,85,247,0.6)",
+                  ["--dx" as string]: `${dx}px`,
+                  ["--dy" as string]: `${dy}px`,
+                  animation: `mvDustFloat 2.6s ease-out ${delay}s infinite`,
+                } as React.CSSProperties
+              }
+            />
+          );
+        })}
+      </div>
+
+      {/* Title */}
+      <p
+        style={{
+          margin: 0,
+          fontFamily: "ui-monospace, monospace",
+          fontSize: 11,
+          fontWeight: 800,
+          letterSpacing: "0.25em",
+          textTransform: "uppercase",
+          color: "rgba(200,180,255,0.55)",
+        }}
+      >
+        Summoning your card
+      </p>
+
+      {/* Current step label — fades in on change */}
+      <p
+        key={step}
+        className="mv-step-text"
+        style={{
+          margin: "14px 0 0",
+          fontSize: 20,
+          fontWeight: 700,
+          letterSpacing: "-0.015em",
+          color: "rgba(240,230,255,0.98)",
+          textAlign: "center",
+          animation: "mvStepFade 0.4s ease-out",
+          textShadow: "0 0 20px rgba(168,85,247,0.35)",
+        }}
+      >
+        {STEP_LABELS[step]}…
+      </p>
+
+      {/* Step dots */}
+      <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+        {(["conjuring", "painting", "binding"] as const).map((s, i) => {
+          const active = i === idx;
+          const done = i < idx;
+          return (
+            <span
+              key={s}
+              style={{
+                width: active ? 28 : 8,
+                height: 8,
+                borderRadius: 4,
+                background: done
+                  ? "rgba(168,85,247,0.85)"
+                  : active
+                  ? "linear-gradient(90deg, rgba(168,85,247,0.9), rgba(220,180,255,0.95))"
+                  : "rgba(168,85,247,0.2)",
+                boxShadow: active ? "0 0 12px rgba(168,85,247,0.65)" : "none",
+                transition: "width 0.35s ease, background 0.35s ease",
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {/* Subtle reassurance text */}
+      <p
+        style={{
+          margin: "26px 0 0",
+          fontFamily: "ui-monospace, monospace",
+          fontSize: 10,
+          color: "rgba(160,140,200,0.45)",
+          letterSpacing: "0.08em",
+          textAlign: "center",
+        }}
+      >
+        This takes 20–40 seconds. Don&rsquo;t leave.
+      </p>
     </div>
   );
 }
