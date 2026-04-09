@@ -23,6 +23,8 @@ export interface TradingCardData {
   torque?: number | null;
   zeroToSixty?: number | null;
   totalInvested?: number | null;
+  personality?: string | null;
+  cardLevel?: number | null;
 }
 
 interface TradingCardProps extends TradingCardData {
@@ -76,6 +78,8 @@ export function TradingCard({
   torque,
   zeroToSixty,
   totalInvested,
+  personality,
+  cardLevel,
   carLabel,
   scale = 1,
   idle = true,
@@ -380,7 +384,7 @@ export function TradingCard({
                 </div>
               </div>
 
-              {/* ERA STRIP — era badge left, rarity badge right */}
+              {/* ERA STRIP — era left · personality center · level+rarity right */}
               <div style={{
                 height: ERA_H, flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -400,19 +404,45 @@ export function TradingCard({
                     {era}
                   </span>
                 </div>
-                {/* Rarity badge — only show for Uncommon and above */}
-                {rarity !== "Common" && (
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 4,
-                    padding: "2px 7px", borderRadius: 20,
-                    background: rarityStyle.bg, border: `1px solid ${rarityStyle.border}`,
-                    boxShadow: isLegendary ? `0 0 10px ${rarityStyle.glow}` : "none",
+
+                {/* Personality — center, the card's identity */}
+                {personality && (
+                  <span style={{
+                    fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 900,
+                    letterSpacing: "0.14em", textTransform: "uppercase" as const,
+                    color: "rgba(200,180,240,0.55)",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const,
+                    maxWidth: 90,
                   }}>
-                    <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: rarityStyle.text }}>
-                      {rarity}
-                    </span>
-                  </div>
+                    {personality.replace("The ", "")}
+                  </span>
                 )}
+
+                {/* Level + rarity right */}
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  {cardLevel != null && (
+                    <span style={{
+                      fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 900,
+                      letterSpacing: "0.1em", color: "rgba(245,215,110,0.7)",
+                      padding: "1px 5px", borderRadius: 4,
+                      background: "rgba(245,215,110,0.08)", border: "1px solid rgba(245,215,110,0.2)",
+                    }}>
+                      LVL {cardLevel}
+                    </span>
+                  )}
+                  {rarity !== "Common" && (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      padding: "2px 7px", borderRadius: 20,
+                      background: rarityStyle.bg, border: `1px solid ${rarityStyle.border}`,
+                      boxShadow: isLegendary ? `0 0 10px ${rarityStyle.glow}` : "none",
+                    }}>
+                      <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: rarityStyle.text }}>
+                        {rarity}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* STATS — HP / Torque / 0-60 / Mods / Invested (dashes when missing) */}

@@ -3,7 +3,6 @@ import { createClient } from "@/lib/supabase/server";
 import { MintPageClient } from "@/components/mint/mint-page-client";
 import type { MintableCar } from "@/components/mint/mint-studio";
 import type { MintedCard } from "@/lib/pixel-card";
-import { KARMA_BURN_THRESHOLD } from "@/lib/card-personality";
 
 export const metadata = { title: "Mint — MODVAULT" };
 
@@ -68,34 +67,6 @@ export default async function MintPage() {
     };
   }
 
-  // Compute karma server-side (same logic as GET /api/cards/karma)
-  const [battlesResult, postsResult, ratingsResult] = await Promise.all([
-    supabase
-      .from("card_battles")
-      .select("outcome, challenger_user_id")
-      .or(`challenger_user_id.eq.${user.id},opponent_user_id.eq.${user.id}`),
-    supabase
-      .from("forum_posts")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id),
-    supabase
-      .from("card_ratings")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id),
-  ]);
-
-  type BattleRow = { outcome: string; challenger_user_id: string };
-  const battles = (battlesResult.data ?? []) as BattleRow[];
-  const battlesFought = battles.length;
-  const battlesWon = battles.filter(
-    (b) => b.challenger_user_id === user.id
-      ? b.outcome === "win" || b.outcome === "narrow_win"
-      : b.outcome === "loss" || b.outcome === "narrow_loss",
-  ).length;
-  const forumPosts = postsResult.count ?? 0;
-  const ratingsGiven = ratingsResult.count ?? 0;
-  const karma = battlesFought * 5 + battlesWon * 3 + forumPosts * 5 + ratingsGiven * 2;
-
   // Build MintableCar list
   const mintableCars: MintableCar[] = cars.map((car) => ({
     id: car.id,
@@ -115,8 +86,8 @@ export default async function MintPage() {
     <MintPageClient
       cars={mintableCars}
       aliveCard={aliveCard}
-      karma={karma}
-      karmaThreshold={KARMA_BURN_THRESHOLD}
+      karma={0}
+      karmaThreshold={0}
     />
   );
 }

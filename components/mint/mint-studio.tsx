@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Flame, Lock, Zap, Trophy, MessageSquare, Star } from "lucide-react";
+import { Flame } from "lucide-react";
 import { PixelCard } from "@/components/garage/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
 
@@ -35,8 +35,6 @@ export interface AliveCardInfo {
 interface MintStudioProps {
   cars: MintableCar[];
   aliveCard: AliveCardInfo | null;
-  karma: number;
-  karmaThreshold: number;
   onInitiateBurn: () => void;
 }
 
@@ -77,15 +75,6 @@ function CarSilhouette() {
     </svg>
   );
 }
-
-// ── KarmaActions ──────────────────────────────────────────────────────────────
-
-const KARMA_ACTIONS = [
-  { icon: Zap,           label: "Battle a card",       gain: "+5" },
-  { icon: Trophy,        label: "Win a battle",         gain: "+3" },
-  { icon: MessageSquare, label: "Post in community",    gain: "+5" },
-  { icon: Star,          label: "Rate a card",          gain: "+2" },
-] as const;
 
 // ── AliveCardPreview ──────────────────────────────────────────────────────────
 
@@ -199,222 +188,7 @@ function AliveCardPreview({ card, compact = false }: AliveCardPreviewProps) {
 
 // ── AliveWithLock (State 2) ────────────────────────────────────────────────────
 
-interface AliveWithLockProps {
-  card: AliveCardInfo;
-  karma: number;
-  karmaThreshold: number;
-}
-
-function AliveWithLock({ card, karma, karmaThreshold }: AliveWithLockProps) {
-  const progress = Math.min(karma / karmaThreshold, 1);
-  const pct = Math.round(progress * 100);
-  const remaining = Math.max(karmaThreshold - karma, 0);
-
-  return (
-    <div
-      style={{
-        maxWidth: 480,
-        margin: "0 auto",
-        padding: "64px 20px 80px",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 32,
-      }}
-    >
-      {/* Alive card preview */}
-      <AliveCardPreview card={card} />
-
-      {/* Karma section */}
-      <div
-        style={{
-          width: "100%",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(168,85,247,0.16)",
-          borderRadius: 16,
-          padding: 24,
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}
-      >
-        {/* Header row */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Lock
-              size={15}
-              color="rgba(168,85,247,0.6)"
-              aria-hidden="true"
-            />
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: "rgba(200,190,255,0.6)",
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-              }}
-            >
-              Karma required to remint
-            </span>
-          </div>
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 800,
-              fontFamily: "ui-monospace, monospace",
-              color: "#c084fc",
-              letterSpacing: "0.02em",
-            }}
-          >
-            {karma} / {karmaThreshold}
-          </span>
-        </div>
-
-        {/* Progress bar */}
-        <div
-          role="progressbar"
-          aria-valuenow={karma}
-          aria-valuemin={0}
-          aria-valuemax={karmaThreshold}
-          aria-label={`Karma progress: ${karma} of ${karmaThreshold}`}
-          style={{
-            position: "relative",
-            height: 8,
-            borderRadius: 999,
-            background: "rgba(168,85,247,0.1)",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: "0 auto 0 0",
-              width: `${pct}%`,
-              borderRadius: 999,
-              background: "linear-gradient(90deg, #7b4fd4 0%, #c084fc 100%)",
-              boxShadow: "0 0 8px rgba(168,85,247,0.5)",
-              transition: "width 600ms ease",
-            }}
-          />
-        </div>
-
-        {/* Remaining callout */}
-        <p
-          style={{
-            margin: 0,
-            fontSize: 12,
-            color: "rgba(200,190,255,0.45)",
-            textAlign: "center",
-            letterSpacing: "0.01em",
-          }}
-        >
-          {remaining > 0
-            ? `${remaining} more karma needed to unlock a new mint`
-            : "Karma threshold reached"}
-        </p>
-      </div>
-
-      {/* How to earn karma */}
-      <div
-        style={{
-          width: "100%",
-          background: "rgba(123,79,212,0.05)",
-          border: "1px solid rgba(123,79,212,0.14)",
-          borderRadius: 16,
-          padding: 20,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
-        <p
-          style={{
-            margin: 0,
-            fontSize: 11,
-            fontWeight: 700,
-            color: "rgba(200,190,255,0.45)",
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-          }}
-        >
-          Earn karma by
-        </p>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 10,
-          }}
-        >
-          {KARMA_ACTIONS.map(({ icon: Icon, label, gain }) => (
-            <div
-              key={label}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                padding: "10px 12px",
-                borderRadius: 10,
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(168,85,247,0.1)",
-              }}
-            >
-              <Icon size={14} color="rgba(168,85,247,0.6)" aria-hidden="true" />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 11,
-                    color: "rgba(200,190,255,0.65)",
-                    fontWeight: 500,
-                    lineHeight: 1.3,
-                  }}
-                >
-                  {label}
-                </p>
-              </div>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  fontFamily: "ui-monospace, monospace",
-                  color: "#c084fc",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {gain}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* CTA state */}
-      <p
-        style={{
-          margin: 0,
-          fontSize: "clamp(14px, 2.5vw, 17px)",
-          fontWeight: 700,
-          color: "rgba(200,190,255,0.4)",
-          textAlign: "center",
-          letterSpacing: "-0.01em",
-        }}
-      >
-        Earn karma before you can mint again
-      </p>
-    </div>
-  );
-}
-
-// ── AliveWithBurn (State 3) ────────────────────────────────────────────────────
+// ── AliveWithBurn ─────────────────────────────────────────────────────────────
 
 interface AliveWithBurnProps {
   card: AliveCardInfo;
@@ -968,8 +742,6 @@ function MintPhase({ car, onBack }: MintPhaseProps) {
 export function MintStudio({
   cars,
   aliveCard,
-  karma,
-  karmaThreshold,
   onInitiateBurn,
 }: MintStudioProps) {
   const [phase, setPhase] = useState<Phase>("select");
@@ -986,13 +758,9 @@ export function MintStudio({
     setSelected(null);
   }
 
-  // Determine which top-level state to render:
-  // State 1: no alive card  → show normal car picker / mint flow
-  // State 2: alive card + karma < threshold  → locked, show karma progress
-  // State 3: alive card + karma >= threshold  → burn available
+  // State 1: no alive card → show normal car picker / mint flow
+  // State 2: alive card exists → show burn flow (no karma gate)
   const hasAlive = aliveCard !== null;
-  const canBurn = hasAlive && karma >= karmaThreshold;
-  const isLocked = hasAlive && karma < karmaThreshold;
 
   return (
     <div
@@ -1049,7 +817,7 @@ export function MintStudio({
               "radial-gradient(circle, rgba(123,79,212,0.07) 0%, transparent 70%)",
           }}
         />
-        {/* Warm burn glow for states 2/3 */}
+        {/* Warm burn glow when card is alive */}
         {hasAlive && (
           <div
             style={{
@@ -1059,10 +827,7 @@ export function MintStudio({
               transform: "translateX(-50%)",
               width: "70%",
               height: "40%",
-              background: canBurn
-                ? "radial-gradient(ellipse at 50% 100%, rgba(220,60,0,0.1) 0%, transparent 70%)"
-                : "radial-gradient(ellipse at 50% 100%, rgba(123,79,212,0.06) 0%, transparent 70%)",
-              transition: "background 800ms ease",
+              background: "radial-gradient(ellipse at 50% 100%, rgba(220,60,0,0.1) 0%, transparent 70%)",
             }}
           />
         )}
@@ -1070,17 +835,8 @@ export function MintStudio({
 
       {/* ── Content layer ── */}
       <div style={{ position: "relative", zIndex: 1 }}>
-        {/* State 2: locked behind karma */}
-        {isLocked && aliveCard && (
-          <AliveWithLock
-            card={aliveCard}
-            karma={karma}
-            karmaThreshold={karmaThreshold}
-          />
-        )}
-
-        {/* State 3: burn available */}
-        {canBurn && aliveCard && (
+        {/* State 2: alive card — always show burn option */}
+        {hasAlive && aliveCard && (
           <AliveWithBurn
             card={aliveCard}
             burnState={burnState}
@@ -1093,7 +849,7 @@ export function MintStudio({
           />
         )}
 
-        {/* State 1 / State 4: no alive card — normal mint flow */}
+        {/* State 1: no alive card — normal mint flow */}
         {!hasAlive && (
           <>
             {phase === "select" ? (

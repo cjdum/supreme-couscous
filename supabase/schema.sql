@@ -1214,3 +1214,45 @@ alter table profiles add column if not exists karma      integer not null defaul
 
 -- Index for fast alive-card lookups
 create index if not exists idx_pixel_cards_status on pixel_cards(user_id, status);
+
+-- ── v2 fix: ensure only the latest card per user stays alive ─────────────────
+-- Run this INSTEAD of (or after) the v2 block if you got a duplicate key error
+
+-- Step 1: add columns if not already done
+alter table pixel_cards add column if not exists status      text not null default 'alive'
+  check (status in ('alive', 'ghost'));
+alter table pixel_cards add column if not exists personality text;
+alter table pixel_cards add column if not exists last_words  text;
+alter table pixel_cards add column if not exists burned_at   timestamptz;
+alter table pixel_cards add column if not exists card_level  integer not null default 1;
+
+-- Step 2: ghost every card that is NOT the most recently minted card for its user
+update pixel_cards
+set status = 'ghost'
+where id not in (
+  select distinct on (user_id) id
+  from pixel_cards
+  order by user_id, minted_at desc
+);
+
+-- Step 3: make sure the remaining newest card per user is alive
+update pixel_cards
+set status = 'alive'
+where id in (
+  select distinct on (user_id) id
+  from pixel_cards
+  order by user_id, minted_at desc
+);
+
+-- Step 4: now safe to create the unique index
+drop index if exists idx_pixel_cards_one_alive_per_user;
+create unique index idx_pixel_cards_one_alive_per_user
+  on pixel_cards(user_id)
+  where status = 'alive';
+
+-- Step 5: profiles columns
+alter table profiles add column if not exists card_level integer not null default 0;
+alter table profiles add column if not exists karma      integer not null default 0;
+
+-- Step 6: fast lookup index
+create index if not exists idx_pixel_cards_status on pixel_cards(user_id, status);
