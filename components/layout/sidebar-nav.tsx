@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Car, Sparkles, User, LogOut, Settings, GalleryHorizontal, Users, Trophy, Bell, Swords } from "lucide-react";
+import { Home, Car, Sparkles, User, LogOut, Settings, GalleryHorizontal, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { loadPreferences } from "@/lib/preferences";
@@ -13,13 +13,11 @@ interface SidebarNavProps {
 }
 
 const NAV_ITEMS = [
-  { href: "/garage",       icon: Car,               label: "Garage",       shortcut: "G" },
-  { href: "/cards",        icon: GalleryHorizontal, label: "Cards",        shortcut: "C" },
-  { href: "/mint",         icon: Sparkles,          label: "Mint",         shortcut: "" },
-  { href: "/community",    icon: Users,             label: "Community",    shortcut: "" },
-  { href: "/battles",      icon: Swords,            label: "Battles",      shortcut: "" },
-  { href: "/achievements", icon: Trophy,            label: "Achievements", shortcut: "" },
-  { href: "/notifications",icon: Bell,              label: "Notifications",shortcut: "" },
+  { href: "/home",       icon: Home,              label: "Home",       shortcut: "H" },
+  { href: "/mint",       icon: Sparkles,          label: "Mint",       shortcut: "M" },
+  { href: "/garage",     icon: Car,               label: "Garage",     shortcut: "G" },
+  { href: "/cards",      icon: GalleryHorizontal, label: "Collection", shortcut: "C" },
+  { href: "/community",  icon: Users,             label: "Community",  shortcut: "" },
 ];
 
 export function SidebarNav({ username }: SidebarNavProps) {
@@ -74,7 +72,7 @@ export function SidebarNav({ username }: SidebarNavProps) {
       }`}>
         {/* Logo */}
         <div className="px-3 pt-4 pb-6" style={{ minWidth: 56 }}>
-          <Link href="/garage" className="flex items-center gap-3">
+          <Link href="/home" className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-[var(--color-accent)] flex items-center justify-center glow-accent-sm flex-shrink-0">
               <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
                 <path d="M2 9l2-5h6l2 5H2z" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />

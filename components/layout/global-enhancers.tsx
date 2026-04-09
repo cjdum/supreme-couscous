@@ -83,9 +83,11 @@ export function GlobalEnhancers() {
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
 
       const map: Record<string, string> = {
+        h: "/home",
         g: "/garage",
+        m: "/mint",
         // f is reserved for card flip when the card viewer is open
-        c: "/chat",
+        c: "/cards",
         p: "/profile",
       };
       const route = map[e.key.toLowerCase()];
