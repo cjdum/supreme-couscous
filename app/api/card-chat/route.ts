@@ -279,6 +279,11 @@ export async function POST(request: Request) {
   }
 
   // ── Stream response ────────────────────────────────────────────────────────
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return new Response(JSON.stringify({ error: "ANTHROPIC_API_KEY is not configured" }), { status: 500 });
+  }
+
+  console.log("[card-chat] starting stream for card", cardId, "personality", personality);
   try {
     const stream = await anthropic.messages.stream({
       model: "claude-3-5-haiku-20241022",
@@ -290,19 +295,27 @@ export async function POST(request: Request) {
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
+        let chunkCount = 0;
         try {
           for await (const chunk of stream) {
             if (
               chunk.type === "content_block_delta" &&
               chunk.delta.type === "text_delta"
             ) {
+              chunkCount++;
               controller.enqueue(encoder.encode(chunk.delta.text));
             }
           }
-        } catch (err) {
-          console.error("[card-chat] stream error:", err);
-        } finally {
+          if (chunkCount === 0) {
+            console.warn("[card-chat] stream completed but yielded 0 text chunks");
+          }
           controller.close();
+        } catch (err) {
+          console.error("[card-chat] stream error after", chunkCount, "chunks:", err);
+          // Propagate the error to the client so reader.read() throws
+          // instead of resolving with empty body (which caused the
+          // "Your card went quiet" false-positive on every API error).
+          controller.error(err instanceof Error ? err : new Error(String(err)));
         }
       },
     });
