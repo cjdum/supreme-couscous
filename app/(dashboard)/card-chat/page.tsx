@@ -137,11 +137,14 @@ export default function CardChatPage() {
         setNoCard(true);
         return;
       }
+      // Fetch the newest card — we intentionally don't filter on status here.
+      // Pre-migration databases don't have a status column, and filtering on a
+      // missing column makes the whole query error out (which is why card-chat
+      // was showing "No card to talk to" for everyone).
       const { data } = await supabase
         .from("pixel_cards")
         .select("id, card_title, nickname, pixel_card_url, build_archetype, car_snapshot, occasion, minted_at")
         .eq("user_id", user.id)
-        .neq("status", "ghost")   // never talk to a dead card
         .order("minted_at", { ascending: false })
         .limit(1)
         .maybeSingle();

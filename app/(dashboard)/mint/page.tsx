@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { MintPageClient } from "@/components/mint/mint-page-client";
-import type { MintableCar } from "@/components/mint/mint-studio";
+import type { MintableCar, GhostCardInfo } from "@/components/mint/mint-studio";
 import type { MintedCard } from "@/lib/pixel-card";
 
 export const metadata = { title: "Mint — MODVAULT" };
@@ -48,9 +48,21 @@ export default async function MintPage() {
   }
 
   // Find the alive card (status='alive', or fallback: most recent card if status column not yet migrated)
-  type AnyCard = MintedCard & { status?: string; personality?: string | null; card_level?: number | null };
+  type AnyCard = MintedCard & { status?: string; personality?: string | null; card_level?: number | null; burned_at?: string | null; last_words?: string | null };
   const aliveCardRaw = (allCards as AnyCard[]).find((c) => c.status === "alive") ??
     (allCards as AnyCard[]).at(-1) ?? null; // fallback before migration
+
+  // Ghost cards — any card that isn't the current alive card is a ghost.
+  // This handles both post-migration (status='ghost') AND pre-migration
+  // (status=null) users: every older card is dead the moment a newer one exists.
+  const ghostCards = (allCards as AnyCard[])
+    .filter((c) => c.id !== aliveCardRaw?.id)
+    .sort((a, b) => {
+      // Most recently burned first; fall back to minted_at for pre-migration
+      const da = a.burned_at ? new Date(a.burned_at).getTime() : new Date(a.minted_at).getTime();
+      const db = b.burned_at ? new Date(b.burned_at).getTime() : new Date(b.minted_at).getTime();
+      return db - da;
+    }) as GhostCardInfo[];
 
   let aliveCard = null;
   if (aliveCardRaw) {
@@ -89,6 +101,7 @@ export default async function MintPage() {
       aliveCard={aliveCard}
       karma={0}
       karmaThreshold={0}
+      ghostCards={ghostCards}
     />
   );
 }

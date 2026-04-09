@@ -4,18 +4,19 @@ import { useState } from "react";
 import { Flame } from "lucide-react";
 import { MintStudio } from "./mint-studio";
 import { BurnAnimation } from "@/components/cards/burn-animation";
-import type { MintableCar, AliveCardInfo } from "./mint-studio";
+import type { MintableCar, AliveCardInfo, GhostCardInfo } from "./mint-studio";
 
 interface MintPageClientProps {
   cars: MintableCar[];
   aliveCard: AliveCardInfo | null;
   karma: number;
   karmaThreshold: number;
+  ghostCards?: GhostCardInfo[];
 }
 
 type BurnPhase = "idle" | "fetching_plea" | "showing_plea" | "fetching_words" | "animating" | "done";
 
-export function MintPageClient({ cars, aliveCard }: MintPageClientProps) {
+export function MintPageClient({ cars, aliveCard, ghostCards = [] }: MintPageClientProps) {
   const [burnPhase, setBurnPhase] = useState<BurnPhase>("idle");
   const [plea, setPlea] = useState<string | null>(null);
   const [lastWords, setLastWords] = useState<string | null>(null);
@@ -324,6 +325,7 @@ export function MintPageClient({ cars, aliveCard }: MintPageClientProps) {
         autoMintCarId={burned ? burnedCarId : null}
         onInitiateBurn={handleInitiateBurn}
         onSkipCeremony={handleSkipCeremony}
+        ghostCards={ghostCards}
       />
     </>
   );

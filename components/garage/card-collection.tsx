@@ -14,6 +14,8 @@ interface CardCollectionProps {
   carLabels: Record<string, string>;
   /** Hide the "Collection" section header — used on the /cards page which has its own page title */
   hideSectionHeader?: boolean;
+  /** The currently alive card id — any card that is NOT this one will render with ghost treatment. Pass null/undefined to rely only on status field. */
+  aliveCardId?: string | null;
 }
 
 interface ViewState {
@@ -49,7 +51,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 type EraFilter = "all" | Era;
 
-export function CardCollection({ cards, carLabels, hideSectionHeader = false }: CardCollectionProps) {
+export function CardCollection({ cards, carLabels, hideSectionHeader = false, aliveCardId = null }: CardCollectionProps) {
   const [view, setView] = useState<ViewState | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [eraFilter, setEraFilter] = useState<EraFilter>("all");
@@ -527,6 +529,14 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                     });
 
                     const isFocused = focusedId === card.id;
+                    // Ghost cards get dead visual treatment.
+                    // Two sources of truth: explicit status='ghost' (post-migration) OR
+                    // "anything that isn't the alive card" (works for pre-migration users).
+                    const cardStatus = (card as MintedCard & { status?: string | null }).status;
+                    const isGhost =
+                      cardStatus === "ghost" ||
+                      (aliveCardId != null && card.id !== aliveCardId);
+
                     return (
                       <button
                         key={card.id}
@@ -543,55 +553,110 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                           alignItems: "center",
                           background: "transparent",
                           border: "2px solid",
-                          borderColor: isFocused ? "rgba(168,85,247,0.95)" : "transparent",
+                          borderColor: isFocused
+                            ? (isGhost ? "rgba(180,40,40,0.7)" : "rgba(168,85,247,0.95)")
+                            : "transparent",
                           borderRadius: 18,
                           padding: "10px 8px 8px",
                           gap: 6,
                           flexShrink: 0,
+                          opacity: isGhost ? 0.78 : 1,
                           boxShadow: isFocused
-                            ? "0 0 0 4px rgba(168,85,247,0.18), 0 0 24px rgba(168,85,247,0.35)"
+                            ? (isGhost
+                              ? "0 0 0 4px rgba(180,40,40,0.12), 0 0 24px rgba(180,40,40,0.22)"
+                              : "0 0 0 4px rgba(168,85,247,0.18), 0 0 24px rgba(168,85,247,0.35)")
                             : "none",
-                          transition: "border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease",
+                          transition: "border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, opacity 180ms ease",
                           transform: isFocused ? "translateY(-2px)" : "translateY(0)",
                           outline: "none",
                         }}
                       >
-                        <TradingCard
-                          cardUrl={card.pixel_card_url}
-                          nickname={card.nickname}
-                          generatedAt={card.minted_at}
-                          hp={card.hp}
-                          modCount={card.mod_count}
-                          buildScore={cardSnap.build_score}
-                          vinVerified={cardSnap.vin_verified}
-                          cardNumber={card.card_number}
-                          era={card.era}
-                          rarity={card.rarity}
-                          flavorText={card.flavor_text}
-                          occasion={card.occasion}
-                          mods={cardSnap.mods ?? []}
-                          modsDetail={cardSnap.mods_detail}
-                          torque={cardSnap.torque ?? null}
-                          zeroToSixty={cardSnap.zero_to_sixty ?? null}
-                          totalInvested={cardSnap.total_invested ?? null}
-                          edition={totalEditions > 1 ? edition : null}
-                          carLabel={carLabel}
-                          scale={0.6}
-                          idle
-                          interactive
-                        />
+                        {/* Card image — ghost cards get grayscale + overlay */}
+                        <div style={{ position: "relative" }}>
+                          <div style={{ filter: isGhost ? "grayscale(0.9) brightness(0.45) sepia(0.15)" : "none" }}>
+                            <TradingCard
+                              cardUrl={card.pixel_card_url}
+                              nickname={card.nickname}
+                              generatedAt={card.minted_at}
+                              hp={card.hp}
+                              modCount={card.mod_count}
+                              buildScore={cardSnap.build_score}
+                              vinVerified={cardSnap.vin_verified}
+                              cardNumber={card.card_number}
+                              era={card.era}
+                              rarity={card.rarity}
+                              flavorText={card.flavor_text}
+                              occasion={card.occasion}
+                              mods={cardSnap.mods ?? []}
+                              modsDetail={cardSnap.mods_detail}
+                              torque={cardSnap.torque ?? null}
+                              zeroToSixty={cardSnap.zero_to_sixty ?? null}
+                              totalInvested={cardSnap.total_invested ?? null}
+                              edition={totalEditions > 1 ? edition : null}
+                              carLabel={carLabel}
+                              scale={0.6}
+                              idle
+                              interactive
+                            />
+                          </div>
+                          {/* GHOST overlay badge */}
+                          {isGhost && (
+                            <div style={{
+                              position: "absolute",
+                              inset: 0,
+                              borderRadius: 12,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              background: "rgba(0,0,0,0.18)",
+                              pointerEvents: "none",
+                            }}>
+                              <div style={{
+                                padding: "4px 9px",
+                                borderRadius: 6,
+                                background: "rgba(10,6,18,0.88)",
+                                border: "1px solid rgba(200,60,60,0.55)",
+                                color: "#f87171",
+                                fontSize: 9,
+                                fontWeight: 900,
+                                fontFamily: "ui-monospace, monospace",
+                                letterSpacing: "0.22em",
+                                textTransform: "uppercase" as const,
+                                boxShadow: "0 0 10px rgba(180,40,40,0.3)",
+                              }}>
+                                GHOST
+                              </div>
+                            </div>
+                          )}
+                        </div>
 
                         {/* Era badge + rarity badge */}
                         <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", justifyContent: "center" }}>
+                          {isGhost && (
+                            <div style={{
+                              display: "flex", alignItems: "center", gap: 3,
+                              padding: "2px 7px", borderRadius: 12,
+                              background: "rgba(180,40,40,0.12)", border: "1px solid rgba(180,40,40,0.4)",
+                            }}>
+                              <span style={{
+                                fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900,
+                                letterSpacing: "0.18em", textTransform: "uppercase" as const, color: "#f87171",
+                              }}>
+                                Burned
+                              </span>
+                            </div>
+                          )}
                           <div style={{
                             display: "flex", alignItems: "center", gap: 4,
                             padding: "2px 7px", borderRadius: 12,
-                            background: eraStyle.bg, border: `1px solid ${eraStyle.border}`,
+                            background: isGhost ? "rgba(60,60,60,0.3)" : eraStyle.bg,
+                            border: `1px solid ${isGhost ? "rgba(100,100,100,0.3)" : eraStyle.border}`,
                           }}>
-                            <div style={{ width: 4, height: 4, borderRadius: "50%", background: eraStyle.text, flexShrink: 0 }} />
+                            <div style={{ width: 4, height: 4, borderRadius: "50%", background: isGhost ? "rgba(150,140,160,0.5)" : eraStyle.text, flexShrink: 0 }} />
                             <span style={{
                               fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 900,
-                              letterSpacing: "0.18em", textTransform: "uppercase" as const, color: eraStyle.text,
+                              letterSpacing: "0.18em", textTransform: "uppercase" as const,
+                              color: isGhost ? "rgba(150,140,160,0.5)" : eraStyle.text,
                             }}>
                               {era}
                             </span>
@@ -599,12 +664,14 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                           <div style={{
                             display: "flex", alignItems: "center", gap: 3,
                             padding: "2px 6px", borderRadius: 12,
-                            background: rarityStyle.bg, border: `1px solid ${rarityStyle.border}`,
-                            boxShadow: rarity === "Legendary" ? `0 0 8px ${rarityStyle.glow}` : "none",
+                            background: isGhost ? "rgba(60,60,60,0.3)" : rarityStyle.bg,
+                            border: `1px solid ${isGhost ? "rgba(100,100,100,0.3)" : rarityStyle.border}`,
+                            boxShadow: (!isGhost && rarity === "Legendary") ? `0 0 8px ${rarityStyle.glow}` : "none",
                           }}>
                             <span style={{
                               fontFamily: "ui-monospace, monospace", fontSize: 7, fontWeight: 900,
-                              letterSpacing: "0.12em", textTransform: "uppercase" as const, color: rarityStyle.text,
+                              letterSpacing: "0.12em", textTransform: "uppercase" as const,
+                              color: isGhost ? "rgba(150,140,160,0.5)" : rarityStyle.text,
                             }}>
                               {rarity}
                             </span>
@@ -612,7 +679,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false }: 
                           {card.card_number != null && (
                             <span style={{
                               fontFamily: "ui-monospace, monospace", fontSize: 8, fontWeight: 700,
-                              color: "rgba(200,180,240,0.5)", letterSpacing: "0.1em",
+                              color: isGhost ? "rgba(150,140,160,0.35)" : "rgba(200,180,240,0.5)", letterSpacing: "0.1em",
                             }}>
                               #{String(card.card_number).padStart(4, "0")}
                             </span>

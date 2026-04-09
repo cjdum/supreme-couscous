@@ -168,6 +168,7 @@ export function CardHub({ liveCard, ghosts, allCards, carLabels }: CardHubProps)
               cards={allCards as MintedCard[]}
               carLabels={carLabels}
               hideSectionHeader={false}
+              aliveCardId={null}
             />
           </div>
         )}
