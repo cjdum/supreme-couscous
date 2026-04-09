@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { Send, Swords, Loader2, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { Send, Loader2, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { TradingCard } from "@/components/garage/trading-card";
 import { CardCollection } from "@/components/garage/card-collection";
 import type { MintedCard } from "@/lib/pixel-card";
@@ -90,125 +90,6 @@ function GhostRow({ card, carLabel }: { card: FullCard; carLabel: string }) {
   );
 }
 
-// ── Battle Panel ──────────────────────────────────────────────────────────────
-
-function BattlePanel({ cardId, cardTitle }: { cardId: string; cardTitle: string }) {
-  const [recentBattles, setRecentBattles] = useState<{
-    id: string;
-    challenger_title: string | null;
-    defender_title: string | null;
-    challenger_score: number;
-    defender_score: number;
-  }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [challenging, setChallenging] = useState(false);
-  const [challengeResult, setChallengeResult] = useState<{ outcome: string; scoreC: number; scoreO: number } | null>(null);
-  const [challengeError, setChallengeError] = useState<string | null>(null);
-  const [opponentId, setOpponentId] = useState("");
-
-  useEffect(() => {
-    fetch("/api/battles/recent")
-      .then(r => r.json())
-      .then(j => setRecentBattles((j.battles ?? []).slice(0, 5)))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function quickChallenge(id: string) {
-    setChallenging(true);
-    setChallengeError(null);
-    setChallengeResult(null);
-    try {
-      const res = await fetch("/api/battles/challenge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challenger_card_id: cardId, opponent_card_id: id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Battle failed");
-      setChallengeResult({ outcome: json.outcome, scoreC: json.breakdown.challenger, scoreO: json.breakdown.opponent });
-    } catch (e) {
-      setChallengeError(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setChallenging(false);
-    }
-  }
-
-  return (
-    <div>
-      <p style={{ fontSize: 12, color: "rgba(200,180,240,0.55)", marginBottom: 12 }}>
-        Paste an opponent card ID to challenge.
-      </p>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <input
-          value={opponentId}
-          onChange={e => setOpponentId(e.target.value)}
-          placeholder="Opponent card ID..."
-          style={{
-            flex: 1, padding: "10px 14px", borderRadius: 10, fontSize: 12,
-            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(168,85,247,0.25)",
-            color: "#f0e8ff", outline: "none",
-          }}
-        />
-        <button
-          onClick={() => opponentId && quickChallenge(opponentId)}
-          disabled={!opponentId || challenging}
-          style={{
-            padding: "10px 16px", borderRadius: 10, fontWeight: 700, fontSize: 12,
-            background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)",
-            color: "#ff453a", cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 6,
-            opacity: (!opponentId || challenging) ? 0.4 : 1,
-          }}
-        >
-          {challenging ? <Loader2 size={13} className="animate-spin" /> : <Swords size={13} />}
-          Fight
-        </button>
-      </div>
-      {challengeError && <p style={{ fontSize: 11, color: "#ff453a", marginBottom: 8 }}>{challengeError}</p>}
-      {challengeResult && (
-        <div style={{
-          padding: "12px 16px", borderRadius: 12, textAlign: "center", marginBottom: 12,
-          background: challengeResult.outcome.startsWith("win") ? "rgba(48,209,88,0.08)" : "rgba(255,69,58,0.08)",
-          border: `1px solid ${challengeResult.outcome.startsWith("win") ? "rgba(48,209,88,0.35)" : "rgba(255,69,58,0.35)"}`,
-        }}>
-          <p style={{ fontSize: 15, fontWeight: 900, color: challengeResult.outcome.startsWith("win") ? "#30d158" : "#ff453a", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            {challengeResult.outcome.replace("_", " ")}
-          </p>
-          <p style={{ fontSize: 11, color: "rgba(200,180,240,0.6)", fontFamily: "ui-monospace, monospace", marginTop: 3 }}>
-            {challengeResult.scoreC.toFixed(1)} vs {challengeResult.scoreO.toFixed(1)}
-          </p>
-        </div>
-      )}
-      {!loading && recentBattles.length > 0 && (
-        <div>
-          <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(200,180,240,0.35)", marginBottom: 8, fontFamily: "ui-monospace, monospace" }}>
-            Recent Community Battles
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {recentBattles.map(b => (
-              <div key={b.id} style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "9px 12px",
-                borderRadius: 10, background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(168,85,247,0.1)",
-              }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 11, color: "rgba(200,180,240,0.65)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {b.challenger_title ?? "?"} <span style={{ color: "rgba(200,180,240,0.3)" }}>vs</span> {b.defender_title ?? "?"}
-                  </p>
-                </div>
-                <span style={{ fontSize: 10, fontFamily: "ui-monospace, monospace", color: "rgba(200,180,240,0.4)", flexShrink: 0 }}>
-                  {Math.round(b.challenger_score)} — {Math.round(b.defender_score)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Main CardHub ──────────────────────────────────────────────────────────────
 
 export function CardHub({ liveCard, ghosts, allCards, carLabels }: CardHubProps) {
@@ -217,7 +98,7 @@ export function CardHub({ liveCard, ghosts, allCards, carLabels }: CardHubProps)
   const [isStreaming, setIsStreaming] = useState(false);
   const [bubble, setBubble] = useState<string | null>(null);
   const [bubbleVisible, setBubbleVisible] = useState(false);
-  const [openSection, setOpenSection] = useState<"none" | "ghosts" | "battle">("none");
+  const [openSection, setOpenSection] = useState<"none" | "ghosts">("none");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const bubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -636,72 +517,45 @@ export function CardHub({ liveCard, ghosts, allCards, carLabels }: CardHubProps)
         </div>
       )}
 
-      {/* ── BOTTOM TABS: Ghosts + Battle ─────────────────────────────────────── */}
+      {/* ── Ghosts section ─────────────────────────────────────── */}
       <div style={{
         maxWidth: 760, margin: "8px auto 0",
         padding: "0 20px 40px",
       }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 2 }}>
-          {/* Ghosts toggle */}
-          <button
-            onClick={() => setOpenSection(s => s === "ghosts" ? "none" : "ghosts")}
-            style={{
-              flex: 1, padding: "9px 0",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-              background: openSection === "ghosts" ? "rgba(168,85,247,0.12)" : "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(168,85,247,0.18)", borderRadius: "10px 0 0 10px",
-              color: "rgba(200,180,240,0.65)", cursor: "pointer",
-            }}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 2C7.03 2 3 6.03 3 11c0 3.1 1.5 5.85 3.8 7.58V21h10.4v-2.42C19.5 16.85 21 14.1 21 11c0-4.97-4.03-9-9-9z" fill="rgba(200,180,240,0.3)" />
-            </svg>
-            Ghosts {ghosts.length > 0 && `(${ghosts.length})`}
-            {openSection === "ghosts" ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-          </button>
+        <button
+          onClick={() => setOpenSection(s => s === "ghosts" ? "none" : "ghosts")}
+          style={{
+            width: "100%", padding: "9px 0",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+            background: openSection === "ghosts" ? "rgba(168,85,247,0.12)" : "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(168,85,247,0.18)", borderRadius: 10,
+            color: "rgba(200,180,240,0.65)", cursor: "pointer",
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 2C7.03 2 3 6.03 3 11c0 3.1 1.5 5.85 3.8 7.58V21h10.4v-2.42C19.5 16.85 21 14.1 21 11c0-4.97-4.03-9-9-9z" fill="rgba(200,180,240,0.3)" />
+          </svg>
+          Ghosts {ghosts.length > 0 && `(${ghosts.length})`}
+          {openSection === "ghosts" ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+        </button>
 
-          {/* Battle toggle */}
-          <button
-            onClick={() => setOpenSection(s => s === "battle" ? "none" : "battle")}
-            style={{
-              flex: 1, padding: "9px 0",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-              background: openSection === "battle" ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(168,85,247,0.18)", borderRadius: "0 10px 10px 0",
-              color: "rgba(200,180,240,0.65)", cursor: "pointer",
-            }}
-          >
-            <Swords size={11} />
-            Battle
-            {openSection === "battle" ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-          </button>
-        </div>
-
-        {openSection !== "none" && (
+        {openSection === "ghosts" && (
           <div style={{
             padding: "16px",
             background: "rgba(255,255,255,0.02)",
             border: "1px solid rgba(168,85,247,0.12)",
+            borderTop: "none",
             borderRadius: "0 0 12px 12px",
-            marginTop: -1,
           }}>
-            {openSection === "ghosts" && (
-              ghosts.length === 0
-                ? <p style={{ textAlign: "center", fontSize: 12, color: "rgba(200,180,240,0.35)", padding: "20px 0" }}>
-                    No ghost cards yet. Your history starts with your first burn.
-                  </p>
-                : ghosts.map(g => (
-                    <GhostRow key={g.id} card={g} carLabel={carLabels[g.car_id ?? ""] ?? ""} />
-                  ))
-            )}
-            {openSection === "battle" && (
-              <BattlePanel
-                cardId={liveCard.id}
-                cardTitle={cardTitle}
-              />
-            )}
+            {ghosts.length === 0
+              ? <p style={{ textAlign: "center", fontSize: 12, color: "rgba(200,180,240,0.35)", padding: "20px 0" }}>
+                  No ghost cards yet. Your history starts with your first burn.
+                </p>
+              : ghosts.map(g => (
+                  <GhostRow key={g.id} card={g} carLabel={carLabels[g.car_id ?? ""] ?? ""} />
+                ))
+            }
           </div>
         )}
       </div>

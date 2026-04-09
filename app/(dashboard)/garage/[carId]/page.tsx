@@ -356,11 +356,11 @@ export default async function CarDetailPage({ params, searchParams }: Props) {
               <p className="text-xs font-bold">AI Render</p>
             </Link>
             <Link
-              href={`/chat?carId=${carId}`}
+              href="/card-chat"
               className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
             >
               <MessageSquare size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
-              <p className="text-xs font-bold">Ask AI</p>
+              <p className="text-xs font-bold">Talk to Card</p>
             </Link>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Wrench, Award, GalleryHorizontal, MessageSquare, Swords } from "lucide-react";
+import { Wrench, Award, GalleryHorizontal, MessageSquare } from "lucide-react";
 import { HeroCardViewer } from "@/components/garage/hero-card-viewer";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
@@ -269,12 +269,12 @@ export default async function GaragePage() {
               </Link>
 
               <Link
-                href={`/chat?carId=${primaryCar.id}`}
+                href="/card-chat"
                 className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
               >
                 <div>
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Ask VAULT AI</p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">What&apos;s next?</p>
+                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Talk to Card</p>
+                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Chat with your living card</p>
                 </div>
                 <MessageSquare size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
               </Link>
@@ -284,23 +284,12 @@ export default async function GaragePage() {
                 className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
               >
                 <div>
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">My Cards</p>
+                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Collection</p>
                   <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
                     {userCards.length === 0 ? "None minted yet" : `${userCards.length} minted`}
                   </p>
                 </div>
                 <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
-              </Link>
-
-              <Link
-                href="/battles"
-                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-              >
-                <div>
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Battles</p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Challenge builds</p>
-                </div>
-                <Swords size={20} className="text-[#ef4444] group-hover:scale-110 transition-transform flex-shrink-0" />
               </Link>
             </div>
           </div>
