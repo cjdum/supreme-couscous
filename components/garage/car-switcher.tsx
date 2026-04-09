@@ -18,11 +18,15 @@ export function CarSwitcher({ cars }: CarSwitcherProps) {
   async function handleSwitch(carId: string) {
     setSwitching(carId);
     try {
-      await fetch("/api/cars/set-primary", {
+      const res = await fetch("/api/cars/set-primary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ carId }),
+        body: JSON.stringify({ car_id: carId }),
       });
+      if (!res.ok) {
+        setSwitching(null);
+        return;
+      }
       router.refresh();
     } catch {
       setSwitching(null);

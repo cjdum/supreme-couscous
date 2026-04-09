@@ -141,6 +141,7 @@ export default function CardChatPage() {
         .from("pixel_cards")
         .select("id, card_title, nickname, pixel_card_url, build_archetype, car_snapshot, occasion, minted_at")
         .eq("user_id", user.id)
+        .neq("status", "ghost")   // never talk to a dead card
         .order("minted_at", { ascending: false })
         .limit(1)
         .maybeSingle();
