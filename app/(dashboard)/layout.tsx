@@ -12,19 +12,26 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  let profile: { username: string } | null = null;
+  try {
+    const supabase = await createClient();
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+    if (user) {
+      const { data: profileRaw } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      profile = profileRaw as { username: string } | null;
+    }
+  } catch (err) {
+    console.error("[dashboard layout] auth error:", err);
+    redirect("/login");
+  }
 
   if (!user) redirect("/login");
-
-  const { data: profileRaw } = await supabase
-    .from("profiles")
-    .select("username")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  const profile = profileRaw as { username: string } | null;
 
   return (
     <ToastProvider>

@@ -4,31 +4,38 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth/callback"];
 
 export async function middleware(request: NextRequest) {
-  const { pathname, searchParams } = request.nextUrl;
+  try {
+    const { pathname, searchParams } = request.nextUrl;
 
-  // ── Auth callback: handle verification IN middleware where cookie
-  // setting on redirect responses is guaranteed to work. ──
-  // Catch auth params on ANY page (Supabase may redirect to / instead of /auth/callback)
-  const code = searchParams.get("code");
-  const tokenHash = searchParams.get("token_hash");
-  const type = searchParams.get("type");
+    // ── Auth callback: handle verification IN middleware where cookie
+    // setting on redirect responses is guaranteed to work. ──
+    // Catch auth params on ANY page (Supabase may redirect to / instead of /auth/callback)
+    const code = searchParams.get("code");
+    const tokenHash = searchParams.get("token_hash");
+    const type = searchParams.get("type");
 
-  if (code || tokenHash) {
-    return handleAuthCallback(request, code, tokenHash, type);
+    if (code || tokenHash) {
+      return handleAuthCallback(request, code, tokenHash, type);
+    }
+
+    // Allow public paths and static assets
+    if (
+      PUBLIC_PATHS.some((p) => pathname === p) ||
+      pathname.startsWith("/u/") ||
+      pathname.startsWith("/_next") ||
+      pathname.startsWith("/api/") ||
+      pathname.includes(".")
+    ) {
+      return refreshSession(request);
+    }
+
+    return protectedRoute(request);
+  } catch (err) {
+    // If anything in middleware throws (e.g. Supabase unreachable, bad env vars),
+    // fall through to the page rather than hard-crashing the request.
+    console.error("[middleware] unexpected error:", err);
+    return NextResponse.next();
   }
-
-  // Allow public paths and static assets
-  if (
-    PUBLIC_PATHS.some((p) => pathname === p) ||
-    pathname.startsWith("/u/") ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api/") ||
-    pathname.includes(".")
-  ) {
-    return refreshSession(request);
-  }
-
-  return protectedRoute(request);
 }
 
 // ── Auth callback handler (runs in middleware context) ──────────────────────
