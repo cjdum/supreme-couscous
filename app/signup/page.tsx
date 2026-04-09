@@ -62,7 +62,7 @@ export default function SignupPage() {
       password: result.data.password,
       options: {
         data: { username: result.data.username.toLowerCase() },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/garage`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/home`,
       },
     });
 
@@ -81,7 +81,7 @@ export default function SignupPage() {
     // If Supabase returned a session immediately (email confirmation disabled),
     // skip the "check email" screen and go straight to the garage.
     if (signupData?.session) {
-      router.push("/garage");
+      router.push("/home");
       return;
     }
 
@@ -96,7 +96,7 @@ export default function SignupPage() {
       type: "signup",
       email: form.email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/garage`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/home`,
       },
     });
     setResending(false);
@@ -110,7 +110,7 @@ export default function SignupPage() {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/garage`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/home`,
       },
     });
   }

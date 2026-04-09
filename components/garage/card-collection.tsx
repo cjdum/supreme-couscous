@@ -16,6 +16,8 @@ interface CardCollectionProps {
   hideSectionHeader?: boolean;
   /** The currently alive card id — any card that is NOT this one will render with ghost treatment. Pass null/undefined to rely only on status field. */
   aliveCardId?: string | null;
+  /** When true, every card in this collection renders with ghost treatment. Used by the mint page's ghost archive. */
+  forceAllGhosts?: boolean;
 }
 
 interface ViewState {
@@ -51,7 +53,7 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 type EraFilter = "all" | Era;
 
-export function CardCollection({ cards, carLabels, hideSectionHeader = false, aliveCardId = null }: CardCollectionProps) {
+export function CardCollection({ cards, carLabels, hideSectionHeader = false, aliveCardId = null, forceAllGhosts = false }: CardCollectionProps) {
   const [view, setView] = useState<ViewState | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("newest");
   const [eraFilter, setEraFilter] = useState<EraFilter>("all");
@@ -534,6 +536,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false, al
                     // "anything that isn't the alive card" (works for pre-migration users).
                     const cardStatus = (card as MintedCard & { status?: string | null }).status;
                     const isGhost =
+                      forceAllGhosts ||
                       cardStatus === "ghost" ||
                       (aliveCardId != null && card.id !== aliveCardId);
 

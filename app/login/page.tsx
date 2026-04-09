@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") ?? "/garage";
+  const redirectTo = searchParams.get("redirectTo") ?? "/home";
   const authError = searchParams.get("error");
 
   const [form, setForm] = useState<LoginInput>({ email: "", password: "" });
@@ -50,7 +50,7 @@ function LoginForm() {
       return;
     }
     // Full page reload ensures server-side session cookie is picked up
-    window.location.href = redirectTo.startsWith("/") ? redirectTo : "/garage";
+    window.location.href = redirectTo.startsWith("/") ? redirectTo : "/home";
   }
 
   async function handleGoogleAuth() {

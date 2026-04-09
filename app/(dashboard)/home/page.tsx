@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, Car, GalleryHorizontal, MessageSquare } from "lucide-react";
+import { Sparkles, Car, GalleryHorizontal, MessageSquare, Wrench, DollarSign, Gauge, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { HeroCardViewer } from "@/components/garage/hero-card-viewer";
 import { PageContainer } from "@/components/ui/page-container";
@@ -114,105 +114,61 @@ export default async function HomePage() {
           {username}&apos;s vault · {primaryCarLabel}
         </p>
 
-        {/* ── The card (hero) ── */}
-        <section className="flex flex-col items-center gap-6 mb-14">
+        {/* ── The card (hero) + detail panel ── */}
+        <section className="mb-14">
           {latestCard ? (
-            <>
-              <HeroCardViewer card={latestCard} carLabel={primaryCarLabel!} scale={1.1} />
+            <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 lg:gap-12">
+              {/* Card on the left */}
+              <div className="flex-shrink-0">
+                <HeroCardViewer card={latestCard} carLabel={primaryCarLabel!} scale={1.1} />
+              </div>
 
-              {/* Card info panel — always visible, no click needed */}
+              {/* Detail panel on the right */}
+              <CardDetailPanel
+                card={latestCard}
+                carLabel={primaryCarLabel!}
+                totalCards={totalCards}
+              />
+            </div>
+          ) : (
+            <div className="flex justify-center">
               <div
-                className="w-full max-w-sm text-center"
-                style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                className="flex flex-col items-center justify-center gap-4 text-center"
+                style={{
+                  width: 300,
+                  height: 420,
+                  borderRadius: 18,
+                  background: "linear-gradient(158deg, rgba(123,79,212,0.10) 0%, rgba(168,85,247,0.05) 100%)",
+                  border: "1.5px dashed rgba(168,85,247,0.35)",
+                }}
               >
-                {latestCard.flavor_text && (
-                  <p
-                    style={{
-                      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                      fontSize: 13,
-                      lineHeight: 1.6,
-                      color: "rgba(220,205,255,0.8)",
-                      fontStyle: "italic",
-                      margin: 0,
-                    }}
-                  >
-                    &ldquo;{latestCard.flavor_text}&rdquo;
-                  </p>
-                )}
-                {latestCard.occasion && (
-                  <p
-                    style={{
-                      fontFamily: "ui-monospace, monospace",
-                      fontSize: 10,
-                      color: "rgba(168,85,247,0.6)",
-                      letterSpacing: "0.08em",
-                      margin: 0,
-                    }}
-                  >
-                    {latestCard.occasion}
-                  </p>
-                )}
+                <Sparkles size={28} style={{ color: "rgba(168,85,247,0.55)" }} />
                 <p
-                  className="text-[10px] font-bold uppercase"
+                  className="text-xs font-bold uppercase"
                   style={{
                     fontFamily: "ui-monospace, monospace",
-                    letterSpacing: "0.18em",
-                    color: "rgba(200,180,240,0.4)",
-                    margin: 0,
+                    letterSpacing: "0.16em",
+                    color: "rgba(200,180,240,0.65)",
                   }}
                 >
-                  {totalCards} {totalCards === 1 ? "card" : "cards"} minted
+                  No card yet
+                </p>
+                <p className="text-xs text-[var(--color-text-muted)] max-w-[220px] px-4">
+                  Mint a card to freeze your {primaryCar.make} forever.
                 </p>
                 <Link
-                  href="/card-chat"
-                  className="inline-block text-[11px] font-bold uppercase tracking-wider"
+                  href="/mint"
+                  className="mt-2 inline-flex items-center gap-2 h-10 px-5 rounded-xl font-bold text-xs"
                   style={{
-                    fontFamily: "ui-monospace, monospace",
-                    color: "rgba(168,85,247,0.85)",
-                    letterSpacing: "0.14em",
+                    background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+                    color: "#fff",
+                    boxShadow: "0 4px 16px rgba(168,85,247,0.4)",
                   }}
                 >
-                  Talk to your card →
+                  <Sparkles size={13} />
+                  Mint first card
                 </Link>
               </div>
-            </>
-          ) : (
-            <div
-              className="flex flex-col items-center justify-center gap-4 text-center"
-              style={{
-                width: 300,
-                height: 420,
-                borderRadius: 18,
-                background: "linear-gradient(158deg, rgba(123,79,212,0.10) 0%, rgba(168,85,247,0.05) 100%)",
-                border: "1.5px dashed rgba(168,85,247,0.35)",
-              }}
-            >
-              <Sparkles size={28} style={{ color: "rgba(168,85,247,0.55)" }} />
-              <p
-                className="text-xs font-bold uppercase"
-                style={{
-                  fontFamily: "ui-monospace, monospace",
-                  letterSpacing: "0.16em",
-                  color: "rgba(200,180,240,0.65)",
-                }}
-              >
-                No card yet
-              </p>
-              <p className="text-xs text-[var(--color-text-muted)] max-w-[220px] px-4">
-                Mint a card to freeze your {primaryCar.make} forever.
-              </p>
-              <Link
-                href="/mint"
-                className="mt-2 inline-flex items-center gap-2 h-10 px-5 rounded-xl font-bold text-xs"
-                style={{
-                  background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-                  color: "#fff",
-                  boxShadow: "0 4px 16px rgba(168,85,247,0.4)",
-                }}
-              >
-                <Sparkles size={13} />
-                Mint first card
-              </Link>
             </div>
           )}
         </section>
@@ -270,6 +226,356 @@ export default async function HomePage() {
           </div>
         </section>
       </PageContainer>
+    </div>
+  );
+}
+
+// ── CardDetailPanel ──────────────────────────────────────────────────────────
+// The big detail panel shown to the right of the card on /home.
+// Displays the card's title, personality, stats, flavor text, and a CTA to chat.
+
+type DetailCard = MintedCard & {
+  card_title?: string | null;
+  personality?: string | null;
+  build_archetype?: string | null;
+  card_level?: number | null;
+};
+
+function CardDetailPanel({
+  card,
+  carLabel,
+  totalCards,
+}: {
+  card: MintedCard;
+  carLabel: string;
+  totalCards: number;
+}) {
+  const detail = card as DetailCard;
+  const title = detail.card_title ?? detail.nickname;
+  const snap = detail.car_snapshot;
+  const mintDate = (() => {
+    try {
+      return new Date(detail.minted_at).toLocaleDateString(undefined, {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return null;
+    }
+  })();
+
+  return (
+    <div
+      className="w-full lg:max-w-md flex flex-col gap-5"
+      style={{
+        background: "linear-gradient(160deg, rgba(15,12,30,0.85) 0%, rgba(20,14,38,0.6) 100%)",
+        border: "1px solid rgba(168,85,247,0.22)",
+        borderRadius: 20,
+        padding: "26px 24px",
+        backdropFilter: "blur(14px)",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.4), 0 0 30px rgba(123,79,212,0.08)",
+      }}
+    >
+      {/* Title + tagline */}
+      <div>
+        <p
+          style={{
+            fontFamily: "ui-monospace, monospace",
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: "0.22em",
+            textTransform: "uppercase",
+            color: "rgba(168,85,247,0.55)",
+            margin: 0,
+            marginBottom: 6,
+          }}
+        >
+          Your living card
+        </p>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: 26,
+            fontWeight: 900,
+            lineHeight: 1.1,
+            color: "#f3eaff",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {title}
+        </h2>
+        <p
+          style={{
+            margin: "4px 0 0",
+            fontSize: 12,
+            color: "rgba(200,180,240,0.55)",
+            fontFamily: "ui-monospace, monospace",
+            letterSpacing: "0.04em",
+          }}
+        >
+          {carLabel}
+        </p>
+      </div>
+
+      {/* Badge row: personality + era + rarity + level */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {detail.personality && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              padding: "4px 10px",
+              borderRadius: 999,
+              background: "rgba(168,85,247,0.18)",
+              border: "1px solid rgba(168,85,247,0.42)",
+              color: "#e9d5ff",
+              letterSpacing: "0.08em",
+              fontFamily: "ui-monospace, monospace",
+              textTransform: "uppercase" as const,
+            }}
+          >
+            {detail.personality}
+          </span>
+        )}
+        {detail.build_archetype && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 800,
+              padding: "4px 10px",
+              borderRadius: 999,
+              background: "rgba(96,165,250,0.13)",
+              border: "1px solid rgba(96,165,250,0.35)",
+              color: "#93c5fd",
+              letterSpacing: "0.08em",
+              fontFamily: "ui-monospace, monospace",
+              textTransform: "uppercase" as const,
+            }}
+          >
+            {detail.build_archetype}
+          </span>
+        )}
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 800,
+            padding: "4px 10px",
+            borderRadius: 999,
+            background: "rgba(245,215,110,0.10)",
+            border: "1px solid rgba(245,215,110,0.32)",
+            color: "#f5d76e",
+            letterSpacing: "0.08em",
+            fontFamily: "ui-monospace, monospace",
+            textTransform: "uppercase" as const,
+          }}
+        >
+          {detail.era ?? "Chrome"}
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 800,
+            padding: "4px 10px",
+            borderRadius: 999,
+            background: "rgba(48,209,88,0.10)",
+            border: "1px solid rgba(48,209,88,0.32)",
+            color: "#30d158",
+            letterSpacing: "0.08em",
+            fontFamily: "ui-monospace, monospace",
+            textTransform: "uppercase" as const,
+          }}
+        >
+          {detail.rarity ?? "Common"}
+        </span>
+      </div>
+
+      {/* Quick stat grid */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: 10,
+        }}
+      >
+        <StatTile
+          icon={<Zap size={12} />}
+          label="HP"
+          value={detail.hp != null ? String(detail.hp) : "—"}
+        />
+        <StatTile
+          icon={<Wrench size={12} />}
+          label="Mods"
+          value={detail.mod_count != null ? String(detail.mod_count) : "—"}
+        />
+        <StatTile
+          icon={<DollarSign size={12} />}
+          label="Invested"
+          value={
+            snap?.total_invested != null
+              ? `$${snap.total_invested.toLocaleString()}`
+              : "—"
+          }
+        />
+        <StatTile
+          icon={<Gauge size={12} />}
+          label="Build Score"
+          value={snap?.build_score != null ? String(snap.build_score) : "—"}
+        />
+      </div>
+
+      {/* Flavor text */}
+      {detail.flavor_text && (
+        <div
+          style={{
+            padding: "12px 14px",
+            borderRadius: 12,
+            background: "rgba(123,79,212,0.08)",
+            border: "1px solid rgba(123,79,212,0.18)",
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              fontStyle: "italic",
+              lineHeight: 1.6,
+              color: "rgba(220,205,255,0.85)",
+            }}
+          >
+            &ldquo;{detail.flavor_text}&rdquo;
+          </p>
+        </div>
+      )}
+
+      {/* Occasion */}
+      {detail.occasion && (
+        <div>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 9,
+              fontWeight: 800,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              color: "rgba(200,180,240,0.45)",
+              fontFamily: "ui-monospace, monospace",
+              marginBottom: 4,
+            }}
+          >
+            First Memory
+          </p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              color: "rgba(220,200,255,0.75)",
+              lineHeight: 1.5,
+            }}
+          >
+            {detail.occasion}
+          </p>
+        </div>
+      )}
+
+      {/* Footer: mint date + counter */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          paddingTop: 14,
+          borderTop: "1px solid rgba(168,85,247,0.12)",
+          fontFamily: "ui-monospace, monospace",
+          fontSize: 9,
+          color: "rgba(200,180,240,0.5)",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
+        {mintDate && <span>Born {mintDate}</span>}
+        <span>
+          {totalCards} {totalCards === 1 ? "card" : "cards"} minted
+        </span>
+      </div>
+
+      {/* Talk to your card CTA */}
+      <Link
+        href="/card-chat"
+        className="flex items-center justify-center gap-2 rounded-xl"
+        style={{
+          height: 52,
+          background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+          color: "white",
+          fontFamily: "ui-monospace, monospace",
+          fontSize: 12,
+          fontWeight: 800,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          boxShadow: "0 8px 28px rgba(168,85,247,0.35)",
+        }}
+      >
+        <MessageSquare size={14} />
+        Talk to your card
+      </Link>
+    </div>
+  );
+}
+
+function StatTile({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        padding: "10px 12px",
+        borderRadius: 12,
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(168,85,247,0.14)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          color: "rgba(200,180,240,0.5)",
+        }}
+      >
+        {icon}
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            fontFamily: "ui-monospace, monospace",
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      <p
+        style={{
+          margin: 0,
+          fontSize: 18,
+          fontWeight: 900,
+          color: "rgba(240,232,255,0.95)",
+          fontFamily: "ui-monospace, monospace",
+          letterSpacing: "-0.01em",
+        }}
+      >
+        {value}
+      </p>
     </div>
   );
 }

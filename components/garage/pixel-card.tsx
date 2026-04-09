@@ -45,12 +45,12 @@ interface PixelCardProps {
 type MintState = "idle" | "occasion" | "summoning" | "ceremony";
 
 const OCCASION_EXAMPLES = [
-  "Just picked her up",
-  "Aerokit installed",
-  "First track day",
-  "New wheels dropped",
-  "Engine rebuilt",
-  "Hit 100k miles",
+  "The day she finally felt mine",
+  "Bringing her back from the dead",
+  "First time I trusted her",
+  "Survived the rebuild",
+  "She earned her name today",
+  "Right before everything changed",
 ];
 
 export function PixelCard(props: PixelCardProps) {
@@ -268,7 +268,7 @@ export function PixelCard(props: PixelCardProps) {
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
               <h3 style={{ fontFamily: "ui-monospace, monospace", fontSize: 14, fontWeight: 900, color: "rgba(240,230,255,0.95)", letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>
-                What&rsquo;s the occasion?
+                Why bring her to life?
               </h3>
               <button
                 onClick={() => setMintState("idle")}
@@ -278,7 +278,7 @@ export function PixelCard(props: PixelCardProps) {
               </button>
             </div>
             <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, color: "rgba(160,140,200,0.55)", letterSpacing: "0.06em", marginBottom: 18, lineHeight: 1.5 }}>
-              This note is frozen onto the card forever — a permanent timestamp of this moment.
+              This becomes her first memory — the spark that shapes who she is. She&rsquo;ll carry it until the day she&rsquo;s burned.
             </p>
 
             {/* Input */}
@@ -288,7 +288,7 @@ export function PixelCard(props: PixelCardProps) {
                 setOccasionInput(e.target.value.slice(0, 100));
                 setError(null);
               }}
-              placeholder='e.g. "Just picked her up" or "Aerokit installed"'
+              placeholder='e.g. "The day she finally felt mine"'
               autoFocus
               rows={2}
               maxLength={100}

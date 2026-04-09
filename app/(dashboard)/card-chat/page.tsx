@@ -131,25 +131,39 @@ export default function CardChatPage() {
   // ── Fetch latest card ──────────────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) {
+    supabase.auth.getUser().then(async ({ data: { user }, error: userErr }) => {
+      if (userErr) {
+        console.error("[card-chat] auth error:", userErr.message);
         setLoading(false);
         setNoCard(true);
         return;
       }
-      // Fetch the newest card — we intentionally don't filter on status here.
-      // Pre-migration databases don't have a status column, and filtering on a
-      // missing column makes the whole query error out (which is why card-chat
-      // was showing "No card to talk to" for everyone).
-      const { data } = await supabase
+      if (!user) {
+        console.warn("[card-chat] no user");
+        setLoading(false);
+        setNoCard(true);
+        return;
+      }
+      // Use select("*") so we never blow up on missing columns. Pre-migration
+      // databases don't have card_title or status, and naming any missing
+      // column in the select makes the WHOLE query error out — that's why
+      // card-chat appeared broken for older accounts.
+      const { data, error: queryErr } = await supabase
         .from("pixel_cards")
-        .select("id, card_title, nickname, pixel_card_url, build_archetype, car_snapshot, occasion, minted_at")
+        .select("*")
         .eq("user_id", user.id)
         .order("minted_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
+      if (queryErr) {
+        console.error("[card-chat] query error:", queryErr.message, queryErr);
+        setLoading(false);
+        setNoCard(true);
+        return;
+      }
       if (!data) {
+        console.warn("[card-chat] user has no cards");
         setLoading(false);
         setNoCard(true);
         return;

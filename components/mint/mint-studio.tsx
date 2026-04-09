@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Flame, Ghost } from "lucide-react";
 import { PixelCard } from "@/components/garage/pixel-card";
+import { CardCollection } from "@/components/garage/card-collection";
 import type { MintedCard } from "@/lib/pixel-card";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -796,30 +797,42 @@ function MintPhase({ car, onBack, hideBack = false }: MintPhaseProps) {
 }
 
 // ── GhostArchive ──────────────────────────────────────────────────────────────
+// Reuses the full <CardCollection /> component so ghost cards keep tilt,
+// horizontal scroll, click-to-view modal, era/rarity badges — same UI users
+// already know from /cards. forceAllGhosts paints every card with the dead
+// visual treatment.
 
-function GhostArchive({ ghosts }: { ghosts: GhostCardInfo[] }) {
+function GhostArchive({ ghosts, cars }: { ghosts: GhostCardInfo[]; cars: MintableCar[] }) {
+  const carLabels = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const car of cars) {
+      m[car.id] = `${car.year} ${car.make} ${car.model}`;
+    }
+    return m;
+  }, [cars]);
+
   if (ghosts.length === 0) return null;
 
   return (
     <div
       style={{
-        maxWidth: 560,
+        maxWidth: 1200,
         margin: "0 auto 64px",
         padding: "0 20px",
       }}
     >
       {/* Divider */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
         <div style={{ flex: 1, height: 1, background: "rgba(180,40,40,0.18)" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Ghost size={12} style={{ color: "rgba(180,100,100,0.55)" }} />
+          <Ghost size={13} style={{ color: "rgba(200,110,110,0.65)" }} />
           <span style={{
             fontFamily: "ui-monospace, monospace",
-            fontSize: 9,
+            fontSize: 10,
             fontWeight: 800,
             letterSpacing: "0.22em",
             textTransform: "uppercase" as const,
-            color: "rgba(180,100,100,0.55)",
+            color: "rgba(200,110,110,0.7)",
           }}>
             Ghost Archive
           </span>
@@ -827,131 +840,12 @@ function GhostArchive({ ghosts }: { ghosts: GhostCardInfo[] }) {
         <div style={{ flex: 1, height: 1, background: "rgba(180,40,40,0.18)" }} />
       </div>
 
-      {/* Ghost cards grid */}
-      <div style={{
-        display: "flex",
-        gap: 14,
-        overflowX: "auto",
-        paddingBottom: 8,
-        scrollbarWidth: "none" as const,
-      }}>
-        {ghosts.map((ghost) => {
-          const snap = ghost.car_snapshot;
-          const title = ghost.card_title ?? ghost.nickname;
-          const burnedDate = ghost.burned_at
-            ? new Date(ghost.burned_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-            : null;
-
-          return (
-            <div
-              key={ghost.id}
-              style={{
-                flexShrink: 0,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 6,
-                width: 100,
-              }}
-            >
-              {/* Card thumbnail — grayscale */}
-              <div style={{ position: "relative" }}>
-                <div style={{ filter: "grayscale(1) brightness(0.38) sepia(0.1)" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={ghost.pixel_card_url}
-                    alt={title}
-                    style={{
-                      width: 70,
-                      height: 98,
-                      objectFit: "cover",
-                      borderRadius: 8,
-                      imageRendering: "pixelated",
-                      border: "1px solid rgba(150,50,50,0.35)",
-                    }}
-                  />
-                </div>
-                {/* Ghost overlay */}
-                <div style={{
-                  position: "absolute",
-                  inset: 0,
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "rgba(0,0,0,0.15)",
-                  pointerEvents: "none",
-                }}>
-                  <span style={{
-                    fontSize: 7,
-                    fontWeight: 900,
-                    fontFamily: "ui-monospace, monospace",
-                    letterSpacing: "0.2em",
-                    color: "rgba(200,80,80,0.75)",
-                    textTransform: "uppercase" as const,
-                    textShadow: "0 0 8px rgba(200,60,60,0.4)",
-                  }}>
-                    GHOST
-                  </span>
-                </div>
-              </div>
-
-              {/* Card info */}
-              <div style={{ textAlign: "center" as const, display: "flex", flexDirection: "column", gap: 3 }}>
-                <p style={{
-                  margin: 0,
-                  fontSize: 9,
-                  fontWeight: 700,
-                  color: "rgba(180,160,200,0.6)",
-                  letterSpacing: "0.02em",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap" as const,
-                  maxWidth: 96,
-                }}>
-                  {title}
-                </p>
-                {ghost.last_words && (
-                  <p style={{
-                    margin: 0,
-                    fontSize: 8,
-                    fontStyle: "italic",
-                    color: "rgba(160,130,170,0.45)",
-                    lineHeight: 1.45,
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical" as const,
-                    overflow: "hidden",
-                  }}>
-                    &ldquo;{ghost.last_words}&rdquo;
-                  </p>
-                )}
-                {!ghost.last_words && snap && (
-                  <p style={{
-                    margin: 0,
-                    fontSize: 8,
-                    color: "rgba(160,130,170,0.35)",
-                    fontFamily: "ui-monospace, monospace",
-                  }}>
-                    {snap.year} {snap.make}
-                  </p>
-                )}
-                {burnedDate && (
-                  <p style={{
-                    margin: 0,
-                    fontSize: 7,
-                    fontFamily: "ui-monospace, monospace",
-                    color: "rgba(160,100,100,0.45)",
-                    letterSpacing: "0.06em",
-                  }}>
-                    {burnedDate}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <CardCollection
+        cards={ghosts as MintedCard[]}
+        carLabels={carLabels}
+        hideSectionHeader={true}
+        forceAllGhosts={true}
+      />
     </div>
   );
 }
@@ -1089,9 +983,9 @@ export function MintStudio({
           </>
         )}
 
-        {/* Ghost archive — shown whenever there are burned cards */}
+        {/* Ghost archive — shown whenever there are previous cards */}
         {ghostCards.length > 0 && (
-          <GhostArchive ghosts={ghostCards} />
+          <GhostArchive ghosts={ghostCards} cars={cars} />
         )}
       </div>
 

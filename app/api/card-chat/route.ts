@@ -171,21 +171,22 @@ export async function POST(request: Request) {
   }
 
   // ── Fetch the card ─────────────────────────────────────────────────────────
+  // select("*") so we never blow up if newer columns (card_title, personality,
+  // status, etc.) haven't been migrated for this user's database yet.
   const { data: cardRaw, error: cardErr } = await supabase
     .from("pixel_cards")
-    .select(
-      "id, card_title, nickname, flavor_text, occasion, minted_at, car_snapshot, build_archetype, traits",
-    )
+    .select("*")
     .eq("id", cardId)
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (cardErr) {
-    console.error("[card-chat] db error:", cardErr.message);
-    return new Response(JSON.stringify({ error: "Database error" }), { status: 500 });
+    console.error("[card-chat] db error:", cardErr.message, cardErr);
+    return new Response(JSON.stringify({ error: `Database error: ${cardErr.message}` }), { status: 500 });
   }
 
   if (!cardRaw) {
+    console.warn("[card-chat] card not found", { cardId, userId: user.id });
     return new Response(JSON.stringify({ error: "Card not found" }), { status: 404 });
   }
 
