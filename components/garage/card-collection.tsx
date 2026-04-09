@@ -113,6 +113,10 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false, al
   const cardRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   // Currently "selected" card for keyboard navigation
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  // Track whether the user has actually interacted with the list. Until they do,
+  // focus changes must NOT trigger scrollIntoView — otherwise pages like /mint
+  // jump to the ghost archive on mount.
+  const userInteractedRef = useRef(false);
 
   function setScrollRef(key: string) {
     return (el: HTMLDivElement | null) => {
@@ -178,17 +182,20 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false, al
   // Keep flatOrderRef in sync (used for any outside handlers)
   flatOrderRef.current = flatIds;
 
-  // Initialize focused card
+  // Repair focused card only if it was removed (filter/sort change). Never
+  // force-select on mount — that would trigger scrollIntoView and make the
+  // page jump to wherever the first card is sitting.
   useEffect(() => {
-    if (focusedId == null && flatIds.length > 0) setFocusedId(flatIds[0]);
-    else if (focusedId && !flatIds.includes(focusedId) && flatIds.length > 0) {
+    if (focusedId && !flatIds.includes(focusedId) && flatIds.length > 0) {
       setFocusedId(flatIds[0]);
     }
   }, [flatIds, focusedId]);
 
-  // Scroll focused card into view horizontally (smooth, block: nearest)
+  // Scroll focused card into view — but ONLY after the user has actually
+  // interacted (keyboard nav, click, hover). This prevents the mint page
+  // from auto-scrolling to the ghost archive on mount.
   useEffect(() => {
-    if (!focusedId) return;
+    if (!focusedId || !userInteractedRef.current) return;
     const el = cardRefs.current.get(focusedId);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
@@ -206,15 +213,18 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false, al
       const idx = focusedId ? flatOrderRef.current.indexOf(focusedId) : -1;
       if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
+        userInteractedRef.current = true;
         const next = flatOrderRef.current[Math.min(flatOrderRef.current.length - 1, Math.max(0, idx + 1))];
         if (next) setFocusedId(next);
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
+        userInteractedRef.current = true;
         const prev = flatOrderRef.current[Math.max(0, idx - 1)];
         if (prev) setFocusedId(prev);
       } else if (e.key === "Enter" || e.key === " ") {
         if (focusedId) {
           e.preventDefault();
+          userInteractedRef.current = true;
           const card = cards.find((c) => c.id === focusedId);
           if (card) openViewer(card);
         }
@@ -545,10 +555,14 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false, al
                         key={card.id}
                         ref={setCardRef(card.id)}
                         onClick={() => {
+                          userInteractedRef.current = true;
                           setFocusedId(card.id);
                           openViewer(card);
                         }}
-                        onMouseEnter={() => setFocusedId(card.id)}
+                        onMouseEnter={() => {
+                          userInteractedRef.current = true;
+                          setFocusedId(card.id);
+                        }}
                         style={{
                           cursor: "pointer",
                           display: "flex",
@@ -596,7 +610,7 @@ export function CardCollection({ cards, carLabels, hideSectionHeader = false, al
                             edition={totalEditions > 1 ? edition : null}
                             carLabel={carLabel}
                             scale={0.62}
-                            idle
+                            idle={false}
                             interactive
                             dead={isGhost}
                           />

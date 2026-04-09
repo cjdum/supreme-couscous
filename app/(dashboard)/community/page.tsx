@@ -354,7 +354,7 @@ export default function CommunityPage() {
                         totalInvested={card.car_snapshot.total_invested ?? null}
                         carLabel={`${card.car_snapshot.year} ${card.car_snapshot.make} ${card.car_snapshot.model}`}
                         scale={0.85}
-                        idle
+                        idle={false}
                       />
                     </button>
                     <p style={{ fontSize: 10, color: "var(--color-text-muted)", letterSpacing: "0.04em", textAlign: "center" }}>

@@ -1,12 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Globe, Lock, Wrench, MessageSquare, Star, BookmarkCheck,
+  ArrowLeft, Globe, Lock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { CarDetailTabs } from "@/components/garage/car-detail-tabs";
-import { AiSuggestions } from "@/components/garage/ai-suggestions";
-import { VehicleSpecs } from "@/components/garage/vehicle-specs";
 import { PixelCard } from "@/components/garage/pixel-card";
 import { CarGallery } from "@/components/garage/car-gallery";
 import { EditCarButton } from "@/components/garage/edit-car-button";
@@ -85,9 +83,6 @@ export default async function CarDetailPage({ params, searchParams }: Props) {
 
   const installed = mods.filter((m) => m.status === "installed");
   const wishlist = mods.filter((m) => m.status === "wishlist");
-
-  const newest = installed[0] ?? null; // mods come ordered by created_at desc
-  const nextPlanned = wishlist[0] ?? null;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -187,98 +182,30 @@ export default async function CarDetailPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      {/* ── Stats bar: just installed + wishlist counts ── */}
-      <div className="mx-5 sm:mx-8 mt-5 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
-        <div className="grid grid-cols-2 divide-x divide-[var(--color-border)]">
-          <div className="flex flex-col items-center py-5 lg:py-6 gap-1.5">
-            <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
-              <Wrench size={11} />
-              <span className="text-[9px] font-bold uppercase tracking-wider">Installed</span>
-            </div>
-            <p className="text-2xl lg:text-3xl font-black tabular">{installed.length}</p>
+      {/* ── Main content — gallery + tabs. The tabs already show counts via
+           their badge, so stats bars and highlight cards were redundant. ── */}
+      <div className="px-5 sm:px-8 pb-12 mt-6 space-y-6">
+        <CarGallery carId={carId} initialCoverUrl={car.cover_image_url} />
+        <CarDetailTabs installed={installed} wishlist={wishlist} renders={renders} carId={carId} />
+
+        {/* Hidden PixelCard — only used when you hit the page with ?action=mint,
+            e.g. from the "mint now" deep link. The normal mint flow lives on
+            /mint. */}
+        {action === "mint" && (
+          <div className="mt-4">
+            <PixelCard
+              carId={carId}
+              carLabel={`${car.year} ${car.make} ${car.model}`}
+              latestCard={latestCard}
+              cardCount={cardCount}
+              trim={car.trim}
+              color={car.color}
+              autoMint
+            />
           </div>
-          <div className="flex flex-col items-center py-5 lg:py-6 gap-1.5">
-            <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
-              <BookmarkCheck size={11} />
-              <span className="text-[9px] font-bold uppercase tracking-wider">Wishlist</span>
-            </div>
-            <p className="text-2xl lg:text-3xl font-black tabular">{wishlist.length}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Highlight row: most recent + next planned ── */}
-      {(newest || nextPlanned) && (
-        <div className="mx-5 sm:mx-8 mt-4 grid grid-cols-2 gap-2.5 lg:gap-3 stagger-children">
-          <HighlightCard
-            icon={<Star size={11} className="text-[#30d158]" />}
-            label="Latest"
-            mod={newest}
-          />
-          <HighlightCard
-            icon={<BookmarkCheck size={11} className="text-[var(--color-accent)]" />}
-            label="Next"
-            mod={nextPlanned}
-          />
-        </div>
-      )}
-
-      {/* ── Main content (two-column on desktop) ── */}
-      <div className="px-5 sm:px-8 pb-12 mt-6 lg:grid lg:grid-cols-3 lg:gap-6 space-y-6 lg:space-y-0">
-        <div className="lg:col-span-2 space-y-6">
-          <CarGallery carId={carId} initialCoverUrl={car.cover_image_url} />
-          <CarDetailTabs installed={installed} wishlist={wishlist} renders={renders} carId={carId} />
-        </div>
-
-        <div className="space-y-6">
-          <PixelCard
-            carId={carId}
-            carLabel={`${car.year} ${car.make} ${car.model}`}
-            latestCard={latestCard}
-            cardCount={cardCount}
-            trim={car.trim}
-            color={car.color}
-            autoMint={action === "mint"}
-          />
-          <VehicleSpecs car={car} />
-
-          <div className="rounded-2xl border border-[rgba(59,130,246,0.2)] bg-[var(--color-bg-card)] overflow-hidden glow-pulse">
-            <AiSuggestions carId={carId} />
-          </div>
-
-          <Link
-            href="/home"
-            className="block rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
-          >
-            <MessageSquare size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
-            <p className="text-xs font-bold">Talk to Card</p>
-          </Link>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-function HighlightCard({
-  icon,
-  label,
-  mod,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  mod: { name: string } | null;
-}) {
-  return (
-    <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3.5 lg:p-4">
-      <div className="flex items-center gap-1.5 mb-2.5">
-        {icon}
-        <p className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">{label}</p>
-      </div>
-      {mod ? (
-        <p className="text-xs font-bold leading-snug line-clamp-2">{mod.name}</p>
-      ) : (
-        <p className="text-[10px] text-[var(--color-text-disabled)]">Nothing yet</p>
-      )}
-    </div>
-  );
-}

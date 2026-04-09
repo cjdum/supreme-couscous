@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Flame, Ghost } from "lucide-react";
 import { PixelCard } from "@/components/garage/pixel-card";
 import { CardCollection } from "@/components/garage/card-collection";
+import { TradingCard } from "@/components/garage/trading-card";
 import type { MintedCard } from "@/lib/pixel-card";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -39,6 +40,8 @@ export interface AliveCardInfo {
   flavorText: string | null;
   mintedAt: string;
   carLabel: string;
+  /** Full raw card row so we can render the real trading-card face. */
+  fullCard: MintedCard;
 }
 
 interface MintStudioProps {
@@ -95,11 +98,11 @@ function CarSilhouette() {
 
 interface AliveCardPreviewProps {
   card: AliveCardInfo;
-  compact?: boolean;
 }
 
-function AliveCardPreview({ card, compact = false }: AliveCardPreviewProps) {
-  const title = card.cardTitle ?? card.nickname;
+function AliveCardPreview({ card }: AliveCardPreviewProps) {
+  const full = card.fullCard;
+  const snap = full.car_snapshot;
 
   return (
     <div
@@ -107,95 +110,76 @@ function AliveCardPreview({ card, compact = false }: AliveCardPreviewProps) {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: compact ? 10 : 14,
+        gap: 14,
       }}
     >
-      {/* Card image */}
-      <div
-        style={{
-          position: "relative",
-          width: compact ? 140 : 180,
-          height: compact ? 196 : 252,
-          borderRadius: 12,
-          overflow: "hidden",
-          boxShadow: "0 0 0 1px rgba(168,85,247,0.3), 0 8px 32px rgba(123,79,212,0.25)",
-          flexShrink: 0,
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={card.pixelCardUrl}
-          alt={title}
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
+      {/* Full trading card — real card, no zoomed-in pixel art */}
+      <div style={{ position: "relative" }}>
+        <TradingCard
+          cardUrl={full.pixel_card_url}
+          nickname={full.nickname}
+          generatedAt={full.minted_at}
+          hp={full.hp}
+          modCount={full.mod_count}
+          buildScore={snap.build_score ?? null}
+          vinVerified={snap.vin_verified}
+          cardNumber={full.card_number}
+          era={full.era}
+          rarity={full.rarity}
+          flavorText={full.flavor_text}
+          occasion={full.occasion}
+          mods={snap.mods ?? []}
+          modsDetail={snap.mods_detail}
+          torque={snap.torque ?? null}
+          zeroToSixty={snap.zero_to_sixty ?? null}
+          totalInvested={snap.total_invested ?? null}
+          personality={card.personality}
+          carLabel={card.carLabel}
+          scale={1}
+          idle={false}
+          interactive
         />
-        {/* Alive pulse dot */}
+        {/* Alive badge */}
         <div
           aria-hidden="true"
           style={{
             position: "absolute",
-            top: 8,
-            right: 8,
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: "#30d158",
-            boxShadow: "0 0 0 3px rgba(48,209,88,0.25)",
-            animation: "alivePulse 2s ease-in-out infinite",
-          }}
-        />
-      </div>
-
-      {/* Title + personality */}
-      <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: 6 }}>
-        <p
-          style={{
-            margin: 0,
-            fontSize: compact ? 13 : 15,
-            fontWeight: 700,
-            color: "#f0eeff",
-            letterSpacing: "-0.01em",
+            bottom: -12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "4px 12px",
+            borderRadius: 999,
+            background: "rgba(20,14,38,0.92)",
+            border: "1px solid rgba(48,209,88,0.4)",
+            boxShadow: "0 6px 20px rgba(0,0,0,0.5), 0 0 16px rgba(48,209,88,0.22)",
+            backdropFilter: "blur(10px)",
           }}
         >
-          {title}
-        </p>
-        {card.personality && (
+          <div
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "#30d158",
+              animation: "alivePulse 2s ease-in-out infinite",
+            }}
+          />
           <span
             style={{
-              display: "inline-block",
-              alignSelf: "center",
-              padding: "3px 10px",
-              borderRadius: 999,
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: "0.1em",
+              fontSize: 9,
+              fontWeight: 900,
+              letterSpacing: "0.18em",
               textTransform: "uppercase",
-              color: "#c084fc",
-              background: "rgba(168,85,247,0.14)",
-              border: "1px solid rgba(168,85,247,0.3)",
-            }}
-          >
-            {card.personality}
-          </span>
-        )}
-        {!compact && (
-          <p
-            style={{
-              margin: 0,
-              fontSize: 11,
-              color: "rgba(200,190,255,0.4)",
+              color: "#30d158",
               fontFamily: "ui-monospace, monospace",
-              letterSpacing: "0.04em",
             }}
           >
             Alive since {formatDate(card.mintedAt)}
-          </p>
-        )}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -227,11 +211,11 @@ function AliveWithBurn({
       style={{
         maxWidth: 480,
         margin: "0 auto",
-        padding: "64px 20px 80px",
+        padding: "40px 20px 60px",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: 28,
+        gap: 32,
       }}
     >
       {/* Alive card with date */}

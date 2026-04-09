@@ -58,6 +58,8 @@ export default async function MintPage() {
         flavorText: aliveCardRaw.flavor_text ?? null,
         mintedAt: aliveCardRaw.minted_at,
         carLabel: `${primaryCar.year} ${primaryCar.make} ${primaryCar.model}`,
+        // Full card data so the mint page can render the actual trading card
+        fullCard: aliveCardRaw as unknown as MintedCard,
       }
     : null;
 

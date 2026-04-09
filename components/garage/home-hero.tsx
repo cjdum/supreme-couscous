@@ -95,37 +95,52 @@ export function HomeHero({
   const [bubble, setBubble] = useState<string | null>(null);
   const [bubbleVisible, setBubbleVisible] = useState(false);
   const [wiggle, setWiggle] = useState(false);
+  const [pokeLoading, setPokeLoading] = useState(false);
   const bubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wiggleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const spontaneousTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastFetchRef = useRef<number>(0);
 
-  // Show a bubble for ~8s, with wiggle during the first ~1.4s (the "speaking" phase).
-  const showBubble = useCallback((text: string, duration = 8_500) => {
+  // Show a bubble for ~10s, with wiggle during the first ~1.6s (the "speaking" phase).
+  const showBubble = useCallback((text: string, duration = 10_000) => {
     if (!text.trim()) return;
     setBubble(text.trim());
     setBubbleVisible(true);
     setWiggle(true);
     if (bubbleTimerRef.current) clearTimeout(bubbleTimerRef.current);
     if (wiggleTimerRef.current) clearTimeout(wiggleTimerRef.current);
-    wiggleTimerRef.current = setTimeout(() => setWiggle(false), 1400);
+    wiggleTimerRef.current = setTimeout(() => setWiggle(false), 1600);
     bubbleTimerRef.current = setTimeout(() => setBubbleVisible(false), duration);
   }, []);
 
-  // Fetch a fresh idle line from the card API.
-  const fetchLine = useCallback(async () => {
-    // Throttle to once every ~15 seconds max
-    const now = Date.now();
-    if (now - lastFetchRef.current < 15_000) return;
-    lastFetchRef.current = now;
-
+  // Fetch a fresh line from the card-chat API. Streams the body to completion.
+  // Any error is stored in chatError so the user sees what went wrong.
+  const fetchLine = useCallback(async (): Promise<string | null> => {
     try {
       const res = await fetch("/api/card-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cardId: card.id, history: [] }),
       });
-      if (!res.ok || !res.body) return;
+      if (!res.ok) {
+        let errMsg = `Error ${res.status}`;
+        try {
+          const text = await res.text();
+          try {
+            const j = JSON.parse(text);
+            errMsg = j.error ?? text ?? errMsg;
+          } catch {
+            if (text) errMsg = text;
+          }
+        } catch {
+          /* ignore */
+        }
+        setChatError(errMsg);
+        return null;
+      }
+      if (!res.body) {
+        setChatError("Empty response from card.");
+        return null;
+      }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let full = "";
@@ -134,35 +149,59 @@ export function HomeHero({
         if (done) break;
         full += decoder.decode(value, { stream: true });
       }
-      showBubble(full);
-    } catch {
-      // Silent fail — we'll try again next cycle.
+      if (!full.trim()) {
+        setChatError("Your card went quiet. Try again.");
+        return null;
+      }
+      return full.trim();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      setChatError(msg);
+      return null;
     }
-  }, [card.id, showBubble]);
+  }, [card.id]);
 
-  // Fetch opening line when the component mounts.
+  // Manual poke — always fires, bypasses any throttling.
+  const poke = useCallback(async () => {
+    if (pokeLoading) return;
+    setPokeLoading(true);
+    setChatError(null);
+    const line = await fetchLine();
+    setPokeLoading(false);
+    if (line) showBubble(line);
+  }, [fetchLine, showBubble, pokeLoading]);
+
+  // Initial opening line — runs once on mount after a short delay.
   useEffect(() => {
-    const t = setTimeout(fetchLine, 900);
+    const t = setTimeout(async () => {
+      const line = await fetchLine();
+      if (line) showBubble(line);
+    }, 800);
     return () => clearTimeout(t);
-  }, [fetchLine]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.id]);
 
-  // Schedule spontaneous bubbles every 30–60 seconds while page is visible.
+  // Spontaneous bubbles every 45–90 seconds while page is visible and chat closed.
   useEffect(() => {
+    let cancelled = false;
     function schedule() {
       if (spontaneousTimerRef.current) clearTimeout(spontaneousTimerRef.current);
-      const delay = 30_000 + Math.random() * 30_000; // 30–60s
+      const delay = 45_000 + Math.random() * 45_000; // 45–90s
       spontaneousTimerRef.current = setTimeout(async () => {
+        if (cancelled) return;
         if (document.visibilityState === "visible" && !chatOpen) {
-          await fetchLine();
+          const line = await fetchLine();
+          if (line && !cancelled) showBubble(line);
         }
         schedule();
       }, delay);
     }
     schedule();
     return () => {
+      cancelled = true;
       if (spontaneousTimerRef.current) clearTimeout(spontaneousTimerRef.current);
     };
-  }, [fetchLine, chatOpen]);
+  }, [fetchLine, showBubble, chatOpen]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -173,14 +212,19 @@ export function HomeHero({
     };
   }, []);
 
-  // Auto-scroll chat
+  // Auto-scroll chat when messages update
   useEffect(() => {
     if (chatOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      // Focus input when chat opens
-      setTimeout(() => inputRef.current?.focus(), 180);
     }
   }, [chatOpen, messages]);
+
+  // Focus input when chat opens
+  useEffect(() => {
+    if (chatOpen) {
+      setTimeout(() => inputRef.current?.focus(), 200);
+    }
+  }, [chatOpen]);
 
   // ── Send a message to the card ──────────────────────────────────────────────
   async function sendMessage() {
@@ -207,8 +251,13 @@ export function HomeHero({
       if (!res.ok || !res.body) {
         let errMsg = `Error ${res.status}`;
         try {
-          const j = await res.json();
-          errMsg = j.error ?? errMsg;
+          const text = await res.text();
+          try {
+            const j = JSON.parse(text);
+            errMsg = j.error ?? text ?? errMsg;
+          } catch {
+            if (text) errMsg = text;
+          }
         } catch {
           /* ignore */
         }
@@ -228,7 +277,7 @@ export function HomeHero({
         setMessages([...nextMessages, { role: "card", content: full }]);
       }
       if (full.trim()) {
-        showBubble(full, 10_000);
+        showBubble(full, 12_000);
       } else {
         setChatError("Your card went quiet.");
         setMessages(nextMessages);
@@ -239,22 +288,25 @@ export function HomeHero({
       setMessages(nextMessages);
     } finally {
       setStreaming(false);
-      // Let wiggle carry on briefly for the speak animation
-      setTimeout(() => setWiggle(false), 900);
+      setTimeout(() => setWiggle(false), 1200);
     }
   }
 
   function handleCardClick() {
-    // Open viewer modal — full card experience
     setModalOpen(true);
   }
 
-  function toggleChat() {
-    setChatOpen((v) => !v);
-    if (!chatOpen && messages.length === 0) {
-      // Seed an opening message
-      fetchLine();
+  function openChat() {
+    setChatError(null);
+    setChatOpen(true);
+    // Seed with the current bubble if we have one and the drawer is empty.
+    if (messages.length === 0 && bubble) {
+      setMessages([{ role: "card", content: bubble }]);
     }
+  }
+
+  function closeChat() {
+    setChatOpen(false);
   }
 
   // ── Stats panel data ────────────────────────────────────────────────────────
@@ -274,9 +326,9 @@ export function HomeHero({
     <div className="relative z-10 min-h-dvh flex flex-col">
       <style>{`
         @keyframes bubblePop {
-          0% { opacity: 0; transform: translate(-50%, -4px) scale(0.92); }
-          60% { opacity: 1; transform: translate(-50%, 0) scale(1.02); }
-          100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+          0% { opacity: 0; transform: translateY(-4px) scale(0.96); }
+          60% { opacity: 1; transform: translateY(0) scale(1.02); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
         }
         @keyframes fadeUp {
           from { opacity: 0; transform: translateY(12px); }
@@ -295,8 +347,6 @@ export function HomeHero({
         .hh-stagger > *:nth-child(2) { animation-delay: 140ms; }
         .hh-stagger > *:nth-child(3) { animation-delay: 200ms; }
         .hh-stagger > *:nth-child(4) { animation-delay: 260ms; }
-        .hh-stagger > *:nth-child(5) { animation-delay: 320ms; }
-        .hh-stagger > *:nth-child(6) { animation-delay: 380ms; }
         @media (prefers-reduced-motion: reduce) {
           .hh-stagger > * { animation: none; }
         }
@@ -304,7 +354,10 @@ export function HomeHero({
 
       <div className="flex-1 flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 lg:gap-10 px-5 pt-8 lg:pt-16 pb-8 max-w-6xl mx-auto w-full">
         {/* ── LEFT: Big card with speech bubble ── */}
-        <section className="relative flex flex-col items-center" style={{ animation: "fadeUp 500ms cubic-bezier(0.16,1,0.3,1) both" }}>
+        <section
+          className="relative flex flex-col items-center"
+          style={{ animation: "fadeUp 500ms cubic-bezier(0.16,1,0.3,1) both" }}
+        >
           {/* Top welcome strip */}
           <p
             className="mb-4 text-[10px] font-bold uppercase text-center"
@@ -375,7 +428,6 @@ export function HomeHero({
                 )}
               </div>
             )}
-            {/* Pointer triangle pointing down at the card */}
             {bubble && (
               <div
                 aria-hidden
@@ -394,7 +446,30 @@ export function HomeHero({
             )}
           </div>
 
-          {/* The card — click to open modal, double click opens chat */}
+          {/* Chat error banner — visible whenever a fetch fails */}
+          {chatError && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: 12,
+                padding: "8px 14px",
+                borderRadius: 10,
+                background: "rgba(220,38,38,0.14)",
+                border: "1px solid rgba(220,38,38,0.4)",
+                color: "#fca5a5",
+                fontSize: 11,
+                fontFamily: "ui-monospace, monospace",
+                letterSpacing: "0.02em",
+                maxWidth: 360,
+                textAlign: "center",
+                lineHeight: 1.5,
+              }}
+            >
+              {chatError}
+            </div>
+          )}
+
+          {/* The card — click to open modal */}
           <div style={{ position: "relative" }}>
             <button
               onClick={handleCardClick}
@@ -482,7 +557,8 @@ export function HomeHero({
           <div style={{ display: "flex", gap: 10, marginTop: 28 }}>
             <button
               type="button"
-              onClick={() => { fetchLine(); }}
+              onClick={poke}
+              disabled={pokeLoading}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -498,10 +574,12 @@ export function HomeHero({
                 fontWeight: 800,
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
-                cursor: "pointer",
-                transition: "background 150ms ease, border-color 150ms ease",
+                cursor: pokeLoading ? "wait" : "pointer",
+                opacity: pokeLoading ? 0.6 : 1,
+                transition: "background 150ms ease, border-color 150ms ease, opacity 150ms ease",
               }}
               onMouseEnter={(e) => {
+                if (pokeLoading) return;
                 e.currentTarget.style.background = "rgba(168,85,247,0.2)";
                 e.currentTarget.style.borderColor = "rgba(168,85,247,0.52)";
               }}
@@ -510,11 +588,12 @@ export function HomeHero({
                 e.currentTarget.style.borderColor = "rgba(168,85,247,0.32)";
               }}
             >
-              <Sparkles size={12} /> Poke
+              {pokeLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              {pokeLoading ? "Poking…" : "Poke"}
             </button>
             <button
               type="button"
-              onClick={toggleChat}
+              onClick={chatOpen ? closeChat : openChat}
               aria-pressed={chatOpen}
               style={{
                 display: "inline-flex",
@@ -547,7 +626,7 @@ export function HomeHero({
               }}
             >
               <MessageSquare size={13} />
-              {chatOpen ? "Close chat" : "Talk to it"}
+              {chatOpen ? "Close" : "Talk to it"}
             </button>
           </div>
         </section>
@@ -888,7 +967,7 @@ export function HomeHero({
                 </p>
               </div>
               <button
-                onClick={toggleChat}
+                onClick={closeChat}
                 aria-label="Close chat"
                 style={{
                   width: 28,
