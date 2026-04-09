@@ -5,6 +5,12 @@ import type { PixelCardSnapshot } from "@/lib/supabase/types";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// A "session" is capped at this many user→card turns. The client also enforces
+// this, but the server is the source of truth in case someone pokes the API
+// directly. Once the history has MAX_TURNS user messages, we refuse further
+// sends.
+const MAX_TURNS = 10;
+
 // ── Personality definitions ──────────────────────────────────────────────────
 
 type PersonalityKey =
@@ -149,6 +155,19 @@ export async function POST(request: Request) {
 
   if (!cardId) {
     return new Response(JSON.stringify({ error: "cardId is required" }), { status: 400 });
+  }
+
+  // Session cap: only applies to actual messages, not the initial opening line.
+  if (message) {
+    const userTurnsInHistory = history.filter((m) => m.role === "user").length;
+    if (userTurnsInHistory >= MAX_TURNS) {
+      return new Response(
+        JSON.stringify({
+          error: `Session cap reached (${MAX_TURNS} turns). Start a new one.`,
+        }),
+        { status: 429 },
+      );
+    }
   }
 
   // ── Fetch the card ─────────────────────────────────────────────────────────

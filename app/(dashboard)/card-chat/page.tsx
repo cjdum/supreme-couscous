@@ -2,9 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Send, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Send, RotateCcw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { PixelCardSnapshot } from "@/lib/supabase/types";
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+const MAX_TURNS = 10;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,7 +26,6 @@ interface LiveCard {
   car_snapshot: PixelCardSnapshot;
   occasion: string | null;
   minted_at: string;
-  // personality is optional — not yet in schema but may exist
   personality?: string | null;
 }
 
@@ -50,186 +53,59 @@ function resolvePersonality(card: LiveCard): string {
   return ARCHETYPE_TO_PERSONALITY[card.build_archetype ?? ""] ?? "The Stoic";
 }
 
-// ── Sub-components ───────────────────────────────────────────────────────────
+// ── Empty / loading states ───────────────────────────────────────────────────
 
-function TypingIndicator() {
+function NoCardState() {
   return (
-    <span
-      className="inline-flex items-center gap-1.5 h-5"
-      aria-label="Card is typing"
-    >
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="w-2 h-2 rounded-full"
-          style={{
-            background: "rgba(168,85,247,0.7)",
-            animation: `cardTypingPulse 1.2s ease-in-out ${i * 0.18}s infinite`,
-          }}
-        />
-      ))}
-      <style jsx>{`
-        @keyframes cardTypingPulse {
-          0%, 60%, 100% {
-            opacity: 0.3;
-            transform: translateY(0);
-          }
-          30% {
-            opacity: 1;
-            transform: translateY(-3px);
-          }
-        }
-      `}</style>
-    </span>
-  );
-}
-
-function SkeletonLoader() {
-  return (
-    <div
-      style={{ background: "#08080f", minHeight: "100dvh" }}
-      className="flex flex-col"
-    >
-      {/* Header skeleton */}
+    <div className="min-h-dvh flex flex-col items-center justify-center gap-5 px-6 text-center" style={{ background: "#05050c" }}>
       <div
+        className="w-16 h-16 rounded-2xl flex items-center justify-center"
         style={{
-          background: "rgba(255,255,255,0.03)",
-          borderBottom: "1px solid rgba(168,85,247,0.15)",
-          padding: "12px 16px",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
+          background: "rgba(107,70,193,0.15)",
+          border: "1.5px solid rgba(168,85,247,0.35)",
         }}
       >
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 8,
-            background: "rgba(168,85,247,0.1)",
-            animation: "skeletonPulse 1.5s ease-in-out infinite",
-          }}
-        />
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div
-            style={{
-              width: 120,
-              height: 14,
-              borderRadius: 4,
-              background: "rgba(168,85,247,0.1)",
-              animation: "skeletonPulse 1.5s ease-in-out infinite",
-            }}
-          />
-          <div
-            style={{
-              width: 80,
-              height: 10,
-              borderRadius: 4,
-              background: "rgba(168,85,247,0.07)",
-              animation: "skeletonPulse 1.5s ease-in-out 0.2s infinite",
-            }}
-          />
-        </div>
+        <span style={{ fontSize: 24, color: "rgba(168,85,247,0.55)", fontFamily: "ui-monospace, monospace" }}>?</span>
       </div>
-      <style jsx global>{`
-        @keyframes skeletonPulse {
-          0%, 100% { opacity: 0.5; }
-          50% { opacity: 1; }
-        }
-      `}</style>
+      <div>
+        <p className="text-[13px] font-bold uppercase" style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.1em", color: "rgba(220,200,255,0.85)" }}>
+          No card to talk to
+        </p>
+        <p className="text-[11px] mt-1 max-w-[240px] mx-auto" style={{ fontFamily: "ui-monospace, monospace", color: "rgba(160,140,200,0.5)", lineHeight: 1.55 }}>
+          You need a minted card before you can have a conversation with it.
+        </p>
+      </div>
+      <Link
+        href="/mint"
+        className="inline-flex items-center gap-2 h-11 px-5 rounded-xl"
+        style={{
+          background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+          color: "white",
+          fontFamily: "ui-monospace, monospace",
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          boxShadow: "0 4px 20px rgba(123,79,212,0.4)",
+        }}
+      >
+        Mint a card
+        <ArrowUpRight size={13} />
+      </Link>
     </div>
   );
 }
 
-function NoCardState() {
+function LoadingState() {
   return (
-    <div
-      style={{
-        background: "#08080f",
-        minHeight: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 20,
-        padding: "24px",
-        textAlign: "center",
-      }}
-    >
-      <div
-        style={{
-          width: 72,
-          height: 72,
-          borderRadius: 20,
-          background: "rgba(107,70,193,0.12)",
-          border: "2px solid rgba(107,70,193,0.25)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 28,
-            lineHeight: 1,
-            fontFamily: "ui-monospace, monospace",
-            color: "rgba(168,85,247,0.4)",
-          }}
-        >
-          ?
-        </span>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <p
-          style={{
-            fontFamily: "ui-monospace, monospace",
-            fontSize: 14,
-            fontWeight: 700,
-            color: "rgba(220,200,255,0.8)",
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-          }}
-        >
-          No living card
-        </p>
-        <p
-          style={{
-            fontFamily: "ui-monospace, monospace",
-            fontSize: 11,
-            color: "rgba(160,140,200,0.4)",
-            letterSpacing: "0.04em",
-            maxWidth: 260,
-            lineHeight: 1.6,
-          }}
-        >
-          You have no living card to chat with. Go mint one.
-        </p>
-      </div>
-
-      <Link
-        href="/mint"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "11px 22px",
-          borderRadius: 12,
-          background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
-          border: "1px solid rgba(123,79,212,0.5)",
-          color: "white",
-          fontFamily: "ui-monospace, monospace",
-          fontSize: 12,
-          fontWeight: 700,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          textDecoration: "none",
-          boxShadow: "0 4px 20px rgba(123,79,212,0.35)",
-        }}
-      >
-        Mint a Card
-        <ArrowUpRight size={13} />
-      </Link>
+    <div className="min-h-dvh flex items-center justify-center" style={{ background: "#05050c" }}>
+      <div className="w-10 h-10 rounded-full" style={{ background: "rgba(168,85,247,0.2)", animation: "pulse 1.5s ease-in-out infinite" }} />
+      <style jsx>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.4; transform: scale(0.95); }
+          50% { opacity: 1; transform: scale(1.05); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -246,12 +122,13 @@ export default function CardChatPage() {
   const [streaming, setStreaming] = useState(false);
   const [openingPending, setOpeningPending] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const userScrolledUpRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // ── Fetch alive card ───────────────────────────────────────────────────────
+  // Turn = one user→card exchange. Cap at MAX_TURNS.
+  const turnsUsed = messages.filter((m) => m.role === "user").length;
+  const sessionEnded = turnsUsed >= MAX_TURNS;
+
+  // ── Fetch latest card ──────────────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -260,12 +137,9 @@ export default function CardChatPage() {
         setNoCard(true);
         return;
       }
-
       const { data } = await supabase
         .from("pixel_cards")
-        .select(
-          "id, card_title, nickname, pixel_card_url, build_archetype, car_snapshot, occasion, minted_at",
-        )
+        .select("id, card_title, nickname, pixel_card_url, build_archetype, car_snapshot, occasion, minted_at")
         .eq("user_id", user.id)
         .order("minted_at", { ascending: false })
         .limit(1)
@@ -276,13 +150,12 @@ export default function CardChatPage() {
         setNoCard(true);
         return;
       }
-
       setCard(data as LiveCard);
       setLoading(false);
     });
   }, []);
 
-  // ── Fetch opening line once card is loaded ─────────────────────────────────
+  // ── Opening line ───────────────────────────────────────────────────────────
   const fetchOpeningLine = useCallback(async (cardId: string) => {
     setOpeningPending(true);
     setMessages([{ role: "assistant", content: "" }]);
@@ -293,24 +166,13 @@ export default function CardChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cardId, history: [] }),
       });
-
       if (!res.ok || !res.body) {
-        const json = await res.json().catch(() => ({}));
-        setMessages([
-          {
-            role: "assistant",
-            content:
-              (json as { error?: string }).error ??
-              "Something went wrong loading the opening line.",
-          },
-        ]);
+        setMessages([{ role: "assistant", content: "…" }]);
         return;
       }
-
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -318,61 +180,21 @@ export default function CardChatPage() {
         setMessages([{ role: "assistant", content: fullText }]);
       }
     } catch {
-      setMessages([
-        { role: "assistant", content: "Connection error loading opening line." },
-      ]);
+      setMessages([{ role: "assistant", content: "…" }]);
     } finally {
       setOpeningPending(false);
     }
   }, []);
 
   useEffect(() => {
-    if (card) {
-      fetchOpeningLine(card.id);
-    }
+    if (card) fetchOpeningLine(card.id);
   }, [card, fetchOpeningLine]);
-
-  // ── Scroll tracking ────────────────────────────────────────────────────────
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      userScrolledUpRef.current = scrollHeight - (scrollTop + clientHeight) > 100;
-    };
-    container.addEventListener("scroll", handleScroll, { passive: true });
-    return () => container.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  // Auto-scroll on new messages
-  useEffect(() => {
-    if (userScrolledUpRef.current) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages]);
-
-  // ── Auto-grow textarea ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    const maxHeight = 22 * 3 + 28;
-    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
-  }, [input]);
 
   // ── Send a message ─────────────────────────────────────────────────────────
   async function sendMessage(text: string) {
-    if (!text.trim() || streaming || openingPending || !card) return;
+    if (!text.trim() || streaming || openingPending || !card || sessionEnded) return;
 
-    userScrolledUpRef.current = false;
-    requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    });
-
-    const cleanHistory: Message[] = messages.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-
+    const cleanHistory: Message[] = messages.map((m) => ({ role: m.role, content: m.content }));
     const userMsg: Message = { role: "user", content: text.trim() };
     const nextMessages = [...cleanHistory, userMsg];
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
@@ -386,424 +208,398 @@ export default function CardChatPage() {
         body: JSON.stringify({
           cardId: card.id,
           message: text.trim(),
-          history: cleanHistory.slice(-16).map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          history: cleanHistory.slice(-16),
         }),
       });
-
       if (!res.ok || !res.body) {
-        const json = await res.json().catch(() => ({}));
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          {
-            role: "assistant",
-            content:
-              (json as { error?: string }).error ??
-              "Something went wrong. Please try again.",
-          },
-        ]);
+        setMessages((prev) => [...prev.slice(0, -1), { role: "assistant", content: "…" }]);
         return;
       }
-
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         fullText += decoder.decode(value, { stream: true });
-        setMessages((prev) => [
-          ...prev.slice(0, -1),
-          { role: "assistant", content: fullText },
-        ]);
+        setMessages((prev) => [...prev.slice(0, -1), { role: "assistant", content: fullText }]);
       }
     } catch {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: "assistant", content: "Connection error. Please try again." },
-      ]);
+      setMessages((prev) => [...prev.slice(0, -1), { role: "assistant", content: "…" }]);
     } finally {
       setStreaming(false);
-      inputRef.current?.focus();
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
       e.preventDefault();
       sendMessage(input);
     }
   }
 
+  function resetSession() {
+    if (card) fetchOpeningLine(card.id);
+  }
+
   // ── Render states ──────────────────────────────────────────────────────────
 
-  if (loading) return <SkeletonLoader />;
+  if (loading) return <LoadingState />;
   if (noCard || !card) return <NoCardState />;
 
   const personality = resolvePersonality(card);
   const { year, make, model } = card.car_snapshot;
   const displayName = card.card_title || card.nickname;
-  const isWaiting = streaming || openingPending;
+  const isThinking = streaming || openingPending;
+  const lastAssistantMsg = [...messages].reverse().find((m) => m.role === "assistant");
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+  const bubbleText = lastAssistantMsg?.content ?? "";
 
   return (
     <div
-      style={{
-        background: "#08080f",
-        minHeight: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-      }}
+      className="min-h-dvh flex flex-col relative overflow-hidden"
+      style={{ background: "#05050c", color: "#f4f0ff" }}
     >
-      {/* ── Page header ──────────────────────────────────────────────────── */}
-      <header
+      {/* ── Ambient glow ── */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0"
         style={{
-          flexShrink: 0,
-          borderBottom: "1px solid rgba(168,85,247,0.15)",
-          background: "rgba(255,255,255,0.02)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          padding: "12px 16px",
+          backgroundImage: [
+            "radial-gradient(ellipse 80% 55% at 50% 30%, rgba(168,85,247,0.28) 0%, transparent 60%)",
+            "radial-gradient(ellipse 60% 40% at 30% 80%, rgba(91,33,182,0.18) 0%, transparent 60%)",
+          ].join(", "),
         }}
+      />
+
+      {/* ── Top strip: turn counter + reset ── */}
+      <header
+        className="relative z-10 flex items-center justify-between px-5 pt-5 pb-3"
+        style={{ flexShrink: 0 }}
       >
+        <div>
+          <p
+            className="text-[10px] font-bold uppercase"
+            style={{
+              fontFamily: "ui-monospace, monospace",
+              letterSpacing: "0.18em",
+              color: "rgba(200,180,240,0.55)",
+            }}
+          >
+            {personality}
+          </p>
+          <p
+            className="text-[9px] mt-0.5"
+            style={{
+              fontFamily: "ui-monospace, monospace",
+              letterSpacing: "0.12em",
+              color: "rgba(148,120,190,0.45)",
+            }}
+          >
+            {year} {make} {model}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Turn counter */}
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: MAX_TURNS }).map((_, i) => (
+              <span
+                key={i}
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: i < turnsUsed ? "rgba(168,85,247,0.9)" : "rgba(168,85,247,0.15)",
+                  boxShadow: i < turnsUsed ? "0 0 6px rgba(168,85,247,0.6)" : "none",
+                  transition: "background 300ms",
+                }}
+              />
+            ))}
+          </div>
+
+          {sessionEnded && (
+            <button
+              type="button"
+              onClick={resetSession}
+              aria-label="Start a new session"
+              className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg"
+              style={{
+                background: "rgba(168,85,247,0.15)",
+                border: "1px solid rgba(168,85,247,0.35)",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#e9d5ff",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              <RotateCcw size={11} />
+              New
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* ── Stage: speech bubble + card ── */}
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-5 pb-4">
+        {/* Speech bubble (above card) */}
         <div
+          className="relative mb-5 max-w-md w-full"
+          style={{ minHeight: 90 }}
+        >
+          <div
+            style={{
+              background: "rgba(15,12,30,0.75)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
+              border: "1.5px solid rgba(168,85,247,0.4)",
+              borderRadius: 18,
+              padding: "16px 20px",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.5), 0 0 24px rgba(168,85,247,0.2)",
+              animation: "bubbleFade 320ms ease both",
+              position: "relative",
+            }}
+          >
+            {isThinking && !bubbleText ? (
+              <div className="flex items-center gap-1.5 h-6">
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      background: "rgba(192,132,252,0.85)",
+                      animation: `dotPulse 1.2s ease-in-out ${i * 0.18}s infinite`,
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 15,
+                  lineHeight: 1.55,
+                  color: "rgba(240,230,255,0.96)",
+                  fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                  whiteSpace: "pre-wrap",
+                  minHeight: 24,
+                }}
+              >
+                {bubbleText}
+              </p>
+            )}
+
+            {/* Tail pointing down to card */}
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                bottom: -9,
+                left: "50%",
+                transform: "translateX(-50%) rotate(45deg)",
+                width: 16,
+                height: 16,
+                background: "rgba(15,12,30,0.75)",
+                borderRight: "1.5px solid rgba(168,85,247,0.4)",
+                borderBottom: "1.5px solid rgba(168,85,247,0.4)",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Card image — center, big, wiggles when speaking */}
+        <div
+          className="relative"
           style={{
-            maxWidth: 720,
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
+            width: 220,
+            height: 308,
+            animation: isThinking ? "cardWiggle 0.9s ease-in-out infinite" : "cardFloat 4s ease-in-out infinite",
           }}
         >
-          {/* Card image thumbnail */}
+          <div
+            aria-hidden
+            className="absolute -inset-8 pointer-events-none"
+            style={{
+              background: "radial-gradient(ellipse at center, rgba(168,85,247,0.45) 0%, transparent 65%)",
+              filter: "blur(30px)",
+            }}
+          />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={card.pixel_card_url}
             alt={displayName}
-            width={40}
-            height={40}
+            className="relative w-full h-full object-cover"
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 8,
-              objectFit: "cover",
-              border: "1px solid rgba(168,85,247,0.3)",
-              flexShrink: 0,
+              borderRadius: 14,
+              border: "2px solid rgba(245,215,110,0.55)",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.7), 0 0 32px rgba(168,85,247,0.35)",
               imageRendering: "pixelated",
             }}
           />
-
-          {/* Card name + personality + living dot */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                flexWrap: "wrap",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "ui-monospace, monospace",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: "rgba(220,200,255,0.95)",
-                  letterSpacing: "0.03em",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: 160,
-                }}
-              >
-                {displayName}
-              </span>
-
-              {/* Personality chip */}
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "2px 8px",
-                  borderRadius: 999,
-                  background: "rgba(107,70,193,0.25)",
-                  border: "1px solid rgba(168,85,247,0.3)",
-                  fontFamily: "ui-monospace, monospace",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "rgba(192,132,252,0.9)",
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {personality}
-              </span>
-
-              {/* Living dot */}
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  fontFamily: "ui-monospace, monospace",
-                  fontSize: 10,
-                  color: "rgba(74,222,128,0.8)",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: "#4ade80",
-                    boxShadow: "0 0 6px rgba(74,222,128,0.7)",
-                    display: "inline-block",
-                  }}
-                />
-                Living
-              </span>
-            </div>
-
-            <p
-              style={{
-                fontFamily: "ui-monospace, monospace",
-                fontSize: 10,
-                color: "rgba(148,120,190,0.55)",
-                marginTop: 2,
-                letterSpacing: "0.04em",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {year} {make} {model}
-            </p>
-          </div>
         </div>
-      </header>
 
-      {/* ── Messages area ────────────────────────────────────────────────── */}
-      <div
-        ref={messagesContainerRef}
-        style={{ flex: 1, overflowY: "auto", overscrollBehavior: "contain" }}
-      >
-        <div
+        {/* Card name under the image */}
+        <p
+          className="mt-4 text-[11px] font-bold uppercase"
           style={{
-            maxWidth: 720,
-            margin: "0 auto",
-            padding: "24px 16px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
+            fontFamily: "ui-monospace, monospace",
+            letterSpacing: "0.18em",
+            color: "rgba(220,200,255,0.75)",
           }}
         >
-          {messages.map((msg, i) => {
-            const isUser = msg.role === "user";
-            const isLast = i === messages.length - 1;
-            const showTyping = !isUser && isLast && isWaiting && !msg.content;
+          {displayName}
+        </p>
 
-            return (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  justifyContent: isUser ? "flex-end" : "flex-start",
-                }}
-              >
-                {/* Card avatar — shown left of card messages */}
-                {!isUser && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={card.pixel_card_url}
-                    alt=""
-                    aria-hidden="true"
-                    width={28}
-                    height={28}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 6,
-                      objectFit: "cover",
-                      border: "1px solid rgba(168,85,247,0.2)",
-                      flexShrink: 0,
-                      marginRight: 8,
-                      imageRendering: "pixelated",
-                      alignSelf: "flex-end",
-                      marginBottom: 2,
-                    }}
-                  />
-                )}
-
-                <div
-                  style={{
-                    maxWidth: "75%",
-                    padding: "10px 14px",
-                    borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                    background: isUser
-                      ? "rgba(168,85,247,0.5)"
-                      : "rgba(107,70,193,0.3)",
-                    border: `1px solid ${
-                      isUser
-                        ? "rgba(168,85,247,0.4)"
-                        : "rgba(168,85,247,0.3)"
-                    }`,
-                    color: "rgba(240,230,255,0.95)",
-                    fontSize: 14,
-                    lineHeight: 1.55,
-                    fontFamily:
-                      "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                    wordBreak: "break-word",
-                    // Subtle fade-in
-                    animation: "msgFadeIn 200ms ease both",
-                  }}
-                >
-                  {showTyping ? (
-                    <TypingIndicator />
-                  ) : (
-                    <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>
-                      {msg.content}
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {/* ── Input bar ────────────────────────────────────────────────────── */}
-      <footer
-        style={{
-          flexShrink: 0,
-          borderTop: "1px solid rgba(168,85,247,0.15)",
-          background: "rgba(255,255,255,0.02)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
-          padding: "12px 16px",
-          paddingBottom: "max(12px, env(safe-area-inset-bottom))",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 720,
-            margin: "0 auto",
-            display: "flex",
-            alignItems: "flex-end",
-            gap: 8,
-          }}
-        >
-          {/* Textarea */}
-          <div
+        {/* Last user message receipt */}
+        {lastUserMsg && (
+          <p
+            className="mt-2 text-[10px] italic max-w-[280px] text-center"
             style={{
-              flex: 1,
-              borderRadius: 16,
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(168,85,247,0.2)",
-              transition: "border-color 150ms",
-            }}
-            onFocus={(e) => {
-              (e.currentTarget as HTMLDivElement).style.borderColor =
-                "rgba(168,85,247,0.5)";
-            }}
-            onBlur={(e) => {
-              (e.currentTarget as HTMLDivElement).style.borderColor =
-                "rgba(168,85,247,0.2)";
+              fontFamily: "ui-monospace, monospace",
+              color: "rgba(168,85,247,0.55)",
+              letterSpacing: "0.04em",
             }}
           >
-            <textarea
+            you: &ldquo;{lastUserMsg.content}&rdquo;
+          </p>
+        )}
+      </main>
+
+      {/* ── Input bar ── */}
+      <footer
+        className="relative z-10 px-5"
+        style={{
+          flexShrink: 0,
+          paddingBottom: "max(20px, env(safe-area-inset-bottom))",
+          paddingTop: 12,
+        }}
+      >
+        {sessionEnded ? (
+          <div className="max-w-md mx-auto text-center">
+            <p
+              className="text-[11px] font-bold uppercase mb-3"
+              style={{
+                fontFamily: "ui-monospace, monospace",
+                letterSpacing: "0.14em",
+                color: "rgba(200,180,240,0.55)",
+              }}
+            >
+              Session ended · {MAX_TURNS} turns
+            </p>
+            <button
+              type="button"
+              onClick={resetSession}
+              className="inline-flex items-center gap-2 h-12 px-6 rounded-xl"
+              style={{
+                background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
+                color: "white",
+                fontFamily: "ui-monospace, monospace",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                boxShadow: "0 6px 24px rgba(123,79,212,0.45)",
+              }}
+            >
+              <RotateCcw size={13} />
+              Start new session
+            </button>
+          </div>
+        ) : (
+          <div
+            className="max-w-md mx-auto flex items-center gap-2"
+            style={{
+              background: "rgba(15,12,30,0.72)",
+              border: "1.5px solid rgba(168,85,247,0.3)",
+              borderRadius: 16,
+              padding: "6px 6px 6px 16px",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+            }}
+          >
+            <input
               ref={inputRef}
+              type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={
-                isWaiting
-                  ? `${displayName} is thinking...`
-                  : `Say something to ${displayName}...`
-              }
-              rows={1}
-              disabled={isWaiting}
+              disabled={isThinking}
               aria-label="Message"
+              placeholder={isThinking ? "thinking…" : "say something…"}
               style={{
-                width: "100%",
-                resize: "none",
+                flex: 1,
                 background: "transparent",
                 border: "none",
                 outline: "none",
-                padding: "12px 16px",
                 color: "rgba(230,215,255,0.95)",
                 fontSize: 14,
-                lineHeight: 1.5,
-                fontFamily:
-                  "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                minHeight: 48,
-                maxHeight: 100,
-                display: "block",
-                opacity: isWaiting ? 0.5 : 1,
+                padding: "8px 0",
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+                opacity: isThinking ? 0.4 : 1,
               }}
             />
-          </div>
-
-          {/* Send button */}
-          <button
-            type="button"
-            onClick={() => sendMessage(input)}
-            disabled={!input.trim() || isWaiting}
-            aria-label="Send message"
-            style={{
-              width: 48,
-              height: 48,
-              minWidth: 48,
-              minHeight: 48,
-              borderRadius: 14,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: input.trim() && !isWaiting ? "pointer" : "default",
-              flexShrink: 0,
-              background:
-                input.trim() && !isWaiting
-                  ? "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)"
-                  : "rgba(255,255,255,0.05)",
-              border: input.trim() && !isWaiting
-                ? "1px solid rgba(123,79,212,0.5)"
-                : "1px solid rgba(168,85,247,0.15)",
-              opacity: !input.trim() || isWaiting ? 0.4 : 1,
-              transition: "background 150ms, opacity 150ms",
-              boxShadow:
-                input.trim() && !isWaiting
-                  ? "0 2px 12px rgba(123,79,212,0.4)"
-                  : "none",
-            }}
-          >
-            <Send
-              size={15}
+            <button
+              type="button"
+              onClick={() => sendMessage(input)}
+              disabled={!input.trim() || isThinking}
+              aria-label="Send"
+              className="flex items-center justify-center flex-shrink-0"
               style={{
-                color:
-                  input.trim() && !isWaiting
-                    ? "white"
-                    : "rgba(168,85,247,0.5)",
+                width: 38,
+                height: 38,
+                borderRadius: 12,
+                background:
+                  input.trim() && !isThinking
+                    ? "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)"
+                    : "rgba(168,85,247,0.1)",
+                border:
+                  input.trim() && !isThinking
+                    ? "1px solid rgba(123,79,212,0.5)"
+                    : "1px solid rgba(168,85,247,0.15)",
+                opacity: !input.trim() || isThinking ? 0.5 : 1,
+                cursor: input.trim() && !isThinking ? "pointer" : "default",
+                transition: "opacity 150ms, background 150ms",
+                boxShadow:
+                  input.trim() && !isThinking
+                    ? "0 2px 14px rgba(123,79,212,0.4)"
+                    : "none",
               }}
-            />
-          </button>
-        </div>
+            >
+              <Send size={14} style={{ color: input.trim() && !isThinking ? "white" : "rgba(168,85,247,0.5)" }} />
+            </button>
+          </div>
+        )}
       </footer>
 
-      {/* ── Global keyframe styles ────────────────────────────────────────── */}
       <style jsx global>{`
-        @keyframes msgFadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(6px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
+        @keyframes bubbleFade {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes dotPulse {
+          0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+          30% { opacity: 1; transform: translateY(-4px); }
+        }
+        @keyframes cardFloat {
+          0%, 100% { transform: translateY(0) rotate(0deg); }
+          50% { transform: translateY(-6px) rotate(-0.5deg); }
+        }
+        @keyframes cardWiggle {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          15% { transform: translate(-1.5px, -1px) rotate(-0.8deg); }
+          35% { transform: translate(2px, 1px) rotate(0.6deg); }
+          55% { transform: translate(-1px, -2px) rotate(-0.4deg); }
+          75% { transform: translate(1.5px, 0) rotate(0.5deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          * {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
           }
         }
       `}</style>
