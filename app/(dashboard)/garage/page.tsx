@@ -3,7 +3,6 @@ import { Wrench, Ghost, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { GarageHero } from "@/components/garage/garage-hero";
-import { CarSwitcher } from "@/components/garage/car-switcher";
 import { PageContainer } from "@/components/ui/page-container";
 import type { Car as CarType } from "@/lib/supabase/types";
 
@@ -15,22 +14,22 @@ export default async function GaragePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Single-car only. If a legacy account has more than one car, we silently
+  // pick the primary (or oldest) and ignore the rest — no UI for switching,
+  // no UI for adding a second car. The extra rows stay in the database
+  // untouched so we never destroy user data.
   const { data: carsRaw } = await supabase
     .from("cars")
     .select("*")
     .eq("user_id", user!.id)
     .order("created_at", { ascending: false });
-  const cars = ((carsRaw ?? []) as CarType[]).sort((a, b) => {
-    if (a.is_primary && !b.is_primary) return -1;
-    if (!a.is_primary && b.is_primary) return 1;
-    return 0;
-  });
+  const allCars = (carsRaw ?? []) as CarType[];
 
-  if (cars.length === 0) {
+  if (allCars.length === 0) {
     return <OnboardingFlow />;
   }
 
-  const primaryCar = cars.find((c) => c.is_primary) ?? cars[0];
+  const primaryCar = allCars.find((c) => c.is_primary) ?? allCars[0];
 
   // Latest render for the primary car (cinematic background)
   const { data: renderRaw } = await supabase
@@ -54,7 +53,7 @@ export default async function GaragePage() {
       {/* ── Cinematic hero ── */}
       <GarageHero
         car={primaryCar}
-        isPrimary={!!cars.find((c) => c.is_primary)}
+        isPrimary={true}
         latestRenderUrl={latestRenderUrl}
       />
 
@@ -99,9 +98,6 @@ export default async function GaragePage() {
             </Link>
           </div>
         </section>
-
-        {/* ── Car switcher (only visible when user has multiple cars) ── */}
-        <CarSwitcher cars={cars} />
 
       </PageContainer>
     </div>

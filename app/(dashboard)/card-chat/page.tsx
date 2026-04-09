@@ -55,7 +55,7 @@ function resolvePersonality(card: LiveCard): string {
 
 // ── Empty / loading states ───────────────────────────────────────────────────
 
-function NoCardState() {
+function NoCardState({ reason }: { reason?: string | null }) {
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center gap-5 px-6 text-center" style={{ background: "#05050c" }}>
       <div
@@ -71,10 +71,24 @@ function NoCardState() {
         <p className="text-[13px] font-bold uppercase" style={{ fontFamily: "ui-monospace, monospace", letterSpacing: "0.1em", color: "rgba(220,200,255,0.85)" }}>
           No card to talk to
         </p>
-        <p className="text-[11px] mt-1 max-w-[240px] mx-auto" style={{ fontFamily: "ui-monospace, monospace", color: "rgba(160,140,200,0.5)", lineHeight: 1.55 }}>
-          You need a minted card before you can have a conversation with it.
+        <p className="text-[11px] mt-1 max-w-[280px] mx-auto" style={{ fontFamily: "ui-monospace, monospace", color: "rgba(160,140,200,0.5)", lineHeight: 1.55 }}>
+          {reason ?? "You need a minted card before you can have a conversation with it."}
         </p>
       </div>
+      {reason && (
+        <p className="text-[10px] max-w-[320px] mx-auto" style={{
+          fontFamily: "ui-monospace, monospace",
+          color: "rgba(255,120,120,0.55)",
+          letterSpacing: "0.04em",
+          lineHeight: 1.5,
+          padding: "10px 14px",
+          borderRadius: 10,
+          background: "rgba(180,40,40,0.08)",
+          border: "1px solid rgba(180,40,40,0.2)",
+        }}>
+          Tap your card title in the home screen — if it shows up there, this is a bug. Ping the dev with the message above.
+        </p>
+      )}
       <Link
         href="/mint"
         className="inline-flex items-center gap-2 h-11 px-5 rounded-xl"
@@ -116,6 +130,8 @@ export default function CardChatPage() {
   const [card, setCard] = useState<LiveCard | null>(null);
   const [loading, setLoading] = useState(true);
   const [noCard, setNoCard] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -134,12 +150,14 @@ export default function CardChatPage() {
     supabase.auth.getUser().then(async ({ data: { user }, error: userErr }) => {
       if (userErr) {
         console.error("[card-chat] auth error:", userErr.message);
+        setFetchError(`Auth error: ${userErr.message}`);
         setLoading(false);
         setNoCard(true);
         return;
       }
       if (!user) {
         console.warn("[card-chat] no user");
+        setFetchError("Not logged in");
         setLoading(false);
         setNoCard(true);
         return;
@@ -158,12 +176,14 @@ export default function CardChatPage() {
 
       if (queryErr) {
         console.error("[card-chat] query error:", queryErr.message, queryErr);
+        setFetchError(`Database error: ${queryErr.message}`);
         setLoading(false);
         setNoCard(true);
         return;
       }
       if (!data) {
         console.warn("[card-chat] user has no cards");
+        setFetchError("You haven't minted any cards yet.");
         setLoading(false);
         setNoCard(true);
         return;
@@ -176,6 +196,7 @@ export default function CardChatPage() {
   // ── Opening line ───────────────────────────────────────────────────────────
   const fetchOpeningLine = useCallback(async (cardId: string) => {
     setOpeningPending(true);
+    setChatError(null);
     setMessages([{ role: "assistant", content: "" }]);
 
     try {
@@ -184,8 +205,29 @@ export default function CardChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cardId, history: [] }),
       });
-      if (!res.ok || !res.body) {
-        setMessages([{ role: "assistant", content: "…" }]);
+      if (!res.ok) {
+        // Try to read the error JSON so the user can see WHAT went wrong.
+        let errorMsg = `HTTP ${res.status}`;
+        try {
+          const text = await res.text();
+          // If the body is JSON, parse it; otherwise show the raw text
+          try {
+            const json = JSON.parse(text);
+            errorMsg = json.error ?? text ?? errorMsg;
+          } catch {
+            if (text) errorMsg = text;
+          }
+        } catch {
+          /* ignore */
+        }
+        console.error("[card-chat] opening line failed:", res.status, errorMsg);
+        setChatError(`Couldn't reach your card: ${errorMsg}`);
+        setMessages([]);
+        return;
+      }
+      if (!res.body) {
+        setChatError("No response body from server.");
+        setMessages([]);
         return;
       }
       const reader = res.body.getReader();
@@ -197,8 +239,14 @@ export default function CardChatPage() {
         fullText += decoder.decode(value, { stream: true });
         setMessages([{ role: "assistant", content: fullText }]);
       }
-    } catch {
-      setMessages([{ role: "assistant", content: "…" }]);
+      if (!fullText.trim()) {
+        setChatError("Your card returned an empty message. Try refreshing.");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown network error";
+      console.error("[card-chat] opening line exception:", err);
+      setChatError(`Network error: ${msg}`);
+      setMessages([]);
     } finally {
       setOpeningPending(false);
     }
@@ -218,6 +266,7 @@ export default function CardChatPage() {
     setMessages([...nextMessages, { role: "assistant", content: "" }]);
     setInput("");
     setStreaming(true);
+    setChatError(null);
 
     try {
       const res = await fetch("/api/card-chat", {
@@ -229,8 +278,28 @@ export default function CardChatPage() {
           history: cleanHistory.slice(-16),
         }),
       });
-      if (!res.ok || !res.body) {
-        setMessages((prev) => [...prev.slice(0, -1), { role: "assistant", content: "…" }]);
+      if (!res.ok) {
+        let errorMsg = `HTTP ${res.status}`;
+        try {
+          const text = await res.text();
+          try {
+            const json = JSON.parse(text);
+            errorMsg = json.error ?? text ?? errorMsg;
+          } catch {
+            if (text) errorMsg = text;
+          }
+        } catch {
+          /* ignore */
+        }
+        console.error("[card-chat] send failed:", res.status, errorMsg);
+        setChatError(`Couldn't send: ${errorMsg}`);
+        // Remove the empty assistant placeholder
+        setMessages(nextMessages);
+        return;
+      }
+      if (!res.body) {
+        setChatError("No response body from server.");
+        setMessages(nextMessages);
         return;
       }
       const reader = res.body.getReader();
@@ -242,8 +311,15 @@ export default function CardChatPage() {
         fullText += decoder.decode(value, { stream: true });
         setMessages((prev) => [...prev.slice(0, -1), { role: "assistant", content: fullText }]);
       }
-    } catch {
-      setMessages((prev) => [...prev.slice(0, -1), { role: "assistant", content: "…" }]);
+      if (!fullText.trim()) {
+        setChatError("Your card returned an empty response.");
+        setMessages(nextMessages);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown network error";
+      console.error("[card-chat] send exception:", err);
+      setChatError(`Network error: ${msg}`);
+      setMessages(nextMessages);
     } finally {
       setStreaming(false);
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -264,7 +340,7 @@ export default function CardChatPage() {
   // ── Render states ──────────────────────────────────────────────────────────
 
   if (loading) return <LoadingState />;
-  if (noCard || !card) return <NoCardState />;
+  if (noCard || !card) return <NoCardState reason={fetchError} />;
 
   const personality = resolvePersonality(card);
   const { year, make, model } = card.car_snapshot;
@@ -360,6 +436,48 @@ export default function CardChatPage() {
           )}
         </div>
       </header>
+
+      {/* ── Visible chat error banner ── */}
+      {chatError && (
+        <div
+          role="alert"
+          className="relative z-10 mx-5 mb-2"
+          style={{
+            padding: "10px 14px",
+            borderRadius: 12,
+            background: "rgba(180,40,40,0.12)",
+            border: "1px solid rgba(220,80,80,0.4)",
+            color: "#fca5a5",
+            fontFamily: "ui-monospace, monospace",
+            fontSize: 11,
+            lineHeight: 1.55,
+            letterSpacing: "0.02em",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+          }}
+        >
+          <span style={{ flexShrink: 0, fontWeight: 900 }}>!</span>
+          <span style={{ flex: 1 }}>{chatError}</span>
+          <button
+            type="button"
+            onClick={() => setChatError(null)}
+            aria-label="Dismiss"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "rgba(252,165,165,0.6)",
+              fontSize: 14,
+              fontWeight: 900,
+              cursor: "pointer",
+              padding: 0,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* ── Stage: speech bubble + card ── */}
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-5 pb-4">

@@ -87,7 +87,7 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="min-h-dvh animate-fade relative overflow-hidden">
+    <div className="min-h-dvh animate-fade relative overflow-hidden flex flex-col">
       {/* Ambient nebula */}
       <div
         aria-hidden
@@ -101,10 +101,13 @@ export default async function HomePage() {
         }}
       />
 
-      <PageContainer maxWidth="5xl" className="relative z-10 pt-10 pb-24">
+      <PageContainer
+        maxWidth="6xl"
+        className="relative z-10 flex-1 flex flex-col justify-center pt-4 pb-6"
+      >
         {/* Tiny welcome line */}
         <p
-          className="text-center mb-8 text-[10px] font-bold uppercase"
+          className="text-center mb-3 text-[10px] font-bold uppercase"
           style={{
             fontFamily: "ui-monospace, monospace",
             letterSpacing: "0.22em",
@@ -114,13 +117,13 @@ export default async function HomePage() {
           {username}&apos;s vault · {primaryCarLabel}
         </p>
 
-        {/* ── The card (hero) + detail panel ── */}
-        <section className="mb-14">
+        {/* ── Hero: card + detail panel side-by-side ── */}
+        <section className="mb-5">
           {latestCard ? (
-            <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 lg:gap-12">
+            <div className="flex flex-col lg:flex-row items-center lg:items-center justify-center gap-5 lg:gap-8">
               {/* Card on the left */}
               <div className="flex-shrink-0">
-                <HeroCardViewer card={latestCard} carLabel={primaryCarLabel!} scale={1.1} />
+                <HeroCardViewer card={latestCard} carLabel={primaryCarLabel!} scale={0.92} />
               </div>
 
               {/* Detail panel on the right */}
@@ -136,7 +139,7 @@ export default async function HomePage() {
                 className="flex flex-col items-center justify-center gap-4 text-center"
                 style={{
                   width: 300,
-                  height: 420,
+                  height: 360,
                   borderRadius: 18,
                   background: "linear-gradient(158deg, rgba(123,79,212,0.10) 0%, rgba(168,85,247,0.05) 100%)",
                   border: "1.5px dashed rgba(168,85,247,0.35)",
@@ -173,54 +176,47 @@ export default async function HomePage() {
           )}
         </section>
 
-        {/* ── Quick actions: 4 cards, card-first order ── */}
+        {/* ── Quick actions: 4 compact tiles ── */}
         <section>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl mx-auto">
+          <div className="grid grid-cols-4 gap-2 max-w-2xl mx-auto">
             {[
               {
                 href: "/mint",
                 icon: Sparkles,
                 label: "Mint",
-                hint: "New card",
                 tint: "rgba(168,85,247,0.85)",
               },
               {
                 href: "/cards",
                 icon: GalleryHorizontal,
                 label: "Ghosts",
-                hint: `${totalCards} ${totalCards === 1 ? "card" : "cards"}`,
                 tint: "#fbbf24",
               },
               {
                 href: "/card-chat",
                 icon: MessageSquare,
                 label: "Talk",
-                hint: "To your card",
                 tint: "#c4b5fd",
               },
               {
                 href: "/garage",
                 icon: Car,
                 label: "Garage",
-                hint: `${cars.length} ${cars.length === 1 ? "car" : "cars"}`,
                 tint: "rgba(200,180,240,0.85)",
               },
-            ].map(({ href, icon: Icon, label, hint, tint }) => (
+            ].map(({ href, icon: Icon, label, tint }) => (
               <Link
                 key={href}
                 href={href}
-                className="rounded-2xl p-4 flex flex-col items-start gap-2 card-hover group"
+                className="rounded-xl py-2.5 px-3 flex items-center gap-2 card-hover group"
                 style={{
                   background: "rgba(15,12,30,0.55)",
                   border: "1px solid rgba(168,85,247,0.18)",
                   backdropFilter: "blur(8px)",
                 }}
               >
-                <Icon size={18} style={{ color: tint }} />
-                <div>
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">{label}</p>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">{hint}</p>
-                </div>
+                <Icon size={15} style={{ color: tint, flexShrink: 0 }} />
+                <p className="text-xs font-bold text-[var(--color-text-primary)] truncate">{label}</p>
               </Link>
             ))}
           </div>
@@ -267,12 +263,12 @@ function CardDetailPanel({
 
   return (
     <div
-      className="w-full lg:max-w-md flex flex-col gap-5"
+      className="w-full lg:max-w-sm flex flex-col gap-3"
       style={{
         background: "linear-gradient(160deg, rgba(15,12,30,0.85) 0%, rgba(20,14,38,0.6) 100%)",
         border: "1px solid rgba(168,85,247,0.22)",
-        borderRadius: 20,
-        padding: "26px 24px",
+        borderRadius: 18,
+        padding: "18px 18px",
         backdropFilter: "blur(14px)",
         boxShadow: "0 20px 60px rgba(0,0,0,0.4), 0 0 30px rgba(123,79,212,0.08)",
       }}
@@ -288,7 +284,7 @@ function CardDetailPanel({
             textTransform: "uppercase",
             color: "rgba(168,85,247,0.55)",
             margin: 0,
-            marginBottom: 6,
+            marginBottom: 4,
           }}
         >
           Your living card
@@ -296,7 +292,7 @@ function CardDetailPanel({
         <h2
           style={{
             margin: 0,
-            fontSize: 26,
+            fontSize: 22,
             fontWeight: 900,
             lineHeight: 1.1,
             color: "#f3eaff",
@@ -305,32 +301,21 @@ function CardDetailPanel({
         >
           {title}
         </h2>
-        <p
-          style={{
-            margin: "4px 0 0",
-            fontSize: 12,
-            color: "rgba(200,180,240,0.55)",
-            fontFamily: "ui-monospace, monospace",
-            letterSpacing: "0.04em",
-          }}
-        >
-          {carLabel}
-        </p>
       </div>
 
-      {/* Badge row: personality + era + rarity + level */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      {/* Badge row: personality + era + rarity */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
         {detail.personality && (
           <span
             style={{
-              fontSize: 10,
+              fontSize: 9,
               fontWeight: 800,
-              padding: "4px 10px",
+              padding: "3px 8px",
               borderRadius: 999,
               background: "rgba(168,85,247,0.18)",
               border: "1px solid rgba(168,85,247,0.42)",
               color: "#e9d5ff",
-              letterSpacing: "0.08em",
+              letterSpacing: "0.06em",
               fontFamily: "ui-monospace, monospace",
               textTransform: "uppercase" as const,
             }}
@@ -338,34 +323,16 @@ function CardDetailPanel({
             {detail.personality}
           </span>
         )}
-        {detail.build_archetype && (
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 800,
-              padding: "4px 10px",
-              borderRadius: 999,
-              background: "rgba(96,165,250,0.13)",
-              border: "1px solid rgba(96,165,250,0.35)",
-              color: "#93c5fd",
-              letterSpacing: "0.08em",
-              fontFamily: "ui-monospace, monospace",
-              textTransform: "uppercase" as const,
-            }}
-          >
-            {detail.build_archetype}
-          </span>
-        )}
         <span
           style={{
-            fontSize: 10,
+            fontSize: 9,
             fontWeight: 800,
-            padding: "4px 10px",
+            padding: "3px 8px",
             borderRadius: 999,
             background: "rgba(245,215,110,0.10)",
             border: "1px solid rgba(245,215,110,0.32)",
             color: "#f5d76e",
-            letterSpacing: "0.08em",
+            letterSpacing: "0.06em",
             fontFamily: "ui-monospace, monospace",
             textTransform: "uppercase" as const,
           }}
@@ -374,14 +341,14 @@ function CardDetailPanel({
         </span>
         <span
           style={{
-            fontSize: 10,
+            fontSize: 9,
             fontWeight: 800,
-            padding: "4px 10px",
+            padding: "3px 8px",
             borderRadius: 999,
             background: "rgba(48,209,88,0.10)",
             border: "1px solid rgba(48,209,88,0.32)",
             color: "#30d158",
-            letterSpacing: "0.08em",
+            letterSpacing: "0.06em",
             fontFamily: "ui-monospace, monospace",
             textTransform: "uppercase" as const,
           }}
@@ -390,92 +357,49 @@ function CardDetailPanel({
         </span>
       </div>
 
-      {/* Quick stat grid */}
+      {/* Compact 4-stat row */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: 10,
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 6,
         }}
       >
+        <StatTile icon={<Zap size={10} />} label="HP" value={detail.hp != null ? String(detail.hp) : "—"} />
+        <StatTile icon={<Wrench size={10} />} label="Mods" value={detail.mod_count != null ? String(detail.mod_count) : "—"} />
         <StatTile
-          icon={<Zap size={12} />}
-          label="HP"
-          value={detail.hp != null ? String(detail.hp) : "—"}
+          icon={<DollarSign size={10} />}
+          label="Spent"
+          value={snap?.total_invested != null ? `$${(snap.total_invested / 1000).toFixed(0)}k` : "—"}
         />
         <StatTile
-          icon={<Wrench size={12} />}
-          label="Mods"
-          value={detail.mod_count != null ? String(detail.mod_count) : "—"}
-        />
-        <StatTile
-          icon={<DollarSign size={12} />}
-          label="Invested"
-          value={
-            snap?.total_invested != null
-              ? `$${snap.total_invested.toLocaleString()}`
-              : "—"
-          }
-        />
-        <StatTile
-          icon={<Gauge size={12} />}
-          label="Build Score"
+          icon={<Gauge size={10} />}
+          label="Score"
           value={snap?.build_score != null ? String(snap.build_score) : "—"}
         />
       </div>
 
       {/* Flavor text */}
       {detail.flavor_text && (
-        <div
+        <p
           style={{
-            padding: "12px 14px",
-            borderRadius: 12,
+            margin: 0,
+            fontSize: 12,
+            fontStyle: "italic",
+            lineHeight: 1.5,
+            color: "rgba(220,205,255,0.78)",
+            padding: "8px 12px",
+            borderRadius: 10,
             background: "rgba(123,79,212,0.08)",
             border: "1px solid rgba(123,79,212,0.18)",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical" as const,
+            overflow: "hidden",
           }}
         >
-          <p
-            style={{
-              margin: 0,
-              fontSize: 13,
-              fontStyle: "italic",
-              lineHeight: 1.6,
-              color: "rgba(220,205,255,0.85)",
-            }}
-          >
-            &ldquo;{detail.flavor_text}&rdquo;
-          </p>
-        </div>
-      )}
-
-      {/* Occasion */}
-      {detail.occasion && (
-        <div>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 9,
-              fontWeight: 800,
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              color: "rgba(200,180,240,0.45)",
-              fontFamily: "ui-monospace, monospace",
-              marginBottom: 4,
-            }}
-          >
-            First Memory
-          </p>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 13,
-              color: "rgba(220,200,255,0.75)",
-              lineHeight: 1.5,
-            }}
-          >
-            {detail.occasion}
-          </p>
-        </div>
+          &ldquo;{detail.flavor_text}&rdquo;
+        </p>
       )}
 
       {/* Footer: mint date + counter */}
@@ -484,18 +408,16 @@ function CardDetailPanel({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          paddingTop: 14,
-          borderTop: "1px solid rgba(168,85,247,0.12)",
           fontFamily: "ui-monospace, monospace",
-          fontSize: 9,
-          color: "rgba(200,180,240,0.5)",
+          fontSize: 8,
+          color: "rgba(200,180,240,0.45)",
           letterSpacing: "0.08em",
           textTransform: "uppercase",
         }}
       >
         {mintDate && <span>Born {mintDate}</span>}
         <span>
-          {totalCards} {totalCards === 1 ? "card" : "cards"} minted
+          {totalCards} {totalCards === 1 ? "card" : "cards"}
         </span>
       </div>
 
@@ -504,18 +426,18 @@ function CardDetailPanel({
         href="/card-chat"
         className="flex items-center justify-center gap-2 rounded-xl"
         style={{
-          height: 52,
+          height: 44,
           background: "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
           color: "white",
           fontFamily: "ui-monospace, monospace",
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 800,
           letterSpacing: "0.14em",
           textTransform: "uppercase",
-          boxShadow: "0 8px 28px rgba(168,85,247,0.35)",
+          boxShadow: "0 6px 22px rgba(168,85,247,0.35)",
         }}
       >
-        <MessageSquare size={14} />
+        <MessageSquare size={13} />
         Talk to your card
       </Link>
     </div>
@@ -536,27 +458,28 @@ function StatTile({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 4,
-        padding: "10px 12px",
-        borderRadius: 12,
+        gap: 2,
+        padding: "7px 8px",
+        borderRadius: 9,
         background: "rgba(255,255,255,0.03)",
         border: "1px solid rgba(168,85,247,0.14)",
+        minWidth: 0,
       }}
     >
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 5,
+          gap: 3,
           color: "rgba(200,180,240,0.5)",
         }}
       >
         {icon}
         <span
           style={{
-            fontSize: 9,
+            fontSize: 8,
             fontWeight: 800,
-            letterSpacing: "0.12em",
+            letterSpacing: "0.1em",
             textTransform: "uppercase",
             fontFamily: "ui-monospace, monospace",
           }}
@@ -567,11 +490,14 @@ function StatTile({
       <p
         style={{
           margin: 0,
-          fontSize: 18,
+          fontSize: 14,
           fontWeight: 900,
           color: "rgba(240,232,255,0.95)",
           fontFamily: "ui-monospace, monospace",
           letterSpacing: "-0.01em",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
       >
         {value}
