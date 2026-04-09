@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Flame, Ghost } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { Flame, Ghost, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { PixelCard } from "@/components/garage/pixel-card";
-import { CardCollection } from "@/components/garage/card-collection";
 import { TradingCard } from "@/components/garage/trading-card";
 import type { MintedCard } from "@/lib/pixel-card";
 
@@ -50,8 +49,6 @@ interface MintStudioProps {
   /** When set (after a burn), skip car selection and go straight to this car */
   autoMintCarId?: string | null;
   onInitiateBurn: () => void;
-  /** Skip the burn ceremony — quietly retire the card and go straight to minting */
-  onSkipCeremony: () => void;
   /** Previously burned cards to show in the ghost archive */
   ghostCards?: GhostCardInfo[];
 }
@@ -139,14 +136,15 @@ function AliveCardPreview({ card }: AliveCardPreviewProps) {
           idle={false}
           interactive
         />
-        {/* Alive badge */}
+        {/* Alive badge — lives ON the card face at the footer */}
         <div
           aria-hidden="true"
           style={{
             position: "absolute",
-            bottom: -12,
+            bottom: 14,
             left: "50%",
             transform: "translateX(-50%)",
+            zIndex: 2,
             display: "flex",
             alignItems: "center",
             gap: 6,
@@ -195,7 +193,6 @@ interface AliveWithBurnProps {
   onBurnClick: () => void;
   onBurnCancel: () => void;
   onBurnConfirm: () => void;
-  onSkipCeremony: () => void;
 }
 
 function AliveWithBurn({
@@ -204,7 +201,6 @@ function AliveWithBurn({
   onBurnClick,
   onBurnCancel,
   onBurnConfirm,
-  onSkipCeremony,
 }: AliveWithBurnProps) {
   return (
     <div
@@ -267,45 +263,6 @@ function AliveWithBurn({
             }}
           >
             This is permanent. Your card&rsquo;s last words will be spoken.
-          </p>
-
-          {/* Divider */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", marginTop: 4 }}>
-            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
-            <span style={{ fontSize: 10, color: "rgba(200,190,255,0.2)", letterSpacing: "0.08em", fontFamily: "ui-monospace, monospace" }}>or</span>
-            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
-          </div>
-
-          {/* Skip ceremony option */}
-          <button
-            type="button"
-            onClick={onSkipCeremony}
-            className="skip-ceremony-btn"
-            style={{
-              width: "100%",
-              padding: "12px 0",
-              borderRadius: 12,
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "rgba(200,190,255,0.45)",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "background 150ms ease, color 150ms ease",
-            }}
-          >
-            Skip the drama — just mint a new card
-          </button>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 10,
-              color: "rgba(200,190,255,0.2)",
-              textAlign: "center",
-              letterSpacing: "0.01em",
-            }}
-          >
-            Quietly retires the current card. No ceremony.
           </p>
         </div>
       ) : (
@@ -661,10 +618,10 @@ function SelectPhase({ cars, onSelect }: SelectPhaseProps) {
 interface MintPhaseProps {
   car: MintableCar;
   onBack: () => void;
-  hideBack?: boolean;
+  showBack?: boolean;
 }
 
-function MintPhase({ car, onBack, hideBack = false }: MintPhaseProps) {
+function MintPhase({ car, onBack, showBack = false }: MintPhaseProps) {
   const displayName = car.nickname ?? `${car.year} ${car.make} ${car.model}`;
 
   return (
@@ -675,8 +632,8 @@ function MintPhase({ car, onBack, hideBack = false }: MintPhaseProps) {
         padding: "40px 20px 80px",
       }}
     >
-      {/* Back button — only shown when there are multiple cars to choose from */}
-      {!hideBack && (
+      {/* Back button — only when explicitly shown (multi-car first mint) */}
+      {showBack && (
         <button
           type="button"
           onClick={onBack}
@@ -780,13 +737,389 @@ function MintPhase({ car, onBack, hideBack = false }: MintPhaseProps) {
   );
 }
 
+// ── GhostCardTile ─────────────────────────────────────────────────────────────
+
+const GHOST_SCALE = 0.56;
+const GHOST_W = Math.round(280 * GHOST_SCALE); // 157px
+const GHOST_H = Math.round(370 * GHOST_SCALE); // 207px
+
+function GhostCardTile({
+  ghost,
+  carLabel,
+  onClick,
+}: {
+  ghost: GhostCardInfo;
+  carLabel: string;
+  onClick: () => void;
+}) {
+  const snap = ghost.car_snapshot;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`View ${ghost.nickname ?? "burned card"}`}
+      className="ghost-tile-btn"
+      style={{
+        position: "relative",
+        width: GHOST_W,
+        height: GHOST_H,
+        background: "none",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+        borderRadius: Math.round(14 * GHOST_SCALE),
+        overflow: "hidden",
+        display: "block",
+        margin: "0 auto",
+      }}
+    >
+      <TradingCard
+        dead
+        cardUrl={ghost.pixel_card_url}
+        nickname={ghost.nickname}
+        generatedAt={ghost.minted_at}
+        hp={ghost.hp}
+        modCount={ghost.mod_count}
+        buildScore={snap.build_score ?? null}
+        cardNumber={ghost.card_number}
+        era={ghost.era}
+        rarity={ghost.rarity}
+        flavorText={ghost.flavor_text}
+        occasion={ghost.occasion}
+        mods={snap.mods ?? []}
+        modsDetail={snap.mods_detail}
+        torque={snap.torque ?? null}
+        zeroToSixty={snap.zero_to_sixty ?? null}
+        totalInvested={snap.total_invested ?? null}
+        carLabel={carLabel}
+        scale={GHOST_SCALE}
+        idle={false}
+        interactive={false}
+      />
+
+      {/* BURNED corner tag */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: 7,
+          left: 7,
+          padding: "2px 6px",
+          borderRadius: 3,
+          background: "rgba(140,15,15,0.92)",
+          color: "#fca5a5",
+          fontSize: 7,
+          fontWeight: 900,
+          letterSpacing: "0.18em",
+          textTransform: "uppercase" as const,
+          fontFamily: "ui-monospace, monospace",
+          border: "1px solid rgba(200,40,40,0.5)",
+          boxShadow: "0 1px 6px rgba(0,0,0,0.7)",
+          pointerEvents: "none",
+        }}
+      >
+        BURNED
+      </div>
+
+      {/* Last words fade overlay */}
+      {ghost.last_words && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: "28px 8px 10px",
+            background: "linear-gradient(to top, rgba(8,2,2,0.96) 0%, rgba(8,2,2,0.7) 55%, transparent 100%)",
+            pointerEvents: "none",
+          }}
+        >
+          <p
+            style={{
+              margin: 0,
+              fontSize: 7.5,
+              fontStyle: "italic",
+              color: "rgba(255,185,165,0.82)",
+              lineHeight: 1.4,
+              textAlign: "center",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical" as const,
+              overflow: "hidden",
+              fontFamily: "ui-serif, Georgia, serif",
+            }}
+          >
+            &ldquo;{ghost.last_words}&rdquo;
+          </p>
+        </div>
+      )}
+
+      {/* Hover ring */}
+      <div
+        className="ghost-tile-ring"
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: "inherit",
+          border: "2px solid transparent",
+          transition: "border-color 150ms ease",
+          pointerEvents: "none",
+        }}
+      />
+    </button>
+  );
+}
+
+// ── GhostCardModal ────────────────────────────────────────────────────────────
+
+function GhostCardModal({
+  ghosts,
+  carLabels,
+  startIdx,
+  onClose,
+}: {
+  ghosts: GhostCardInfo[];
+  carLabels: Record<string, string>;
+  startIdx: number;
+  onClose: () => void;
+}) {
+  const [idx, setIdx] = useState(startIdx);
+  const ghost = ghosts[idx];
+  const snap = ghost?.car_snapshot;
+  const carLabel = ghost ? (carLabels[ghost.car_id ?? ""] ?? ghost.nickname) : "";
+
+  // Lock scroll
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // Keyboard nav
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName ?? "";
+      if (["INPUT", "TEXTAREA"].includes(tag)) return;
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key === "ArrowLeft"  && idx > 0)                setIdx(i => i - 1);
+      if (e.key === "ArrowRight" && idx < ghosts.length - 1) setIdx(i => i + 1);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [idx, ghosts.length, onClose]);
+
+  if (!ghost || !snap) return null;
+
+  const burnedDate = (ghost as GhostCardInfo).burned_at
+    ? new Date((ghost as GhostCardInfo).burned_at!).toLocaleDateString("en-US", {
+        month: "long", day: "numeric", year: "numeric",
+      })
+    : null;
+
+  const MODAL_SCALE = 0.82;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Burned card viewer"
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 10000,
+        background: "rgba(4,2,10,0.94)",
+        backdropFilter: "blur(20px)",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        padding: "20px 20px 32px",
+        animation: "ghostModalIn 0.2s ease-out",
+        overflowY: "auto",
+      }}
+    >
+      <style>{`
+        @keyframes ghostModalIn {
+          from { opacity: 0; transform: scale(0.96); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .ghost-modal-prev:hover:not(:disabled),
+        .ghost-modal-next:hover:not(:disabled) {
+          background: rgba(255,255,255,0.08) !important;
+          border-color: rgba(255,255,255,0.18) !important;
+        }
+      `}</style>
+
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          display: "flex", flexDirection: "column",
+          alignItems: "center", gap: 18,
+          maxWidth: 340, width: "100%",
+        }}
+      >
+        {/* Top bar */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Ghost size={13} style={{ color: "rgba(200,90,90,0.8)" }} aria-hidden="true" />
+            <span style={{
+              fontSize: 10, fontWeight: 800, letterSpacing: "0.2em",
+              textTransform: "uppercase" as const, color: "rgba(200,90,90,0.8)",
+              fontFamily: "ui-monospace, monospace",
+            }}>
+              {idx + 1} / {ghosts.length}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: "rgba(200,180,240,0.45)", padding: 4, display: "flex",
+              borderRadius: 6,
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Card */}
+        <div style={{ position: "relative" }}>
+          <TradingCard
+            dead
+            cardUrl={ghost.pixel_card_url}
+            nickname={ghost.nickname}
+            generatedAt={ghost.minted_at}
+            hp={ghost.hp}
+            modCount={ghost.mod_count}
+            buildScore={snap.build_score ?? null}
+            cardNumber={ghost.card_number}
+            era={ghost.era}
+            rarity={ghost.rarity}
+            flavorText={ghost.flavor_text}
+            occasion={ghost.occasion}
+            mods={snap.mods ?? []}
+            modsDetail={snap.mods_detail}
+            torque={snap.torque ?? null}
+            zeroToSixty={snap.zero_to_sixty ?? null}
+            totalInvested={snap.total_invested ?? null}
+            carLabel={carLabel}
+            scale={MODAL_SCALE}
+            idle={false}
+            interactive
+          />
+          {/* BURNED badge */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              padding: "3px 8px",
+              borderRadius: 4,
+              background: "rgba(140,15,15,0.92)",
+              color: "#fca5a5",
+              fontSize: 8,
+              fontWeight: 900,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase" as const,
+              fontFamily: "ui-monospace, monospace",
+              border: "1px solid rgba(200,40,40,0.5)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.7)",
+            }}
+          >
+            BURNED
+          </div>
+        </div>
+
+        {/* Last words */}
+        {(ghost as GhostCardInfo).last_words && (
+          <div style={{
+            width: "100%", padding: "14px 16px",
+            borderRadius: 12,
+            background: "rgba(50,8,8,0.55)",
+            border: "1px solid rgba(160,35,35,0.25)",
+          }}>
+            <p style={{
+              fontSize: 9, fontWeight: 800, letterSpacing: "0.18em",
+              textTransform: "uppercase" as const,
+              color: "rgba(200,90,90,0.7)",
+              marginBottom: 8, marginTop: 0,
+              fontFamily: "ui-monospace, monospace",
+            }}>
+              Last words
+            </p>
+            <p style={{
+              fontSize: 14, fontStyle: "italic",
+              color: "rgba(255,195,175,0.92)",
+              lineHeight: 1.6, margin: 0,
+              fontFamily: "ui-serif, Georgia, serif",
+            }}>
+              &ldquo;{(ghost as GhostCardInfo).last_words}&rdquo;
+            </p>
+          </div>
+        )}
+
+        {/* Burned date */}
+        {burnedDate && (
+          <p style={{
+            margin: 0, fontSize: 10,
+            color: "rgba(200,140,130,0.45)",
+            fontFamily: "ui-monospace, monospace",
+            letterSpacing: "0.06em",
+          }}>
+            Burned {burnedDate}
+          </p>
+        )}
+
+        {/* Prev / Next */}
+        <div style={{ display: "flex", gap: 10, width: "100%" }}>
+          <button
+            type="button"
+            onClick={() => setIdx(i => i - 1)}
+            disabled={idx === 0}
+            className="ghost-modal-prev"
+            style={{
+              flex: 1, padding: "12px 0", borderRadius: 10,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: idx > 0 ? "rgba(200,180,240,0.7)" : "rgba(255,255,255,0.18)",
+              fontSize: 13, fontWeight: 600,
+              cursor: idx > 0 ? "pointer" : "default",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              transition: "background 120ms ease, border-color 120ms ease",
+            }}
+          >
+            <ChevronLeft size={14} aria-hidden="true" /> Prev
+          </button>
+          <button
+            type="button"
+            onClick={() => setIdx(i => i + 1)}
+            disabled={idx >= ghosts.length - 1}
+            className="ghost-modal-next"
+            style={{
+              flex: 1, padding: "12px 0", borderRadius: 10,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: idx < ghosts.length - 1 ? "rgba(200,180,240,0.7)" : "rgba(255,255,255,0.18)",
+              fontSize: 13, fontWeight: 600,
+              cursor: idx < ghosts.length - 1 ? "pointer" : "default",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              transition: "background 120ms ease, border-color 120ms ease",
+            }}
+          >
+            Next <ChevronRight size={14} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── GhostArchive ──────────────────────────────────────────────────────────────
-// Reuses the full <CardCollection /> component so ghost cards keep tilt,
-// horizontal scroll, click-to-view modal, era/rarity badges — same UI users
-// already know from /cards. forceAllGhosts paints every card with the dead
-// visual treatment.
 
 function GhostArchive({ ghosts, cars }: { ghosts: GhostCardInfo[]; cars: MintableCar[] }) {
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+
   const carLabels = useMemo(() => {
     const m: Record<string, string> = {};
     for (const car of cars) {
@@ -800,23 +1133,20 @@ function GhostArchive({ ghosts, cars }: { ghosts: GhostCardInfo[]; cars: Mintabl
   return (
     <div
       style={{
-        maxWidth: 1200,
-        margin: "0 auto 64px",
+        maxWidth: 960,
+        margin: "0 auto 80px",
         padding: "0 20px",
       }}
     >
       {/* Divider */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
         <div style={{ flex: 1, height: 1, background: "rgba(180,40,40,0.18)" }} />
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Ghost size={13} style={{ color: "rgba(200,110,110,0.65)" }} />
+          <Ghost size={13} style={{ color: "rgba(200,110,110,0.65)" }} aria-hidden="true" />
           <span style={{
             fontFamily: "ui-monospace, monospace",
-            fontSize: 10,
-            fontWeight: 800,
-            letterSpacing: "0.22em",
-            textTransform: "uppercase" as const,
-            color: "rgba(200,110,110,0.7)",
+            fontSize: 10, fontWeight: 800, letterSpacing: "0.22em",
+            textTransform: "uppercase" as const, color: "rgba(200,110,110,0.7)",
           }}>
             Ghost Archive
           </span>
@@ -824,12 +1154,42 @@ function GhostArchive({ ghosts, cars }: { ghosts: GhostCardInfo[]; cars: Mintabl
         <div style={{ flex: 1, height: 1, background: "rgba(180,40,40,0.18)" }} />
       </div>
 
-      <CardCollection
-        cards={ghosts as MintedCard[]}
-        carLabels={carLabels}
-        hideSectionHeader={true}
-        forceAllGhosts={true}
-      />
+      {/* Gallery grid */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(auto-fill, minmax(${GHOST_W}px, 1fr))`,
+        gap: 20,
+        justifyItems: "center",
+      }}>
+        {ghosts.map((ghost, idx) => (
+          <GhostCardTile
+            key={ghost.id}
+            ghost={ghost}
+            carLabel={carLabels[ghost.car_id ?? ""] ?? ghost.nickname}
+            onClick={() => setOpenIdx(idx)}
+          />
+        ))}
+      </div>
+
+      {/* Zoom modal — maintains exact gallery order */}
+      {openIdx !== null && (
+        <GhostCardModal
+          ghosts={ghosts}
+          carLabels={carLabels}
+          startIdx={openIdx}
+          onClose={() => setOpenIdx(null)}
+        />
+      )}
+
+      <style>{`
+        .ghost-tile-btn:hover .ghost-tile-ring {
+          border-color: rgba(200,60,60,0.55) !important;
+        }
+        .ghost-tile-btn:focus-visible {
+          outline: 2px solid rgba(200,60,60,0.65);
+          outline-offset: 2px;
+        }
+      `}</style>
     </div>
   );
 }
@@ -841,7 +1201,6 @@ export function MintStudio({
   aliveCard,
   autoMintCarId,
   onInitiateBurn,
-  onSkipCeremony,
   ghostCards = [],
 }: MintStudioProps) {
   // If autoMintCarId is provided (after burn), skip car selection
@@ -952,7 +1311,6 @@ export function MintStudio({
               setBurnState("idle");
               onInitiateBurn();
             }}
-            onSkipCeremony={onSkipCeremony}
           />
         )}
 
@@ -962,7 +1320,11 @@ export function MintStudio({
             {phase === "select" ? (
               <SelectPhase cars={cars} onSelect={handleSelect} />
             ) : selected ? (
-              <MintPhase car={selected} onBack={handleBack} hideBack={cars.length <= 1} />
+              <MintPhase
+                car={selected}
+                onBack={handleBack}
+                showBack={cars.length > 1 && !autoMintCarId}
+              />
             ) : null}
           </>
         )}
@@ -1010,15 +1372,6 @@ export function MintStudio({
         }
         .confirm-burn-btn:focus-visible {
           outline: 2px solid rgba(220,38,38,0.7);
-          outline-offset: 2px;
-        }
-
-        .skip-ceremony-btn:hover {
-          background: rgba(255,255,255,0.06) !important;
-          color: rgba(200,190,255,0.65) !important;
-        }
-        .skip-ceremony-btn:focus-visible {
-          outline: 2px solid rgba(200,190,255,0.4);
           outline-offset: 2px;
         }
 

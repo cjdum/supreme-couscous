@@ -324,7 +324,6 @@ export function MintPageClient({ cars, aliveCard, ghostCards = [] }: MintPageCli
         aliveCard={burned ? null : aliveCard}
         autoMintCarId={burned ? burnedCarId : null}
         onInitiateBurn={handleInitiateBurn}
-        onSkipCeremony={handleSkipCeremony}
         ghostCards={ghostCards}
       />
     </>

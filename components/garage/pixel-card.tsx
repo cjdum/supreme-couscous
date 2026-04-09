@@ -90,16 +90,18 @@ export function PixelCard(props: PixelCardProps) {
     return () => clearInterval(interval);
   }, [fetchEligibility]);
 
-  // Auto-open mint flow when ?action=mint is in the URL (from /mint picker page)
+  // Auto-open mint flow when autoMint=true (from /mint page after a burn)
+  // Skips the occasion + public/private screen entirely — fires straight into summoning.
   const autoMintFiredRef = useRef(false);
   useEffect(() => {
     if (!props.autoMint) return;
     if (autoMintFiredRef.current) return;
-    if (eligLoading) return;         // wait until we know eligibility
+    if (eligLoading) return;
+    if (!eligibility?.eligible) return; // wait until eligible
     autoMintFiredRef.current = true;
-    setOccasionInput("");
-    setError(null);
-    setMintState("occasion");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void handleConfirmOccasion("Reborn from the ashes");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.autoMint, eligLoading, eligibility]);
 
   // ── Ceremony overlay (freshly minted) ───────────────────────────────────
@@ -144,8 +146,8 @@ export function PixelCard(props: PixelCardProps) {
     setMintState("occasion");
   }
 
-  async function handleConfirmOccasion() {
-    const occasion = occasionInput.trim();
+  async function handleConfirmOccasion(occasionOverride?: string) {
+    const occasion = (occasionOverride !== undefined ? occasionOverride : occasionInput).trim();
     if (!occasion) {
       setError("Occasion is required");
       return;
@@ -344,42 +346,9 @@ export function PixelCard(props: PixelCardProps) {
               ))}
             </div>
 
-            {/* Public toggle */}
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "10px 14px", borderRadius: 12, marginBottom: 14,
-              background: "rgba(255,255,255,0.03)", border: "1px solid rgba(123,79,212,0.18)",
-            }}>
-              <div>
-                <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 10, fontWeight: 700, color: "rgba(240,230,255,0.85)", letterSpacing: "0.08em", margin: 0 }}>
-                  Share in community feed?
-                </p>
-                <p style={{ fontFamily: "ui-monospace, monospace", fontSize: 8, color: "rgba(160,140,200,0.5)", letterSpacing: "0.04em", margin: "2px 0 0" }}>
-                  {isPublic ? "Visible to everyone in Community" : "Private — only you can see it"}
-                </p>
-              </div>
-              <button
-                onClick={() => setIsPublic((v) => !v)}
-                style={{
-                  width: 44, height: 24, borderRadius: 12, flexShrink: 0,
-                  background: isPublic ? "rgba(123,79,212,0.75)" : "rgba(255,255,255,0.1)",
-                  border: `1px solid ${isPublic ? "rgba(168,85,247,0.6)" : "rgba(255,255,255,0.15)"}`,
-                  position: "relative", cursor: "pointer", transition: "all 0.2s",
-                  padding: 0,
-                }}
-              >
-                <div style={{
-                  width: 18, height: 18, borderRadius: "50%", background: "#fff",
-                  position: "absolute", top: 2, transition: "left 0.2s",
-                  left: isPublic ? 22 : 2,
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
-                }} />
-              </button>
-            </div>
-
             {/* Mint button */}
             <button
-              onClick={handleConfirmOccasion}
+              onClick={() => handleConfirmOccasion()}
               disabled={!occasionInput.trim()}
               style={{
                 width: "100%", height: 48, borderRadius: 14,
