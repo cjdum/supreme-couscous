@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { Sparkles, ChevronDown, ChevronUp, ShoppingBag, Zap, Wrench } from "lucide-react";
+import { Sparkles, ChevronDown, ChevronUp, Zap, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CategoryBadge } from "@/components/ui/badge";
 import type { ModCategory } from "@/lib/supabase/types";
@@ -195,14 +194,6 @@ export function AiSuggestions({ carId }: AiSuggestionsProps) {
                         </div>
                       )}
 
-                      {/* Find specific parts via the Claude-powered Parts Advisor */}
-                      <Link
-                        href={`/shop?mod=${encodeURIComponent(s.name)}&category=${s.category}&carId=${carId}`}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[var(--color-accent)] text-white text-[11px] font-bold hover:brightness-110 transition-all cursor-pointer shadow-[0_4px_16px_rgba(59,130,246,0.25)]"
-                      >
-                        <ShoppingBag size={11} />
-                        Find parts for this mod
-                      </Link>
                     </div>
                   )}
                 </div>
