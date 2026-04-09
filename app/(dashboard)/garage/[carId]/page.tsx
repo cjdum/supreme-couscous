@@ -139,19 +139,6 @@ export default async function CarDetailPage({ params, searchParams }: Props) {
 
         {/* Top right: Edit + Public badge */}
         <div className="absolute top-4 right-4 lg:top-6 lg:right-6 flex items-center gap-2">
-          {car.is_primary && (
-            <div
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider"
-              style={{
-                backgroundColor: "rgba(251,191,36,0.12)",
-                border: "1px solid rgba(251,191,36,0.30)",
-                color: "#fbbf24",
-                backdropFilter: "blur(12px)",
-              }}
-            >
-              <Star size={9} fill="currentColor" /> Primary
-            </div>
-          )}
           <div
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-bold backdrop-blur-xl border border-white/[0.10]"
             style={{

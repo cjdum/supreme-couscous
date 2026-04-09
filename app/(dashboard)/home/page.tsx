@@ -231,7 +231,7 @@ export default async function HomePage() {
               {
                 href: "/cards",
                 icon: GalleryHorizontal,
-                label: "Collection",
+                label: "Ghosts",
                 hint: `${totalCards} ${totalCards === 1 ? "card" : "cards"}`,
                 tint: "#fbbf24",
               },

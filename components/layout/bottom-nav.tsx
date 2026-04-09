@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { href: "/home",      icon: Home,              label: "Home" },
   { href: "/mint",      icon: Sparkles,          label: "Mint" },
   { href: "/garage",    icon: Car,               label: "Garage" },
-  { href: "/cards",     icon: GalleryHorizontal, label: "Collection" },
+  { href: "/cards",     icon: GalleryHorizontal, label: "Ghosts" },
   { href: "/community", icon: Users,             label: "Community" },
 ];
 

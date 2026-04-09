@@ -667,9 +667,10 @@ function SelectPhase({ cars, onSelect }: SelectPhaseProps) {
 interface MintPhaseProps {
   car: MintableCar;
   onBack: () => void;
+  hideBack?: boolean;
 }
 
-function MintPhase({ car, onBack }: MintPhaseProps) {
+function MintPhase({ car, onBack, hideBack = false }: MintPhaseProps) {
   const displayName = car.nickname ?? `${car.year} ${car.make} ${car.model}`;
 
   return (
@@ -680,57 +681,59 @@ function MintPhase({ car, onBack }: MintPhaseProps) {
         padding: "40px 20px 80px",
       }}
     >
-      {/* Back button */}
-      <button
-        type="button"
-        onClick={onBack}
-        aria-label="Back to car selection"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: 32,
-          padding: "8px 14px",
-          borderRadius: 10,
-          background: "rgba(168,85,247,0.08)",
-          border: "1px solid rgba(168,85,247,0.18)",
-          color: "rgba(200,180,255,0.75)",
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: "pointer",
-          transition:
-            "background 150ms ease, border-color 150ms ease, color 150ms ease",
-        }}
-        onMouseEnter={(e) => {
-          const btn = e.currentTarget;
-          btn.style.background = "rgba(168,85,247,0.14)";
-          btn.style.borderColor = "rgba(168,85,247,0.35)";
-          btn.style.color = "rgba(220,200,255,0.95)";
-        }}
-        onMouseLeave={(e) => {
-          const btn = e.currentTarget;
-          btn.style.background = "rgba(168,85,247,0.08)";
-          btn.style.borderColor = "rgba(168,85,247,0.18)";
-          btn.style.color = "rgba(200,180,255,0.75)";
-        }}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          aria-hidden="true"
+      {/* Back button — only shown when there are multiple cars to choose from */}
+      {!hideBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to car selection"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            marginBottom: 32,
+            padding: "8px 14px",
+            borderRadius: 10,
+            background: "rgba(168,85,247,0.08)",
+            border: "1px solid rgba(168,85,247,0.18)",
+            color: "rgba(200,180,255,0.75)",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: "pointer",
+            transition:
+              "background 150ms ease, border-color 150ms ease, color 150ms ease",
+          }}
+          onMouseEnter={(e) => {
+            const btn = e.currentTarget;
+            btn.style.background = "rgba(168,85,247,0.14)";
+            btn.style.borderColor = "rgba(168,85,247,0.35)";
+            btn.style.color = "rgba(220,200,255,0.95)";
+          }}
+          onMouseLeave={(e) => {
+            const btn = e.currentTarget;
+            btn.style.background = "rgba(168,85,247,0.08)";
+            btn.style.borderColor = "rgba(168,85,247,0.18)";
+            btn.style.color = "rgba(200,180,255,0.75)";
+          }}
         >
-          <path
-            d="M8.5 2.5L4 7L8.5 11.5"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        Back
-      </button>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M8.5 2.5L4 7L8.5 11.5"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Back
+        </button>
+      )}
 
       {/* Car name */}
       <div style={{ marginBottom: 32, textAlign: "center" }}>
@@ -794,9 +797,12 @@ export function MintStudio({
 }: MintStudioProps) {
   // If autoMintCarId is provided (after burn), skip car selection
   const autoMintCar = autoMintCarId ? (cars.find(c => c.id === autoMintCarId) ?? null) : null;
+  // If there's only one car and no alive card, skip SelectPhase entirely
+  const onlyCarDefault = !aliveCard && cars.length === 1 ? cars[0] : null;
+  const initialCar = autoMintCar ?? onlyCarDefault ?? null;
 
-  const [phase, setPhase] = useState<Phase>(autoMintCar ? "mint" : "select");
-  const [selected, setSelected] = useState<MintableCar | null>(autoMintCar);
+  const [phase, setPhase] = useState<Phase>(initialCar ? "mint" : "select");
+  const [selected, setSelected] = useState<MintableCar | null>(initialCar);
   const [burnState, setBurnState] = useState<BurnState>("idle");
 
   function handleSelect(car: MintableCar) {
@@ -907,7 +913,7 @@ export function MintStudio({
             {phase === "select" ? (
               <SelectPhase cars={cars} onSelect={handleSelect} />
             ) : selected ? (
-              <MintPhase car={selected} onBack={handleBack} />
+              <MintPhase car={selected} onBack={handleBack} hideBack={cars.length <= 1} />
             ) : null}
           </>
         )}

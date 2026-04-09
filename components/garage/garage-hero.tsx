@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Edit2, Star, Camera } from "lucide-react";
+import { ChevronRight, Edit2, Camera } from "lucide-react";
 import { EditCarModal } from "./edit-car-modal";
 import type { Car } from "@/lib/supabase/types";
 
@@ -148,22 +148,22 @@ export function GarageHero({
           </div>
         )}
 
-        {/* Primary badge top left — links to car detail page */}
-        {isPrimary && heroImage && (
+        {/* Car details link — top left */}
+        {heroImage && (
           <div className="absolute top-5 left-5 z-10">
             <Link
               href={`/garage/${car.id}`}
               aria-label={`Open ${carName} details`}
-              className="flex items-center gap-1.5 min-h-[44px] px-3.5 py-1.5 rounded-full text-[10px] font-bold tracking-[0.15em] uppercase glow-gold transition-all hover:scale-[1.03] active:scale-95"
+              className="flex items-center gap-1.5 min-h-[44px] px-3.5 py-1.5 rounded-full text-[10px] font-bold tracking-[0.15em] uppercase transition-all hover:scale-[1.03] active:scale-95"
               style={{
-                backgroundColor: "rgba(251,191,36,0.18)",
-                border: "1px solid rgba(251,191,36,0.40)",
-                color: "#fbbf24",
+                backgroundColor: "rgba(0,0,0,0.45)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "rgba(255,255,255,0.8)",
                 backdropFilter: "blur(12px)",
                 textDecoration: "none",
               }}
             >
-              <Star size={9} fill="currentColor" /> Primary Build
+              View Build
               <ChevronRight size={10} />
             </Link>
           </div>

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { CardHub } from "@/components/cards/card-hub";
 import type { MintedCard } from "@/lib/pixel-card";
 
-export const metadata = { title: "Cards — MODVAULT" };
+export const metadata = { title: "Ghost Cards — MODVAULT" };
 
 type FullCard = MintedCard & {
   personality?: string | null;

@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { Wrench, Award, MessageSquare } from "lucide-react";
+import { Wrench, Ghost, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { GarageHero } from "@/components/garage/garage-hero";
+import { CarSwitcher } from "@/components/garage/car-switcher";
 import { PageContainer } from "@/components/ui/page-container";
 import type { Car as CarType } from "@/lib/supabase/types";
-import type { MintedCard } from "@/lib/pixel-card";
 
 export const metadata = { title: "Garage — MODVAULT" };
 
@@ -48,7 +48,6 @@ export default async function GaragePage() {
     .from("pixel_cards")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user!.id);
-  const userCards: MintedCard[] = []; // unused below but type kept for minimal diff
 
   return (
     <div className="min-h-dvh animate-fade">
@@ -91,15 +90,19 @@ export default async function GaragePage() {
               className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
             >
               <div>
-                <p className="text-sm font-bold text-[var(--color-text-primary)]">Collection</p>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">Ghost Cards</p>
                 <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
                   {(cardCount ?? 0) === 0 ? "None minted yet" : `${cardCount} minted`}
                 </p>
               </div>
-              <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
+              <Ghost size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
             </Link>
           </div>
         </section>
+
+        {/* ── Car switcher (only visible when user has multiple cars) ── */}
+        <CarSwitcher cars={cars} />
+
       </PageContainer>
     </div>
   );
