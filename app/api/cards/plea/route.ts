@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
   try {
     const res = await anthropic.messages.create({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 120,
       system: `You are ${personality}. ${desc}
 You are about to be burned. Beg, argue, or react in your personality's exact voice.

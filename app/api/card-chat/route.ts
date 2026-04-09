@@ -286,7 +286,7 @@ export async function POST(request: Request) {
   console.log("[card-chat] starting stream for card", cardId, "personality", personality);
   try {
     const stream = await anthropic.messages.stream({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 350,
       system: systemPrompt,
       messages: anthropicMessages,
