@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, ChevronUp, Store, User, Trash2, Calendar, BookmarkPlus, Wrench } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, BookmarkPlus, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Mod, ModStatus } from "@/lib/supabase/types";
 import { CategoryBadge, StatusBadge } from "@/components/ui/badge";
-import { formatCurrency, formatDate, getCategoryColor } from "@/lib/utils";
+import { getCategoryColor } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { haptic } from "@/lib/haptics";
 
@@ -160,33 +160,11 @@ export function ModCard({ mod, onChange }: ModCardProps) {
             <p className="text-sm font-bold truncate">{mod.name}</p>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <CategoryBadge category={mod.category} className="text-[10px]" />
-              {mod.install_date && (
-                <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
-                  <Calendar size={9} />
-                  {formatDate(mod.install_date)}
-                </span>
-              )}
-              {mod.is_diy ? (
-                <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
-                  <User size={9} /> DIY
-                </span>
-              ) : mod.shop_name ? (
-                <span className="flex items-center gap-1 text-[10px] text-[var(--color-text-muted)]">
-                  <Store size={9} /> {mod.shop_name}
-                </span>
-              ) : null}
+              <StatusBadge status={mod.status} />
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {mod.cost != null && (
-              <span
-                className="text-base font-bold tabular"
-                style={{ color: accentColor }}
-              >
-                {formatCurrency(mod.cost)}
-              </span>
-            )}
             {expanded ? (
               <ChevronUp size={15} className="text-[var(--color-text-muted)]" />
             ) : (
@@ -198,34 +176,13 @@ export function ModCard({ mod, onChange }: ModCardProps) {
         {/* Expanded details */}
         {expanded && (
           <div className="pl-5 pr-4 pb-4 border-t border-[var(--color-border)] pt-3.5 space-y-3 animate-in-fast">
-            <div className="flex items-center gap-2 flex-wrap">
-              <StatusBadge status={mod.status} />
-            </div>
-
-            {mod.notes && (
+            {mod.notes ? (
               <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
                 {mod.notes}
               </p>
+            ) : (
+              <p className="text-xs text-[var(--color-text-muted)] italic">No notes.</p>
             )}
-
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-              {mod.install_date && (
-                <>
-                  <span className="text-[var(--color-text-muted)]">Installed</span>
-                  <span className="text-[var(--color-text-primary)]">{formatDate(mod.install_date)}</span>
-                </>
-              )}
-              {mod.cost != null && (
-                <>
-                  <span className="text-[var(--color-text-muted)]">Cost</span>
-                  <span className="font-semibold tabular" style={{ color: accentColor }}>
-                    {formatCurrency(mod.cost)}
-                  </span>
-                </>
-              )}
-              <span className="text-[var(--color-text-muted)]">Installer</span>
-              <span className="text-[var(--color-text-primary)]">{mod.is_diy ? "DIY" : mod.shop_name ?? "—"}</span>
-            </div>
 
             <div className="flex justify-end items-center gap-2 pt-1">
               <button

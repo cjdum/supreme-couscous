@@ -1,22 +1,16 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Globe, Lock, DollarSign, Wrench, Zap, MessageSquare,
-  TrendingUp, Calendar, Star, BookmarkCheck
+  ArrowLeft, Globe, Lock, Wrench, MessageSquare, Star, BookmarkCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { CategoryBadge } from "@/components/ui/badge";
-import { formatCurrency, formatDate, MOD_CATEGORIES } from "@/lib/utils";
 import { CarDetailTabs } from "@/components/garage/car-detail-tabs";
 import { AiSuggestions } from "@/components/garage/ai-suggestions";
 import { VehicleSpecs } from "@/components/garage/vehicle-specs";
 import { PixelCard } from "@/components/garage/pixel-card";
-import { calculateBuildScore } from "@/lib/build-score";
-import { SpendingChart } from "@/components/mods/spending-chart";
 import { CarGallery } from "@/components/garage/car-gallery";
-import { BuildTimeline } from "@/components/garage/build-timeline";
 import { EditCarButton } from "@/components/garage/edit-car-button";
-import type { Car, Mod, ModCategory, Render } from "@/lib/supabase/types";
+import type { Car, Mod, Render } from "@/lib/supabase/types";
 import type { MintedCard } from "@/lib/pixel-card";
 
 interface Props {
@@ -92,38 +86,8 @@ export default async function CarDetailPage({ params, searchParams }: Props) {
   const installed = mods.filter((m) => m.status === "installed");
   const wishlist = mods.filter((m) => m.status === "wishlist");
 
-  const buildScoreResult = calculateBuildScore({
-    cars: [
-      {
-        cover_image_url: car.cover_image_url,
-        horsepower: car.horsepower,
-        engine_size: car.engine_size,
-        specs_ai_guessed: car.specs_ai_guessed,
-        is_primary: true,
-      },
-    ],
-    mods,
-  });
-  const totalInvested = installed.reduce((sum, m) => sum + (m.cost ?? 0), 0);
-
-  const categoryTotals = installed.reduce<Record<string, number>>((acc, m) => {
-    acc[m.category] = (acc[m.category] ?? 0) + (m.cost ?? 0);
-    return acc;
-  }, {});
-  const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
-
-  const mostExpensive = [...installed].sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0))[0] ?? null;
-  const newest =
-    [...installed].sort(
-      (a, b) => new Date(b.install_date ?? b.created_at).getTime() - new Date(a.install_date ?? a.created_at).getTime()
-    )[0] ?? null;
+  const newest = installed[0] ?? null; // mods come ordered by created_at desc
   const nextPlanned = wishlist[0] ?? null;
-
-  const chartData = MOD_CATEGORIES.map((cat) => ({
-    name: cat.label,
-    value: categoryTotals[cat.value] ?? 0,
-    color: cat.color,
-  })).filter((d) => d.value > 0);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -236,9 +200,9 @@ export default async function CarDetailPage({ params, searchParams }: Props) {
         </div>
       )}
 
-      {/* ── Stats bar ── */}
+      {/* ── Stats bar: just installed + wishlist counts ── */}
       <div className="mx-5 sm:mx-8 mt-5 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.3)]">
-        <div className="grid grid-cols-3 divide-x divide-[var(--color-border)]">
+        <div className="grid grid-cols-2 divide-x divide-[var(--color-border)]">
           <div className="flex flex-col items-center py-5 lg:py-6 gap-1.5">
             <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
               <Wrench size={11} />
@@ -248,79 +212,27 @@ export default async function CarDetailPage({ params, searchParams }: Props) {
           </div>
           <div className="flex flex-col items-center py-5 lg:py-6 gap-1.5">
             <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
-              <DollarSign size={11} />
-              <span className="text-[9px] font-bold uppercase tracking-wider">Invested</span>
+              <BookmarkCheck size={11} />
+              <span className="text-[9px] font-bold uppercase tracking-wider">Wishlist</span>
             </div>
-            <p className="text-2xl lg:text-3xl font-black text-[#60A5FA] tabular">
-              {totalInvested > 0 ? formatCurrency(totalInvested) : "—"}
-            </p>
-          </div>
-          <div className="flex flex-col items-center py-5 lg:py-6 gap-1.5">
-            <div className="flex items-center gap-1.5 text-[var(--color-text-muted)]">
-              <TrendingUp size={11} />
-              <span className="text-[9px] font-bold uppercase tracking-wider">Top spend</span>
-            </div>
-            {topCategory ? (
-              <div className="flex flex-col items-center gap-1 mt-0.5">
-                <CategoryBadge category={topCategory[0] as ModCategory} className="text-[9px]" />
-                <p className="text-[9px] text-[var(--color-text-muted)] font-bold tabular">{formatCurrency(topCategory[1])}</p>
-              </div>
-            ) : (
-              <p className="text-2xl font-bold text-[var(--color-text-disabled)]">—</p>
-            )}
+            <p className="text-2xl lg:text-3xl font-black tabular">{wishlist.length}</p>
           </div>
         </div>
       </div>
 
-      {/* ── Summary cards ── */}
-      {(mostExpensive || newest || nextPlanned) && (
-        <div className="mx-5 sm:mx-8 mt-4 grid grid-cols-3 gap-2.5 lg:gap-3 stagger-children">
-          <SummaryCard
-            icon={<Star size={11} className="text-[#fbbf24]" />}
-            label="Biggest"
-            mod={mostExpensive}
-            valueColor="#fbbf24"
-            valueText={mostExpensive?.cost ? formatCurrency(mostExpensive.cost) : "—"}
-          />
-          <SummaryCard
-            icon={<Calendar size={11} className="text-[#30d158]" />}
+      {/* ── Highlight row: most recent + next planned ── */}
+      {(newest || nextPlanned) && (
+        <div className="mx-5 sm:mx-8 mt-4 grid grid-cols-2 gap-2.5 lg:gap-3 stagger-children">
+          <HighlightCard
+            icon={<Star size={11} className="text-[#30d158]" />}
             label="Latest"
             mod={newest}
-            valueColor="var(--color-text-muted)"
-            valueText={newest?.install_date ? formatDate(newest.install_date) : "Recently"}
           />
-          <SummaryCard
+          <HighlightCard
             icon={<BookmarkCheck size={11} className="text-[var(--color-accent)]" />}
             label="Next"
             mod={nextPlanned}
-            valueColor="#60A5FA"
-            valueText={nextPlanned?.cost ? formatCurrency(nextPlanned.cost) : nextPlanned ? "Planned" : "Nothing yet"}
           />
-        </div>
-      )}
-
-      {/* ── Build Timeline (desktop and mobile horizontal scroll) ── */}
-      {installed.length > 0 && (
-        <div className="mx-5 sm:mx-8 mt-6">
-          <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 lg:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-bold tracking-tight">Build Timeline</h2>
-                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Every mod, in order. Tap to expand.</p>
-              </div>
-            </div>
-            <BuildTimeline mods={installed} />
-          </div>
-        </div>
-      )}
-
-      {/* Card timeline lives on /cards (Cards tab), not here. */}
-
-      {/* ── Spending chart ── */}
-      {chartData.length > 0 && (
-        <div className="mx-5 sm:mx-8 mt-4 rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 lg:p-6">
-          <p className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-4">Investment by Category</p>
-          <SpendingChart data={chartData} total={totalInvested} />
         </div>
       )}
 
@@ -347,40 +259,27 @@ export default async function CarDetailPage({ params, searchParams }: Props) {
             <AiSuggestions carId={carId} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Link
-              href={`/visualizer?carId=${carId}`}
-              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
-            >
-              <Zap size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
-              <p className="text-xs font-bold">AI Render</p>
-            </Link>
-            <Link
-              href="/card-chat"
-              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
-            >
-              <MessageSquare size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
-              <p className="text-xs font-bold">Talk to Card</p>
-            </Link>
-          </div>
+          <Link
+            href="/card-chat"
+            className="block rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 text-center card-hover group"
+          >
+            <MessageSquare size={20} className="mx-auto mb-2 text-[var(--color-accent)] group-hover:scale-110 transition-transform" />
+            <p className="text-xs font-bold">Talk to Card</p>
+          </Link>
         </div>
       </div>
     </div>
   );
 }
 
-function SummaryCard({
+function HighlightCard({
   icon,
   label,
   mod,
-  valueText,
-  valueColor,
 }: {
   icon: React.ReactNode;
   label: string;
   mod: { name: string } | null;
-  valueText: string;
-  valueColor: string;
 }) {
   return (
     <div className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-3.5 lg:p-4">
@@ -389,14 +288,9 @@ function SummaryCard({
         <p className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">{label}</p>
       </div>
       {mod ? (
-        <>
-          <p className="text-xs font-bold leading-snug line-clamp-2 mb-1">{mod.name}</p>
-          <p className="text-[10px] font-bold tabular" style={{ color: valueColor }}>
-            {valueText}
-          </p>
-        </>
+        <p className="text-xs font-bold leading-snug line-clamp-2">{mod.name}</p>
       ) : (
-        <p className="text-[10px] text-[var(--color-text-disabled)]">—</p>
+        <p className="text-[10px] text-[var(--color-text-disabled)]">Nothing yet</p>
       )}
     </div>
   );
