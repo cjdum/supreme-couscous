@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getPrimaryCarId } from "@/lib/supabase/get-primary-car";
 import { PageContainer } from "@/components/ui/page-container";
 import { safeRarity, RARITY_COLORS, safeEra, ERA_COLORS } from "@/lib/pixel-card";
 import type { MintedCard } from "@/lib/pixel-card";
@@ -772,14 +773,16 @@ export default async function TimelinePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const primaryCarId = await getPrimaryCarId(supabase, user.id);
+  if (!primaryCarId) redirect("/garage");
+
+  // select("*") so pre-migration accounts missing personality/last_words/
+  // status columns don't fail the whole query.
   const { data: raw } = await supabase
     .from("pixel_cards")
-    .select(
-      `id, card_title, nickname, pixel_card_url, personality, flavor_text,
-       last_words, occasion, minted_at, burned_at, card_level, status, era,
-       car_snapshot, build_archetype, rarity, hp, mod_count`
-    )
+    .select("*")
     .eq("user_id", user.id)
+    .eq("car_id", primaryCarId)
     .order("minted_at", { ascending: true });
 
   const allCards = ((raw ?? []) as unknown[]) as TimelineCard[];

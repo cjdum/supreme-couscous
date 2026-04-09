@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getPrimaryCar } from "@/lib/supabase/get-primary-car";
 import { CardHub } from "@/components/cards/card-hub";
 import type { MintedCard } from "@/lib/pixel-card";
 
@@ -21,11 +22,20 @@ export default async function CardsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Fetch ALL cards newest first — we'll sort into live/ghost/all below
+  const primaryCar = await getPrimaryCar(supabase, user.id);
+  if (!primaryCar) {
+    return (
+      <div className="min-h-dvh animate-fade">
+        <CardHub liveCard={null} ghosts={[]} allCards={[]} carLabels={{}} />
+      </div>
+    );
+  }
+
   const { data: allCardsRaw } = await supabase
     .from("pixel_cards")
     .select("*")
     .eq("user_id", user.id)
+    .eq("car_id", primaryCar.id)
     .order("minted_at", { ascending: false });
 
   const allCards = (allCardsRaw ?? []) as FullCard[];
@@ -51,16 +61,9 @@ export default async function CardsPage() {
     ghosts = allCards.slice(1);
   }
 
-  // Car labels
-  const { data: carsRaw } = await supabase
-    .from("cars")
-    .select("id, year, make, model")
-    .eq("user_id", user.id);
-
-  const carLabels: Record<string, string> = {};
-  for (const c of (carsRaw ?? []) as { id: string; year: number; make: string; model: string }[]) {
-    carLabels[c.id] = `${c.year} ${c.make} ${c.model}`;
-  }
+  const carLabels: Record<string, string> = {
+    [primaryCar.id]: `${primaryCar.year} ${primaryCar.make} ${primaryCar.model}`,
+  };
 
   return (
     <div className="min-h-dvh animate-fade">

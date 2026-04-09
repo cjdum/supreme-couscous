@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { Wrench, Ghost, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getPrimaryCar } from "@/lib/supabase/get-primary-car";
 import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { GarageHero } from "@/components/garage/garage-hero";
 import { PageContainer } from "@/components/ui/page-container";
-import type { Car as CarType } from "@/lib/supabase/types";
 
 export const metadata = { title: "Garage — MODVAULT" };
 
@@ -14,39 +14,30 @@ export default async function GaragePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Single-car only. If a legacy account has more than one car, we silently
-  // pick the primary (or oldest) and ignore the rest — no UI for switching,
-  // no UI for adding a second car. The extra rows stay in the database
-  // untouched so we never destroy user data.
-  const { data: carsRaw } = await supabase
-    .from("cars")
-    .select("*")
-    .eq("user_id", user!.id)
-    .order("created_at", { ascending: false });
-  const allCars = (carsRaw ?? []) as CarType[];
-
-  if (allCars.length === 0) {
+  const primaryCar = await getPrimaryCar(supabase, user!.id);
+  if (!primaryCar) {
     return <OnboardingFlow />;
   }
 
-  const primaryCar = allCars.find((c) => c.is_primary) ?? allCars[0];
-
-  // Latest render for the primary car (cinematic background)
-  const { data: renderRaw } = await supabase
-    .from("renders")
-    .select("image_url")
-    .eq("car_id", primaryCar.id)
-    .not("image_url", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const latestRenderUrl = (renderRaw as { image_url: string | null } | null)?.image_url ?? null;
-
-  // Card count for the action tiles
-  const { count: cardCount } = await supabase
-    .from("pixel_cards")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user!.id);
+  // Fetch the cinematic background render and the card count in parallel —
+  // they're independent.
+  const [renderResult, cardCountResult] = await Promise.all([
+    supabase
+      .from("renders")
+      .select("image_url")
+      .eq("car_id", primaryCar.id)
+      .not("image_url", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("pixel_cards")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user!.id)
+      .eq("car_id", primaryCar.id),
+  ]);
+  const latestRenderUrl = (renderResult.data as { image_url: string | null } | null)?.image_url ?? null;
+  const cardCount = cardCountResult.count;
 
   return (
     <div className="min-h-dvh animate-fade">

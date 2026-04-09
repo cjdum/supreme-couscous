@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Send, RotateCcw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getPrimaryCarId } from "@/lib/supabase/get-primary-car";
 import type { PixelCardSnapshot } from "@/lib/supabase/types";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -162,14 +163,22 @@ export default function CardChatPage() {
         setNoCard(true);
         return;
       }
-      // Use select("*") so we never blow up on missing columns. Pre-migration
-      // databases don't have card_title or status, and naming any missing
-      // column in the select makes the WHOLE query error out — that's why
-      // card-chat appeared broken for older accounts.
+
+      const primaryCarId = await getPrimaryCarId(supabase, user.id);
+      if (!primaryCarId) {
+        setFetchError("Add a car to your garage first.");
+        setLoading(false);
+        setNoCard(true);
+        return;
+      }
+
+      // select("*") so naming a missing column (pre-migration accounts don't
+      // have card_title/status/personality yet) doesn't fail the whole query.
       const { data, error: queryErr } = await supabase
         .from("pixel_cards")
         .select("*")
         .eq("user_id", user.id)
+        .eq("car_id", primaryCarId)
         .order("minted_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -182,8 +191,8 @@ export default function CardChatPage() {
         return;
       }
       if (!data) {
-        console.warn("[card-chat] user has no cards");
-        setFetchError("You haven't minted any cards yet.");
+        console.warn("[card-chat] user has no cards for primary car");
+        setFetchError("You haven't minted any cards for your current car yet.");
         setLoading(false);
         setNoCard(true);
         return;

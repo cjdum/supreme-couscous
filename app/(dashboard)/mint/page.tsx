@@ -1,10 +1,20 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getPrimaryCar } from "@/lib/supabase/get-primary-car";
 import { MintPageClient } from "@/components/mint/mint-page-client";
 import type { MintableCar, GhostCardInfo } from "@/components/mint/mint-studio";
 import type { MintedCard } from "@/lib/pixel-card";
 
 export const metadata = { title: "Mint — MODVAULT" };
+
+type AnyCard = MintedCard & {
+  status?: string;
+  personality?: string | null;
+  card_level?: number | null;
+  card_title?: string | null;
+  burned_at?: string | null;
+  last_words?: string | null;
+};
 
 export default async function MintPage() {
   const supabase = await createClient();
@@ -13,87 +23,59 @@ export default async function MintPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Fetch all cars
-  const { data: carsRaw } = await supabase
-    .from("cars")
-    .select("id, year, make, model, trim, color, nickname, cover_image_url, is_primary")
-    .eq("user_id", user.id)
-    .order("is_primary", { ascending: false })
-    .order("created_at", { ascending: false });
+  const primaryCar = await getPrimaryCar(supabase, user.id);
+  if (!primaryCar) redirect("/garage");
 
-  type CarRow = {
-    id: string; year: number; make: string; model: string;
-    trim: string | null; color: string | null; nickname: string | null;
-    cover_image_url: string | null; is_primary: boolean;
-  };
-  const cars = (carsRaw ?? []) as CarRow[];
-
-  if (cars.length === 0) redirect("/garage");
-
-  // Fetch all pixel cards for this user, oldest-first
   const { data: allCardsRaw } = await supabase
     .from("pixel_cards")
     .select("*")
     .eq("user_id", user.id)
+    .eq("car_id", primaryCar.id)
     .order("minted_at", { ascending: true });
-  const allCards = (allCardsRaw ?? []) as MintedCard[];
+  const allCards = (allCardsRaw ?? []) as AnyCard[];
 
-  // Group by car_id
-  const cardsMap: Record<string, MintedCard[]> = {};
-  for (const c of allCards) {
-    const key = c.car_id ?? "";
-    if (!key) continue;
-    cardsMap[key] = cardsMap[key] ?? [];
-    cardsMap[key].push(c);
-  }
+  // Alive = explicit `status='alive'`, or (for pre-migration accounts with
+  // null status) the most recently minted card. Everything else is a ghost.
+  const aliveCardRaw =
+    allCards.find((c) => c.status === "alive") ?? allCards.at(-1) ?? null;
 
-  // Find the alive card (status='alive', or fallback: most recent card if status column not yet migrated)
-  type AnyCard = MintedCard & { status?: string; personality?: string | null; card_level?: number | null; burned_at?: string | null; last_words?: string | null };
-  const aliveCardRaw = (allCards as AnyCard[]).find((c) => c.status === "alive") ??
-    (allCards as AnyCard[]).at(-1) ?? null; // fallback before migration
-
-  // Ghost cards — any card that isn't the current alive card is a ghost.
-  // This handles both post-migration (status='ghost') AND pre-migration
-  // (status=null) users: every older card is dead the moment a newer one exists.
-  const ghostCards = (allCards as AnyCard[])
+  const ghostCards = allCards
     .filter((c) => c.id !== aliveCardRaw?.id)
     .sort((a, b) => {
-      // Most recently burned first; fall back to minted_at for pre-migration
       const da = a.burned_at ? new Date(a.burned_at).getTime() : new Date(a.minted_at).getTime();
       const db = b.burned_at ? new Date(b.burned_at).getTime() : new Date(b.minted_at).getTime();
       return db - da;
     }) as GhostCardInfo[];
 
-  let aliveCard = null;
-  if (aliveCardRaw) {
-    const snap = aliveCardRaw.car_snapshot;
-    aliveCard = {
-      id: aliveCardRaw.id,
-      carId: aliveCardRaw.car_id ?? "",
-      cardTitle: (aliveCardRaw as AnyCard & { card_title?: string | null }).card_title ?? null,
-      nickname: aliveCardRaw.nickname,
-      pixelCardUrl: aliveCardRaw.pixel_card_url,
-      personality: (aliveCardRaw as AnyCard).personality ?? null,
-      flavorText: aliveCardRaw.flavor_text ?? null,
-      mintedAt: aliveCardRaw.minted_at,
-      carLabel: `${snap.year} ${snap.make} ${snap.model}`,
-    };
-  }
+  const aliveCard = aliveCardRaw
+    ? {
+        id: aliveCardRaw.id,
+        carId: aliveCardRaw.car_id ?? "",
+        cardTitle: aliveCardRaw.card_title ?? null,
+        nickname: aliveCardRaw.nickname,
+        pixelCardUrl: aliveCardRaw.pixel_card_url,
+        personality: aliveCardRaw.personality ?? null,
+        flavorText: aliveCardRaw.flavor_text ?? null,
+        mintedAt: aliveCardRaw.minted_at,
+        carLabel: `${primaryCar.year} ${primaryCar.make} ${primaryCar.model}`,
+      }
+    : null;
 
-  // Build MintableCar list
-  const mintableCars: MintableCar[] = cars.map((car) => ({
-    id: car.id,
-    year: car.year,
-    make: car.make,
-    model: car.model,
-    trim: car.trim,
-    color: car.color,
-    nickname: car.nickname,
-    cover_image_url: car.cover_image_url,
-    is_primary: car.is_primary,
-    cardCount: (cardsMap[car.id] ?? []).length,
-    latestCard: (cardsMap[car.id] ?? []).at(-1) ?? null,
-  }));
+  const mintableCars: MintableCar[] = [
+    {
+      id: primaryCar.id,
+      year: primaryCar.year,
+      make: primaryCar.make,
+      model: primaryCar.model,
+      trim: primaryCar.trim,
+      color: primaryCar.color,
+      nickname: primaryCar.nickname,
+      cover_image_url: primaryCar.cover_image_url,
+      is_primary: primaryCar.is_primary,
+      cardCount: allCards.length,
+      latestCard: allCards.at(-1) ?? null,
+    },
+  ];
 
   return (
     <MintPageClient
