@@ -691,7 +691,6 @@ export default function ProfilePage() {
         {[
           { label: "Settings", href: "/settings", icon: <SettingsIcon size={15} /> },
           { label: "My Garage", href: "/garage", icon: <Car size={15} /> },
-          { label: "Stats & Analytics", href: "/stats", icon: <TrendingUp size={15} /> },
           { label: "Forum", href: "/forum", icon: <Wrench size={15} /> },
         ].map((link) => (
           <a

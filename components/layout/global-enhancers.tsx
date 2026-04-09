@@ -86,8 +86,6 @@ export function GlobalEnhancers() {
         g: "/garage",
         // f is reserved for card flip when the card viewer is open
         c: "/chat",
-        v: "/visualizer",
-        s: "/stats",
         p: "/profile",
       };
       const route = map[e.key.toLowerCase()];
