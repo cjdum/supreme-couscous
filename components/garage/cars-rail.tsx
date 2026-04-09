@@ -72,7 +72,6 @@ export function CarsRail({ cars: initialCars, stats, cardsByCarId }: CarsRailPro
           <CarCard
             car={car}
             modCount={stats.get(car.id)?.count ?? 0}
-            totalSpent={stats.get(car.id)?.total ?? 0}
             isPrimary={false}
             compact
             cards={cardsByCarId?.get(car.id) ?? []}

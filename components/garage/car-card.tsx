@@ -5,14 +5,13 @@ import Link from "next/link";
 import { Globe, Lock, Wrench, Star, ShieldCheck } from "lucide-react";
 import type { Car } from "@/lib/supabase/types";
 import type { MintedCard } from "@/lib/pixel-card";
-import { formatCurrency, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { SetPrimaryButton } from "./set-primary-button";
 import { CardViewerModal } from "./card-viewer-modal";
 
 interface CarCardProps {
   car: Car;
   modCount?: number;
-  totalSpent?: number;
   isPrimary?: boolean;
   compact?: boolean;
   /** All minted cards for this car, newest → oldest (optional — for thumbnail + viewer) */
@@ -41,7 +40,6 @@ function getMakeColor(make: string): string {
 export function CarCard({
   car,
   modCount = 0,
-  totalSpent = 0,
   isPrimary = false,
   compact = false,
   cards = [],
@@ -211,11 +209,6 @@ export function CarCard({
               <span className="flex items-center gap-1 text-[11px] text-white/50">
                 <Wrench size={9} />
                 {modCount} mod{modCount !== 1 ? "s" : ""}
-              </span>
-            )}
-            {totalSpent > 0 && (
-              <span className="text-[11px] font-semibold text-[var(--color-accent-bright)]">
-                {formatCurrency(totalSpent)}
               </span>
             )}
             {car.vin_verified && (

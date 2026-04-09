@@ -2,21 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Edit2, Share2, Star, Zap, Camera } from "lucide-react";
+import { ChevronRight, Edit2, Star, Camera } from "lucide-react";
 import { EditCarModal } from "./edit-car-modal";
-import { CarShareCard } from "./car-share-card";
-import type { Car, ModCategory } from "@/lib/supabase/types";
+import type { Car } from "@/lib/supabase/types";
 
 interface GarageHeroProps {
   car: Car;
-  modCount: number;
-  totalInvested: number;
   isPrimary: boolean;
-  username: string;
-  buildScore: number;
-  buildLevel: string;
-  topCategory: ModCategory | null;
-  topMods: { name: string; category: ModCategory; cost: number | null }[];
   /** Latest render image (used as the cinematic background when no cover photo is set) */
   latestRenderUrl?: string | null;
 }
@@ -34,17 +26,9 @@ interface GarageHeroProps {
 export function GarageHero({
   car,
   isPrimary,
-  username,
-  buildScore,
-  buildLevel,
-  modCount,
-  totalInvested,
-  topCategory,
-  topMods,
   latestRenderUrl,
 }: GarageHeroProps) {
   const [editing, setEditing] = useState(false);
-  const [sharing, setSharing] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [scrollY, setScrollY] = useState(0);
 
@@ -144,23 +128,9 @@ export function GarageHero({
           }}
         />
 
-        {/* Top right: Edit + Share */}
+        {/* Top right: Edit */}
         {heroImage && (
           <div className="absolute top-5 right-5 flex gap-2 z-10">
-            <button
-              type="button"
-              onClick={() => setSharing(true)}
-              className="flex items-center gap-1.5 min-h-[44px] px-4 py-2 rounded-full backdrop-blur-xl text-[11px] font-bold transition-colors cursor-pointer"
-              style={{
-                background: "var(--mv-panel-bg-solid)",
-                border: "1px solid var(--mv-panel-border-bright)",
-                color: "var(--color-text-primary)",
-              }}
-              aria-label="Share build"
-            >
-              <Share2 size={12} />
-              Share
-            </button>
             <button
               type="button"
               onClick={() => setEditing(true)}
@@ -247,23 +217,6 @@ export function GarageHero({
       {editing && (
         <EditCarModal open={editing} onClose={() => setEditing(false)} car={car} />
       )}
-      {sharing && (
-        <CarShareCard
-          open={sharing}
-          onClose={() => setSharing(false)}
-          data={{
-            carName,
-            carImage: car.cover_image_url,
-            buildScore,
-            buildLevel,
-            modCount,
-            totalInvested,
-            topCategory,
-            topMods,
-            username,
-          }}
-        />
-      )}
     </>
   );
 }
@@ -289,7 +242,7 @@ function EmptyHeroState({ carId }: { carId: string }) {
         <p className="text-sm text-[var(--color-text-muted)] mt-2 max-w-sm mx-auto">
           Upload a shot of your actual car — that&apos;s what makes the garage feel real.
         </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 mt-6">
+        <div className="flex flex-col items-center justify-center gap-2.5 mt-6">
           <Link
             href={`/garage/${carId}#photos`}
             className="inline-flex items-center gap-2 min-h-[44px] px-6 py-3.5 rounded-full bg-[var(--color-accent)] text-white text-sm font-bold hover:bg-[var(--color-accent-hover)] transition-all active:scale-95 glow-accent"
@@ -297,13 +250,6 @@ function EmptyHeroState({ carId }: { carId: string }) {
             <Camera size={15} />
             Upload photo
             <ChevronRight size={14} />
-          </Link>
-          <Link
-            href={`/visualizer?carId=${carId}`}
-            className="inline-flex items-center gap-2 min-h-[44px] px-5 py-3 rounded-full bg-[var(--color-bg-elevated)] border border-[var(--color-border)] text-[var(--color-text-secondary)] text-xs font-bold hover:bg-[var(--color-bg-hover)] transition-all"
-          >
-            <Zap size={13} />
-            Or try an AI render
           </Link>
         </div>
       </div>

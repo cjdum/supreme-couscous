@@ -6,11 +6,8 @@ import { OnboardingFlow } from "@/components/garage/onboarding-flow";
 import { AddCarButton } from "@/components/garage/add-car-button";
 import { GarageHero } from "@/components/garage/garage-hero";
 import { CarsRail } from "@/components/garage/cars-rail";
-import { BuildTimeline } from "@/components/garage/build-timeline";
 import { PageContainer } from "@/components/ui/page-container";
-import { QuickStatsWidget } from "@/components/garage/quick-stats-widget";
-import { calculateBuildScore } from "@/lib/build-score";
-import type { Car as CarType, ModCategory } from "@/lib/supabase/types";
+import type { Car as CarType } from "@/lib/supabase/types";
 import type { MintedCard } from "@/lib/pixel-card";
 
 export const metadata = { title: "Garage — MODVAULT" };
@@ -20,13 +17,6 @@ export default async function GaragePage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { data: profileRaw } = await supabase
-    .from("profiles")
-    .select("username")
-    .eq("user_id", user!.id)
-    .maybeSingle();
-  const username = (profileRaw as { username: string } | null)?.username ?? "you";
 
   const { data: carsRaw } = await supabase
     .from("cars")
@@ -43,41 +33,24 @@ export default async function GaragePage() {
     return <OnboardingFlow />;
   }
 
+  const primaryCar = cars.find((c) => c.is_primary) ?? cars[0];
+  const otherCars = cars.filter((c) => c.id !== primaryCar.id);
+
+  // Per-car installed-mod counts (used only by the "other vehicles" rail for a
+  // quiet chip — no money, no categories, just a count).
   const carIds = cars.map((c) => c.id);
-  type ModStat = {
-    id: string;
-    car_id: string;
-    name: string;
-    category: ModCategory;
-    cost: number | null;
-    status: string;
-    install_date: string | null;
-    created_at: string;
-    notes: string | null;
-    shop_name: string | null;
-    is_diy: boolean;
-  };
-  let modStats: ModStat[] = [];
+  const statsMap = new Map<string, { count: number; total: number }>();
   if (carIds.length) {
     const { data } = await supabase
       .from("mods")
-      .select("id, car_id, name, category, cost, status, install_date, created_at, notes, shop_name, is_diy")
+      .select("car_id, status")
       .in("car_id", carIds);
-    modStats = (data ?? []) as ModStat[];
+    for (const row of (data ?? []) as { car_id: string; status: string }[]) {
+      if (row.status !== "installed") continue;
+      const existing = statsMap.get(row.car_id) ?? { count: 0, total: 0 };
+      statsMap.set(row.car_id, { count: existing.count + 1, total: 0 });
+    }
   }
-
-  const statsMap = new Map<string, { count: number; total: number }>();
-  for (const mod of modStats) {
-    const existing = statsMap.get(mod.car_id) ?? { count: 0, total: 0 };
-    statsMap.set(mod.car_id, {
-      count: existing.count + (mod.status === "installed" ? 1 : 0),
-      total: existing.total + (mod.status === "installed" ? (mod.cost ?? 0) : 0),
-    });
-  }
-
-  const primaryCar = cars.find((c) => c.is_primary) ?? cars[0];
-  const primaryStats = statsMap.get(primaryCar.id) ?? { count: 0, total: 0 };
-  const otherCars = cars.filter((c) => c.id !== primaryCar.id);
 
   // Latest render for the primary car (used as cinematic background)
   const { data: renderRaw } = await supabase
@@ -90,37 +63,7 @@ export default async function GaragePage() {
     .maybeSingle();
   const latestRenderUrl = (renderRaw as { image_url: string | null } | null)?.image_url ?? null;
 
-  const totalInvested = Array.from(statsMap.values()).reduce((s, v) => s + v.total, 0);
-
-  const buildScore = calculateBuildScore({
-    cars: cars as Parameters<typeof calculateBuildScore>[0]["cars"],
-    mods: modStats,
-  });
-
-  // Top mods by cost for share card
-  const primaryMods = modStats.filter((m) => m.car_id === primaryCar.id && m.status === "installed");
-  const categoryTotals = primaryMods.reduce<Record<string, number>>((acc, m) => {
-    acc[m.category] = (acc[m.category] ?? 0) + (m.cost ?? 0);
-    return acc;
-  }, {});
-  const topCategoryEntry = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
-  const topCategory = (topCategoryEntry?.[0] as ModCategory | undefined) ?? null;
-
-  const topMods = [...primaryMods]
-    .sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0))
-    .slice(0, 3)
-    .map((m) => ({ name: m.name, category: m.category, cost: m.cost }));
-
-  // Build timeline mods
-  const timelineMods = modStats
-    .filter((m) => m.car_id === primaryCar.id && m.status === "installed")
-    .map((m) => ({
-      id: m.id, name: m.name, category: m.category, cost: m.cost,
-      install_date: m.install_date, created_at: m.created_at,
-      shop_name: m.shop_name, is_diy: m.is_diy, notes: m.notes,
-    }));
-
-  // All minted cards
+  // All minted cards (for card counts and the hero card for the primary car)
   const { data: userCardsRaw } = await supabase
     .from("pixel_cards")
     .select("*")
@@ -128,7 +71,6 @@ export default async function GaragePage() {
     .order("minted_at", { ascending: false });
   const userCards = (userCardsRaw ?? []) as MintedCard[];
 
-  // Group cards by car_id
   const cardsByCarId = new Map<string, MintedCard[]>();
   for (const card of userCards) {
     if (!card.car_id) continue;
@@ -137,36 +79,16 @@ export default async function GaragePage() {
     cardsByCarId.set(card.car_id, arr);
   }
 
-  // Primary car's latest card
   const primaryLatestCard = cardsByCarId.get(primaryCar.id)?.[0] ?? null;
   const primaryCardCount = cardsByCarId.get(primaryCar.id)?.length ?? 0;
   const primaryCarLabel = `${primaryCar.year} ${primaryCar.make} ${primaryCar.model}`;
-
-  // Quick stats data
-  const allInstalledMods = modStats.filter((m) => m.status === "installed");
-  const mostRecentMod = allInstalledMods.sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  )[0] ?? null;
-
-  const allWishlistMods = modStats.filter((m) => m.status === "wishlist");
-  const nextPlannedMod = allWishlistMods[0] ?? null;
-
-  const carLabelMap = new Map(cars.map((c) => [c.id, `${c.year} ${c.make} ${c.model}`]));
-  const primaryModList = primaryMods.map((m) => m.name).join(", ") || "none";
 
   return (
     <div className="min-h-dvh animate-fade">
       {/* ── Cinematic hero ── */}
       <GarageHero
         car={primaryCar}
-        modCount={primaryStats.count}
-        totalInvested={primaryStats.total}
         isPrimary={!!cars.find((c) => c.is_primary)}
-        username={username}
-        buildScore={buildScore.score}
-        buildLevel={buildScore.level}
-        topCategory={topCategory}
-        topMods={topMods}
         latestRenderUrl={latestRenderUrl}
       />
 
@@ -231,88 +153,45 @@ export default async function GaragePage() {
           )}
         </section>
 
-        {/* ── Quick Stats + Quick Actions ── */}
+        {/* ── Quick actions (3 cards, no stats) ── */}
         <section className="mt-0">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr,1fr] gap-5">
-            {/* Quick Stats */}
-            <QuickStatsWidget
-              totalInvested={totalInvested}
-              mostRecentMod={mostRecentMod ? {
-                name: mostRecentMod.name,
-                carLabel: carLabelMap.get(mostRecentMod.car_id) ?? primaryCarLabel,
-                createdAt: mostRecentMod.created_at,
-              } : null}
-              nextPlannedMod={nextPlannedMod ? {
-                name: nextPlannedMod.name,
-                carLabel: carLabelMap.get(nextPlannedMod.car_id) ?? primaryCarLabel,
-              } : null}
-              buildScore={buildScore.score}
-              buildLevel={buildScore.level}
-              nextThreshold={buildScore.nextThreshold ?? null}
-              progress={buildScore.progress}
-              primaryCarId={primaryCar.id}
-              primaryCarLabel={primaryCarLabel}
-              primaryCarModList={primaryModList}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto">
+            <Link
+              href={`/garage/${primaryCar.id}#mods`}
+              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+            >
+              <div>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">Add a Mod</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Log an install</p>
+              </div>
+              <Wrench size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
+            </Link>
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-3 content-start">
-              <Link
-                href={`/garage/${primaryCar.id}#mods`}
-                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-              >
-                <div>
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Add a Mod</p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Log an install</p>
-                </div>
-                <Wrench size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
-              </Link>
+            <Link
+              href="/card-chat"
+              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+            >
+              <div>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">Talk to Card</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Chat with your living card</p>
+              </div>
+              <MessageSquare size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
+            </Link>
 
-              <Link
-                href="/card-chat"
-                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-              >
-                <div>
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Talk to Card</p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">Chat with your living card</p>
-                </div>
-                <MessageSquare size={20} className="text-[var(--color-accent)] group-hover:scale-110 transition-transform flex-shrink-0" />
-              </Link>
-
-              <Link
-                href="/cards"
-                className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
-              >
-                <div>
-                  <p className="text-sm font-bold text-[var(--color-text-primary)]">Collection</p>
-                  <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
-                    {userCards.length === 0 ? "None minted yet" : `${userCards.length} minted`}
-                  </p>
-                </div>
-                <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
-              </Link>
-            </div>
+            <Link
+              href="/cards"
+              className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
+            >
+              <div>
+                <p className="text-sm font-bold text-[var(--color-text-primary)]">Collection</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5">
+                  {userCards.length === 0 ? "None minted yet" : `${userCards.length} minted`}
+                </p>
+              </div>
+              <Award size={20} className="text-[#fbbf24] group-hover:scale-110 transition-transform flex-shrink-0" />
+            </Link>
           </div>
         </section>
-
-        {/* ── Build Timeline ── */}
-        {timelineMods.length > 0 && (
-          <section className="mt-10">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-bold tracking-tight">Build Timeline</h2>
-                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">Every mod, in order. Tap to expand.</p>
-              </div>
-              <Link
-                href={`/garage/${primaryCar.id}`}
-                className="text-xs font-semibold text-[var(--color-accent-bright)] hover:text-white transition-colors px-3 py-2"
-              >
-                View all
-              </Link>
-            </div>
-            <BuildTimeline mods={timelineMods} />
-          </section>
-        )}
 
         {/* ── Other vehicles rail ── */}
         {otherCars.length > 0 && (
