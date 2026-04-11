@@ -22,6 +22,7 @@ export async function middleware(request: NextRequest) {
     if (
       PUBLIC_PATHS.some((p) => pathname === p) ||
       pathname.startsWith("/u/") ||
+      pathname.startsWith("/c/") ||
       pathname.startsWith("/_next") ||
       pathname.startsWith("/api/") ||
       pathname.includes(".")

@@ -13,6 +13,53 @@
   font-family: 'm6x11', monospace !important;
 }
 
+/* ── MODVAULT Design Brief — Card & Global Tokens ── */
+:root {
+  /* Backgrounds */
+  --bg-void: #0a0a0a;
+  --bg-felt: #0f1a0f;
+  --bg-card: #1a1208;
+  --bg-raised: #1e1e1e;
+  --bg-sunken: #080808;
+
+  /* Card frame colors by era */
+  --era-dawn: #8B6914;
+  --era-chrome: #6B7280;
+  --era-turbo: #DC2626;
+  --era-neon: #7C3AED;
+  --era-apex: #F59E0B;
+
+  /* Archetype colors */
+  --archetype-purist: #60A5FA;
+  --archetype-aggressor: #EF4444;
+  --archetype-showboat: #F59E0B;
+  --archetype-survivor: #6B7280;
+  --archetype-sleeper: #10B981;
+  --archetype-devotee: #8B5CF6;
+  --archetype-newcomer: #F472B6;
+
+  /* Text */
+  --text-primary: #F5E6C8;
+  --text-dim: #8B7355;
+  --text-accent: #FFD700;
+  --text-danger: #FF4444;
+  --text-win: #4ADE80;
+
+  /* Borders */
+  --border-card: #5C4A1E;
+  --border-subtle: #1f1f1f;
+  --border-glow: rgba(255, 215, 0, 0.4);
+
+  /* Effects */
+  --glow-card: 0 0 20px rgba(255, 215, 0, 0.15), 0 0 60px rgba(255, 215, 0, 0.05);
+  --glow-active: 0 0 30px rgba(255, 215, 0, 0.35);
+  --shadow-deep: 0 8px 32px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.9);
+  --shadow-raised: inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 12px rgba(0,0,0,0.6);
+
+  /* Noise */
+  --noise-opacity: 0.035;
+}
+
 @theme {
   /* ── MODVAULT Design System ── */
   /* Need for Speed × Linear.app × Porsche configurator */
