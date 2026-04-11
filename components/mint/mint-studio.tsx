@@ -1117,7 +1117,11 @@ function GhostCardModal({
 
 // ── GhostArchive ──────────────────────────────────────────────────────────────
 
+const CAROUSEL_W = 320;
+const SLOT_W = GHOST_W + 24; // 181px per slot (card + gap)
+
 function GhostArchive({ ghosts, cars }: { ghosts: GhostCardInfo[]; cars: MintableCar[] }) {
+  const [activeIdx, setActiveIdx] = useState(0);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   const carLabels = useMemo(() => {
@@ -1130,48 +1134,148 @@ function GhostArchive({ ghosts, cars }: { ghosts: GhostCardInfo[]; cars: Mintabl
 
   if (ghosts.length === 0) return null;
 
+  const activeGhost = ghosts[activeIdx];
+  const canPrev = activeIdx > 0;
+  const canNext = activeIdx < ghosts.length - 1;
+  const translateX = (CAROUSEL_W / 2 - GHOST_W / 2) - activeIdx * SLOT_W;
+
   return (
-    <div
-      style={{
-        maxWidth: 960,
-        margin: "0 auto 80px",
-        padding: "0 20px",
-      }}
-    >
-      {/* Divider */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-        <div style={{ flex: 1, height: 1, background: "rgba(180,40,40,0.18)" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Ghost size={13} style={{ color: "rgba(200,110,110,0.65)" }} aria-hidden="true" />
+    <div style={{ maxWidth: 960, margin: "0 auto 80px", padding: "0 20px" }}>
+
+      {/* Divider header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
+        <div style={{ flex: 1, height: 1, background: "rgba(180,40,40,0.2)" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <Ghost size={12} style={{ color: "var(--text-danger, #f87171)" }} aria-hidden="true" />
           <span style={{
-            fontFamily: "ui-monospace, monospace",
             fontSize: 10, fontWeight: 800, letterSpacing: "0.22em",
-            textTransform: "uppercase" as const, color: "rgba(200,110,110,0.7)",
+            textTransform: "uppercase" as const,
+            color: "var(--text-danger, #f87171)",
           }}>
             Ghost Archive
           </span>
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: "0.12em",
+            color: "rgba(248,113,113,0.45)",
+          }}>
+            {ghosts.length}
+          </span>
         </div>
-        <div style={{ flex: 1, height: 1, background: "rgba(180,40,40,0.18)" }} />
+        <div style={{ flex: 1, height: 1, background: "rgba(180,40,40,0.2)" }} />
       </div>
 
-      {/* Gallery grid */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: `repeat(auto-fill, minmax(${GHOST_W}px, 1fr))`,
-        gap: 20,
-        justifyItems: "center",
-      }}>
-        {ghosts.map((ghost, idx) => (
-          <GhostCardTile
-            key={ghost.id}
-            ghost={ghost}
-            carLabel={carLabels[ghost.car_id ?? ""] ?? ghost.nickname}
-            onClick={() => setOpenIdx(idx)}
-          />
-        ))}
+      {/* Carousel */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+
+        {/* Sliding track */}
+        <div style={{
+          width: CAROUSEL_W,
+          overflow: "hidden",
+          position: "relative",
+        }}>
+          <div style={{
+            display: "flex",
+            gap: 24,
+            transition: "transform 300ms ease",
+            transform: `translateX(${translateX}px)`,
+          }}>
+            {ghosts.map((g, i) => (
+              <div
+                key={g.id}
+                style={{
+                  flexShrink: 0,
+                  width: GHOST_W,
+                  opacity: i === activeIdx ? 1 : 0.35,
+                  transform: i === activeIdx ? "scale(1)" : "scale(0.93)",
+                  transition: "opacity 300ms ease, transform 300ms ease",
+                  cursor: i === activeIdx ? "zoom-in" : "pointer",
+                }}
+                onClick={() => {
+                  if (i !== activeIdx) { setActiveIdx(i); return; }
+                  setOpenIdx(i);
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={i === activeIdx ? `View ${g.nickname ?? "card"} full size` : `Go to ${g.nickname ?? "card"}`}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (i !== activeIdx) setActiveIdx(i); else setOpenIdx(i); } }}
+              >
+                <GhostCardTile
+                  ghost={g}
+                  carLabel={carLabels[g.car_id ?? ""] ?? g.nickname}
+                  onClick={() => {}}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Counter */}
+        <span style={{
+          fontSize: 10, fontWeight: 700, letterSpacing: "0.16em",
+          color: "rgba(248,113,113,0.5)",
+        }}>
+          {activeIdx + 1} / {ghosts.length}
+        </span>
+
+        {/* Last words for active card */}
+        {activeGhost?.last_words ? (
+          <div style={{
+            width: "100%",
+            maxWidth: 320,
+            padding: "12px 16px",
+            borderRadius: 8,
+            background: "var(--bg-raised, rgba(20,10,10,0.7))",
+            border: "1px solid rgba(180,40,40,0.25)",
+          }}>
+            <p style={{
+              margin: "0 0 6px",
+              fontSize: 9, fontWeight: 800, letterSpacing: "0.18em",
+              textTransform: "uppercase" as const,
+              color: "rgba(248,113,113,0.6)",
+            }}>
+              Last words
+            </p>
+            <p style={{
+              margin: 0,
+              fontSize: 12, fontStyle: "italic",
+              color: "rgba(255,200,180,0.85)",
+              lineHeight: 1.55,
+            }}>
+              &ldquo;{activeGhost.last_words}&rdquo;
+            </p>
+          </div>
+        ) : (
+          <div style={{ height: 8 }} />
+        )}
+
+        {/* Nav buttons */}
+        {ghosts.length > 1 && (
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              type="button"
+              className="mv-btn mv-btn-ghost"
+              disabled={!canPrev}
+              onClick={() => setActiveIdx(i => i - 1)}
+              style={{ opacity: canPrev ? 1 : 0.3, cursor: canPrev ? "pointer" : "default" }}
+              aria-label="Previous ghost card"
+            >
+              <ChevronLeft size={13} aria-hidden="true" /> Prev
+            </button>
+            <button
+              type="button"
+              className="mv-btn mv-btn-ghost"
+              disabled={!canNext}
+              onClick={() => setActiveIdx(i => i + 1)}
+              style={{ opacity: canNext ? 1 : 0.3, cursor: canNext ? "pointer" : "default" }}
+              aria-label="Next ghost card"
+            >
+              Next <ChevronRight size={13} aria-hidden="true" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Zoom modal — maintains exact gallery order */}
+      {/* Full-size modal */}
       {openIdx !== null && (
         <GhostCardModal
           ghosts={ghosts}
@@ -1232,71 +1336,22 @@ export function MintStudio({
       style={{
         position: "relative",
         minHeight: "100dvh",
-        background: "#060611",
         overflowX: "hidden",
       }}
     >
-      {/* ── Ambient glow ── */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "fixed",
-          inset: 0,
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      >
+      {/* Warm burn glow when card is alive */}
+      {hasAlive && (
         <div
+          aria-hidden="true"
           style={{
-            position: "absolute",
-            top: 0,
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "100%",
-            height: "60%",
-            background:
-              "radial-gradient(ellipse 80% 60% at 50% 0%, rgba(123,79,212,0.15) 0%, transparent 60%)",
+            position: "fixed",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 0,
+            background: "radial-gradient(ellipse 70% 40% at 50% 100%, rgba(220,60,0,0.08) 0%, transparent 70%)",
           }}
         />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "10%",
-            left: "-10%",
-            width: 500,
-            height: 500,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(168,85,247,0.05) 0%, transparent 70%)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: "5%",
-            right: "-8%",
-            width: 400,
-            height: 400,
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(123,79,212,0.07) 0%, transparent 70%)",
-          }}
-        />
-        {/* Warm burn glow when card is alive */}
-        {hasAlive && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: "70%",
-              height: "40%",
-              background: "radial-gradient(ellipse at 50% 100%, rgba(220,60,0,0.1) 0%, transparent 70%)",
-            }}
-          />
-        )}
-      </div>
+      )}
 
       {/* ── Content layer ── */}
       <div style={{ position: "relative", zIndex: 1 }}>

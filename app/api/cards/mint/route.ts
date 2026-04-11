@@ -15,7 +15,7 @@ import { randomPersonality } from "@/lib/card-personality";
  *
  * Takes a user-reviewed payload from /api/cards/generate and actually mints
  * the card:
- *   - generates the pixel art via DALL-E (text-only — no reference photos)
+ *   - generates the pixel art via Pollinations (text-only — no reference photos)
  *   - persists the pixel_card row with ALL generated + user-edited fields
  *   - returns the new card row
  *
@@ -24,6 +24,9 @@ import { randomPersonality } from "@/lib/card-personality";
  *   - occasion note required (frozen on the card forever, max 100 chars).
  *   - All generation data from /generate must be present in the payload.
  */
+
+// Allow up to 2 minutes — Pollinations image gen can take 30-90s
+export const maxDuration = 120;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -168,14 +171,14 @@ export async function POST(req: Request) {
 
     // Pollinations.ai — free, no API key
     const encodedPrompt = encodeURIComponent(pixelPrompt);
-    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=768&nologo=true&model=flux`;
+    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=768&nologo=true&nofeed=true&model=flux`;
 
-    const imgResponse = await fetch(pollinationsUrl);
+    const imgResponse = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(90_000) });
     if (!imgResponse.ok) throw new Error(`Image generation failed: HTTP ${imgResponse.status}`);
     const imgBuffer = await imgResponse.arrayBuffer();
     const contentType = imgResponse.headers.get("content-type") ?? "image/jpeg";
     const buffer = Buffer.from(imgBuffer);
-    const ext = contentType.includes("png") ? "png" : "jpg";
+    const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
     const path = `${user.id}/pixel-cards/${carId}-${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from("car-covers")
