@@ -80,6 +80,7 @@ export default async function HomePage() {
   const primaryCards = (cardsRaw ?? []) as MintedCard[];
   const totalCards = primaryCards.length;
   const latestCard = primaryCards[0] ?? null;
+  const previousCardFlavourText = (primaryCards[1] as MintedCard & { flavor_text?: string | null } | undefined)?.flavor_text ?? null;
 
   // Mods for quick info cards
   const { data: modsRaw } = await supabase
@@ -209,6 +210,7 @@ export default async function HomePage() {
         biggestModCost={biggestMod?.cost ?? null}
         latestModName={latestMod?.name ?? null}
         daysSinceMint={daysSinceMint}
+        previousCardFlavourText={previousCardFlavourText}
       />
     </div>
   );
