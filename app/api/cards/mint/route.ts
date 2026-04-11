@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimit, AI_RATE_LIMIT } from "@/lib/rate-limit";
 import type {
@@ -27,15 +26,6 @@ import { randomPersonality } from "@/lib/card-personality";
  */
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-let _openai: OpenAI | null = null;
-function getOpenAI(): OpenAI | null {
-  if (_openai) return _openai;
-  const key = process.env.OPENAI_API_KEY;
-  if (!key || key.trim().length === 0) return null;
-  _openai = new OpenAI({ apiKey: key });
-  return _openai;
-}
 
 function isRealPhoto(url: string): boolean {
   return !url.includes("render") && !url.includes("pixel-card") && !url.includes("generate");
@@ -172,37 +162,20 @@ export async function POST(req: Request) {
   supabase.from("profiles").update({ card_level: newCardLevel }).eq("user_id", user.id).then(() => {}, () => {});
 
   // ── Generate pixel art (text-only prompt, hard year lock) ───────────────
-  const openai = getOpenAI();
-  if (!openai) {
-    return NextResponse.json({ error: "Image generation isn't configured." }, { status: 503 });
-  }
-
   let pixelCardUrl: string;
   try {
     const pixelPrompt = `Pixel art sprite of a ${car.year} ${car.make} ${car.model}, the ${car.year} body style (not any earlier generation). Retro 16-bit video game style. Hard square pixels, no anti-aliasing, no blur, no gradients. Car body color: ${colorLabel}. 3/4 front angle. Car fills the frame. Flat dark background #0a0a18. No text, no logos, no license plates. Chunky blocky pixels only. Style reference: Super Nintendo racing game car sprite.`;
-    const imageResponse = await openai.images.generate({
-      model: "dall-e-2",
-      prompt: pixelPrompt,
-      n: 1,
-      size: "512x512",
-      response_format: "b64_json",
-    });
-    const first = imageResponse.data?.[0];
-    if (!first?.b64_json && !first?.url) throw new Error("DALL-E returned no image");
 
-    let buffer: Buffer;
-    let contentType = "image/png";
-    if (first.b64_json) {
-      buffer = Buffer.from(first.b64_json, "base64");
-    } else if (first.url) {
-      const res = await fetch(first.url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      contentType = res.headers.get("content-type") ?? "image/png";
-      buffer = Buffer.from(await res.arrayBuffer());
-    } else {
-      throw new Error("No image data");
-    }
-    const ext = contentType.includes("jpeg") ? "jpg" : "png";
+    // Pollinations.ai — free, no API key
+    const encodedPrompt = encodeURIComponent(pixelPrompt);
+    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=768&nologo=true&model=flux`;
+
+    const imgResponse = await fetch(pollinationsUrl);
+    if (!imgResponse.ok) throw new Error(`Image generation failed: HTTP ${imgResponse.status}`);
+    const imgBuffer = await imgResponse.arrayBuffer();
+    const contentType = imgResponse.headers.get("content-type") ?? "image/jpeg";
+    const buffer = Buffer.from(imgBuffer);
+    const ext = contentType.includes("png") ? "png" : "jpg";
     const path = `${user.id}/pixel-cards/${carId}-${Date.now()}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from("car-covers")

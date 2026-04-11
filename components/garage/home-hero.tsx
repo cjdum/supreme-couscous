@@ -112,48 +112,29 @@ export function HomeHero({
     bubbleTimerRef.current = setTimeout(() => setBubbleVisible(false), duration);
   }, []);
 
-  // Fetch a fresh line from the card-chat API. Streams the body to completion.
-  // Any error is stored in chatError so the user sees what went wrong.
+  // Fetch a fresh line from the card-poke API. Instant — no Claude call.
   const fetchLine = useCallback(async (): Promise<string | null> => {
     try {
-      const res = await fetch("/api/card-chat", {
+      const res = await fetch("/api/card-poke", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId: card.id, history: [] }),
+        body: JSON.stringify({ card_id: card.id }),
       });
       if (!res.ok) {
         let errMsg = `Error ${res.status}`;
         try {
-          const text = await res.text();
-          try {
-            const j = JSON.parse(text);
-            errMsg = j.error ?? text ?? errMsg;
-          } catch {
-            if (text) errMsg = text;
-          }
-        } catch {
-          /* ignore */
-        }
+          const j = await res.json();
+          errMsg = j.error ?? errMsg;
+        } catch { /* ignore */ }
         setChatError(errMsg);
         return null;
       }
-      if (!res.body) {
-        setChatError("Empty response from card.");
-        return null;
-      }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let full = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        full += decoder.decode(value, { stream: true });
-      }
-      if (!full.trim()) {
+      const json = await res.json();
+      if (!json.line?.trim()) {
         setChatError("Your card went quiet. Try again.");
         return null;
       }
-      return full.trim();
+      return json.line.trim();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Network error";
       setChatError(msg);
@@ -362,7 +343,7 @@ export function HomeHero({
           <p
             className="mb-4 text-[10px] font-bold uppercase text-center"
             style={{
-              fontFamily: "ui-monospace, monospace",
+              fontFamily: "'m6x11', monospace",
               letterSpacing: "0.22em",
               color: "rgba(200,180,240,0.5)",
             }}
@@ -415,7 +396,7 @@ export function HomeHero({
                     style={{
                       margin: "6px 0 0",
                       fontSize: 8,
-                      fontFamily: "ui-monospace, monospace",
+                      fontFamily: "'m6x11', monospace",
                       fontWeight: 700,
                       letterSpacing: "0.18em",
                       textTransform: "uppercase",
@@ -458,7 +439,7 @@ export function HomeHero({
                 border: "1px solid rgba(220,38,38,0.4)",
                 color: "#fca5a5",
                 fontSize: 11,
-                fontFamily: "ui-monospace, monospace",
+                fontFamily: "'m6x11', monospace",
                 letterSpacing: "0.02em",
                 maxWidth: 360,
                 textAlign: "center",
@@ -545,7 +526,7 @@ export function HomeHero({
                   letterSpacing: "0.18em",
                   textTransform: "uppercase",
                   color: "#30d158",
-                  fontFamily: "ui-monospace, monospace",
+                  fontFamily: "'m6x11', monospace",
                 }}
               >
                 Alive
@@ -569,7 +550,7 @@ export function HomeHero({
                 background: "rgba(168,85,247,0.12)",
                 border: "1px solid rgba(168,85,247,0.32)",
                 color: "#e9d5ff",
-                fontFamily: "ui-monospace, monospace",
+                fontFamily: "'m6x11', monospace",
                 fontSize: 10,
                 fontWeight: 800,
                 letterSpacing: "0.14em",
@@ -607,7 +588,7 @@ export function HomeHero({
                   : "linear-gradient(135deg, #7b4fd4 0%, #a855f7 100%)",
                 border: chatOpen ? "1px solid rgba(168,85,247,0.6)" : "1px solid rgba(168,85,247,0.5)",
                 color: "white",
-                fontFamily: "ui-monospace, monospace",
+                fontFamily: "'m6x11', monospace",
                 fontSize: 10,
                 fontWeight: 900,
                 letterSpacing: "0.14em",
@@ -651,7 +632,7 @@ export function HomeHero({
               <p
                 style={{
                   margin: 0,
-                  fontFamily: "ui-monospace, monospace",
+                  fontFamily: "'m6x11', monospace",
                   fontSize: 9,
                   fontWeight: 800,
                   letterSpacing: "0.22em",
@@ -665,7 +646,7 @@ export function HomeHero({
                 <p
                   style={{
                     margin: 0,
-                    fontFamily: "ui-monospace, monospace",
+                    fontFamily: "'m6x11', monospace",
                     fontSize: 9,
                     color: "rgba(200,180,240,0.5)",
                     letterSpacing: "0.08em",
@@ -702,7 +683,7 @@ export function HomeHero({
                     border: "1px solid rgba(168,85,247,0.42)",
                     color: "#e9d5ff",
                     letterSpacing: "0.1em",
-                    fontFamily: "ui-monospace, monospace",
+                    fontFamily: "'m6x11', monospace",
                     textTransform: "uppercase",
                   }}
                 >
@@ -719,7 +700,7 @@ export function HomeHero({
                   border: `1px solid ${eraStyle.border}`,
                   color: eraStyle.text,
                   letterSpacing: "0.1em",
-                  fontFamily: "ui-monospace, monospace",
+                  fontFamily: "'m6x11', monospace",
                   textTransform: "uppercase",
                 }}
               >
@@ -735,7 +716,7 @@ export function HomeHero({
                   border: "1px solid rgba(48,209,88,0.32)",
                   color: "#30d158",
                   letterSpacing: "0.1em",
-                  fontFamily: "ui-monospace, monospace",
+                  fontFamily: "'m6x11', monospace",
                   textTransform: "uppercase",
                 }}
               >
@@ -810,7 +791,7 @@ export function HomeHero({
               <p
                 style={{
                   margin: 0,
-                  fontFamily: "ui-monospace, monospace",
+                  fontFamily: "'m6x11', monospace",
                   fontSize: 9,
                   fontWeight: 800,
                   letterSpacing: "0.2em",
@@ -860,7 +841,7 @@ export function HomeHero({
               style={{
                 margin: 0,
                 fontSize: 10,
-                fontFamily: "ui-monospace, monospace",
+                fontFamily: "'m6x11', monospace",
                 color: "rgba(200,180,240,0.6)",
                 letterSpacing: "0.08em",
                 flex: 1,
@@ -882,7 +863,7 @@ export function HomeHero({
                 background: "rgba(220,38,38,0.1)",
                 border: "1px solid rgba(220,38,38,0.28)",
                 color: "#f87171",
-                fontFamily: "ui-monospace, monospace",
+                fontFamily: "'m6x11', monospace",
                 fontSize: 9,
                 fontWeight: 800,
                 letterSpacing: "0.12em",
@@ -956,7 +937,7 @@ export function HomeHero({
                   style={{
                     margin: "1px 0 0",
                     fontSize: 9,
-                    fontFamily: "ui-monospace, monospace",
+                    fontFamily: "'m6x11', monospace",
                     color: eraStyle.text,
                     letterSpacing: "0.14em",
                     textTransform: "uppercase",
@@ -1067,7 +1048,7 @@ export function HomeHero({
                   border: "1px solid rgba(220,38,38,0.35)",
                   color: "#fca5a5",
                   fontSize: 11,
-                  fontFamily: "ui-monospace, monospace",
+                  fontFamily: "'m6x11', monospace",
                   letterSpacing: "0.02em",
                 }}
               >
@@ -1197,7 +1178,7 @@ function StatTile({
             fontWeight: 800,
             letterSpacing: "0.12em",
             textTransform: "uppercase",
-            fontFamily: "ui-monospace, monospace",
+            fontFamily: "'m6x11', monospace",
           }}
         >
           {label}
@@ -1209,7 +1190,7 @@ function StatTile({
           fontSize: 16,
           fontWeight: 900,
           color: "rgba(245,238,255,0.98)",
-          fontFamily: "ui-monospace, monospace",
+          fontFamily: "'m6x11', monospace",
           letterSpacing: "-0.01em",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -1240,7 +1221,7 @@ function InfoLine({
         <p
           style={{
             margin: 0,
-            fontFamily: "ui-monospace, monospace",
+            fontFamily: "'m6x11', monospace",
             fontSize: 8,
             fontWeight: 800,
             letterSpacing: "0.14em",
@@ -1269,7 +1250,7 @@ function InfoLine({
               marginLeft: 6,
               fontSize: 10,
               color: "rgba(200,180,240,0.5)",
-              fontFamily: "ui-monospace, monospace",
+              fontFamily: "'m6x11', monospace",
             }}
           >
             {extra}
@@ -1302,7 +1283,7 @@ function QuickLink({
         background: "rgba(15,12,30,0.55)",
         border: "1px solid rgba(168,85,247,0.18)",
         color: "rgba(230,215,255,0.85)",
-        fontFamily: "ui-monospace, monospace",
+        fontFamily: "'m6x11', monospace",
         fontSize: 10,
         fontWeight: 800,
         letterSpacing: "0.12em",

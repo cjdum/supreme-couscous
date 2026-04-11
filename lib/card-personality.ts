@@ -42,6 +42,23 @@ export function personalitySystemPrompt(personality: Personality): string {
   return `You are ${personality}. ${PERSONALITY_DESCRIPTIONS[personality]}`;
 }
 
+/** Safe archetype lookup — returns the personality string as-is if valid, otherwise default */
+export function safeArchetype(personality: string | null | undefined): string {
+  const p = personality ?? "";
+  return (PERSONALITIES as readonly string[]).includes(p) ? p : "The Stoic";
+}
+
+/** Per-archetype color tokens for UI */
+export const ARCHETYPE_COLORS: Record<string, { text: string; border: string; glow: string }> = {
+  "The Veteran":            { text: "#d97706", border: "rgba(217,119,6,0.4)",  glow: "rgba(217,119,6,0.15)" },
+  "The Diva":               { text: "#ec4899", border: "rgba(236,72,153,0.4)", glow: "rgba(236,72,153,0.15)" },
+  "The Philosopher":        { text: "#8b5cf6", border: "rgba(139,92,246,0.4)", glow: "rgba(139,92,246,0.15)" },
+  "The Hypebeast":          { text: "#f59e0b", border: "rgba(245,158,11,0.4)", glow: "rgba(245,158,11,0.15)" },
+  "The Anxious One":        { text: "#6ee7b7", border: "rgba(110,231,183,0.4)",glow: "rgba(110,231,183,0.15)" },
+  "The Stoic":              { text: "#94a3b8", border: "rgba(148,163,184,0.4)",glow: "rgba(148,163,184,0.15)" },
+  "The Conspiracy Theorist":{ text: "#f87171", border: "rgba(248,113,113,0.4)",glow: "rgba(248,113,113,0.15)" },
+};
+
 /** Karma threshold required to burn a card and remint */
 export const KARMA_BURN_THRESHOLD = 50;
 
