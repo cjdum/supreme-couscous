@@ -9,6 +9,10 @@
   font-display: swap;
 }
 
+* {
+  font-family: 'm6x11', monospace !important;
+}
+
 @theme {
   /* ── MODVAULT Design System ── */
   /* Need for Speed × Linear.app × Porsche configurator */
