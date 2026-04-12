@@ -164,10 +164,10 @@ export async function POST(req: Request) {
   // Bump profile level (fire-and-forget)
   supabase.from("profiles").update({ card_level: newCardLevel }).eq("user_id", user.id).then(() => {}, () => {});
 
-  // ── Generate pixel art via DALL-E 3 ────────────────────────────────────
+  // ── Generate pixel art via DALL-E 2 ────────────────────────────────────
   let pixelCardUrl: string;
   try {
-    const pixelPrompt = `16-bit SNES-style pixel art trading card illustration of a ${car.year} ${car.make} ${car.model} (exact ${car.year} body style). Car color: ${colorLabel}. 3/4 front-left angle, car fills the frame. Hard square pixels, chunky and crisp, no anti-aliasing, no blur, no gradients. Dark near-black background (#0a0a18). No text, no logos, no license plates. Style: Super Nintendo racing game sprite, vibrant saturated colors, bold outlines.`;
+    const pixelPrompt = `${car.year} ${car.make} ${car.model} pixel art, ${colorLabel}, 3/4 front angle, 16-bit retro video game sprite style, dark background, no text`;
 
     const dalleRes = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
@@ -176,14 +176,13 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "dall-e-3",
+        model: "dall-e-2",
         prompt: pixelPrompt,
         n: 1,
-        size: "1024x1024",
+        size: "512x512",
         response_format: "url",
-        quality: "standard",
       }),
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!dalleRes.ok) {
