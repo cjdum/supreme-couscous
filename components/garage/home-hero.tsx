@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Sparkles,
   MessageSquare,
-  Send,
   Loader2,
   Flame,
 } from "lucide-react";
@@ -43,11 +42,6 @@ interface HomeHeroProps {
   previousCardFlavourText?: string | null;
 }
 
-interface ChatMessage {
-  role: "user" | "card";
-  content: string;
-}
-
 // ── Main HomeHero ─────────────────────────────────────────────────────────────
 
 export function HomeHero({
@@ -74,15 +68,8 @@ export function HomeHero({
   const era = safeEra(card.era);
   const eraStyle = ERA_COLORS[era];
 
-  // ── Modal / chat state ──────────────────────────────────────────────────────
+  // ── Modal state ─────────────────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [streaming, setStreaming] = useState(false);
-  const [chatError, setChatError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Speech bubble state ─────────────────────────────────────────────────────
   const [bubble, setBubble] = useState<string | null>(null);
@@ -111,24 +98,11 @@ export function HomeHero({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ card_id: card.id }),
       });
-      if (!res.ok) {
-        let errMsg = `Error ${res.status}`;
-        try {
-          const j = await res.json();
-          errMsg = j.error ?? errMsg;
-        } catch { /* ignore */ }
-        setChatError(errMsg);
-        return null;
-      }
+      if (!res.ok) return null;
       const json = await res.json();
-      if (!json.line?.trim()) {
-        setChatError("Your card went quiet. Try again.");
-        return null;
-      }
+      if (!json.line?.trim()) return null;
       return json.line.trim();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Network error";
-      setChatError(msg);
+    } catch {
       return null;
     }
   }, [card.id]);
@@ -136,7 +110,6 @@ export function HomeHero({
   const poke = useCallback(async () => {
     if (pokeLoading) return;
     setPokeLoading(true);
-    setChatError(null);
     const line = await fetchLine();
     setPokeLoading(false);
     if (line) showBubble(line);
@@ -160,7 +133,7 @@ export function HomeHero({
       const delay = 45_000 + Math.random() * 45_000;
       spontaneousTimerRef.current = setTimeout(async () => {
         if (cancelled) return;
-        if (document.visibilityState === "visible" && !chatOpen) {
+        if (document.visibilityState === "visible") {
           const line = await fetchLine();
           if (line && !cancelled) showBubble(line);
         }
@@ -172,7 +145,7 @@ export function HomeHero({
       cancelled = true;
       if (spontaneousTimerRef.current) clearTimeout(spontaneousTimerRef.current);
     };
-  }, [fetchLine, showBubble, chatOpen]);
+  }, [fetchLine, showBubble]);
 
   // Cleanup timers
   useEffect(() => {
@@ -183,93 +156,7 @@ export function HomeHero({
     };
   }, []);
 
-  // Auto-scroll chat
-  useEffect(() => {
-    if (chatOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [chatOpen, messages]);
-
-  // Focus input when chat opens
-  useEffect(() => {
-    if (chatOpen) {
-      setTimeout(() => inputRef.current?.focus(), 200);
-    }
-  }, [chatOpen]);
-
-  // ── Send a message ──────────────────────────────────────────────────────────
-  async function sendMessage() {
-    if (!input.trim() || streaming) return;
-    const userMsg = input.trim();
-    setInput("");
-    setChatError(null);
-
-    const historyForApi = messages.map((m) => ({
-      role: (m.role === "card" ? "assistant" : "user") as "user" | "assistant",
-      content: m.content,
-    }));
-    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: userMsg }];
-    setMessages([...nextMessages, { role: "card", content: "" }]);
-    setStreaming(true);
-    setWiggle(true);
-
-    try {
-      const res = await fetch("/api/card-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId: card.id, message: userMsg, history: historyForApi }),
-      });
-      if (!res.ok || !res.body) {
-        let errMsg = `Error ${res.status}`;
-        try {
-          const text = await res.text();
-          try {
-            const j = JSON.parse(text);
-            errMsg = j.error ?? text ?? errMsg;
-          } catch {
-            if (text) errMsg = text;
-          }
-        } catch { /* ignore */ }
-        setChatError(errMsg);
-        setMessages(nextMessages);
-        setStreaming(false);
-        setWiggle(false);
-        return;
-      }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let full = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        full += decoder.decode(value, { stream: true });
-        setMessages([...nextMessages, { role: "card", content: full }]);
-      }
-      if (full.trim()) {
-        showBubble(full, 12_000);
-      } else {
-        setChatError("Your card went quiet.");
-        setMessages(nextMessages);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Network error";
-      setChatError(msg);
-      setMessages(nextMessages);
-    } finally {
-      setStreaming(false);
-      setTimeout(() => setWiggle(false), 1200);
-    }
-  }
-
   function handleCardClick() { setModalOpen(true); }
-  function openChat() {
-    setChatError(null);
-    setChatOpen(true);
-    if (messages.length === 0 && bubble) {
-      setMessages([{ role: "card", content: bubble }]);
-    }
-  }
-  function closeChat() { setChatOpen(false); }
 
   // ── Computed ────────────────────────────────────────────────────────────────
   const mintDate = (() => {
@@ -424,22 +311,6 @@ export function HomeHero({
               )}
             </div>
 
-            {/* Chat error */}
-            {chatError && (
-              <div role="alert" style={{
-                marginBottom: 10,
-                padding: "6px 12px",
-                background: "rgba(220,38,38,0.1)",
-                border: "1px solid rgba(220,38,38,0.4)",
-                color: "var(--text-danger)",
-                fontSize: 10,
-                letterSpacing: "0.04em",
-                width: "100%",
-              }}>
-                {chatError}
-              </div>
-            )}
-
             {/* Card */}
             <button
               onClick={handleCardClick}
@@ -485,16 +356,14 @@ export function HomeHero({
                 {pokeLoading ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
                 {pokeLoading ? "Poking..." : "Poke"}
               </button>
-              <button
-                type="button"
+              <Link
+                href="/talk"
                 className="mv-btn mv-btn-primary"
-                onClick={chatOpen ? closeChat : openChat}
-                aria-pressed={chatOpen}
-                style={{ flex: 1 }}
+                style={{ flex: 1, textDecoration: "none" }}
               >
                 <MessageSquare size={11} />
-                {chatOpen ? "Close" : "Talk to it"}
-              </button>
+                Talk to it
+              </Link>
             </div>
           </section>
 
@@ -593,176 +462,6 @@ export function HomeHero({
           </aside>
         </div>
       </div>
-
-      {/* ── Chat drawer ─────────────────────────────────────────────────────── */}
-      {chatOpen && (
-        <div
-          role="dialog"
-          aria-label="Chat with your card"
-          style={{
-            position: "fixed",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 60,
-            display: "flex",
-            justifyContent: "center",
-            padding: "0 12px 12px",
-            pointerEvents: "none",
-          }}
-        >
-          <div style={{
-            pointerEvents: "auto",
-            width: "100%",
-            maxWidth: 560,
-            background: "var(--bg-raised)",
-            border: "1px solid var(--border-card)",
-            padding: "14px 14px 12px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-            animation: "hhFadeUp 250ms cubic-bezier(0.16,1,0.3,1) both",
-            boxShadow: "var(--shadow-deep)",
-          }}>
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <p style={{ margin: 0, fontSize: 11, color: "var(--text-primary)", letterSpacing: "0.04em" }}>
-                  {cardTitle}
-                </p>
-                <p style={{ margin: "1px 0 0", fontSize: 9, color: "var(--text-dim)", letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                  {personality ?? "Your card"}
-                </p>
-              </div>
-              <button
-                onClick={closeChat}
-                aria-label="Close chat"
-                style={{
-                  width: 28, height: 28,
-                  background: "var(--bg-sunken)",
-                  border: "1px solid var(--border-subtle)",
-                  color: "var(--text-dim)",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 16,
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Messages */}
-            {messages.length > 0 && (
-              <div style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                maxHeight: 260,
-                overflowY: "auto",
-                padding: "4px 2px",
-              }}>
-                {messages.map((m, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                    <div style={{
-                      maxWidth: "85%",
-                      padding: "8px 12px",
-                      background: m.role === "user" ? "var(--bg-sunken)" : "transparent",
-                      border: m.role === "user" ? "1px solid var(--border-subtle)" : "none",
-                      borderLeft: m.role === "card" ? "2px solid var(--era-dawn)" : undefined,
-                    }}>
-                      <p style={{
-                        margin: 0,
-                        fontSize: 12,
-                        color: m.role === "card" ? "var(--text-primary)" : "var(--text-dim)",
-                        lineHeight: 1.55,
-                        fontStyle: m.role === "card" ? "italic" : "normal",
-                      }}>
-                        {m.content || (
-                          <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
-                            {[0, 1, 2].map((j) => (
-                              <span key={j} style={{
-                                display: "inline-block",
-                                width: 4, height: 4,
-                                background: "var(--text-dim)",
-                                borderRadius: "50%",
-                                animation: `hhDotBounce 1.2s ease-in-out ${j * 0.2}s infinite`,
-                              }} />
-                            ))}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                <div ref={messagesEndRef} />
-              </div>
-            )}
-
-            {/* Chat error */}
-            {chatError && (
-              <div style={{
-                padding: "6px 10px",
-                background: "rgba(220,38,38,0.1)",
-                border: "1px solid rgba(220,38,38,0.3)",
-                color: "var(--text-danger)",
-                fontSize: 10,
-              }}>
-                {chatError}
-              </div>
-            )}
-
-            {/* Input */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "4px 4px 4px 12px",
-              background: "var(--bg-sunken)",
-              border: "1px solid var(--border-card)",
-            }}>
-              <input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                placeholder={`Say something to ${cardTitle}…`}
-                disabled={streaming}
-                style={{
-                  flex: 1,
-                  background: "transparent",
-                  border: "none",
-                  outline: "none",
-                  color: "var(--text-primary)",
-                  fontSize: 12,
-                  padding: "8px 0",
-                  fontFamily: "'m6x11', monospace",
-                }}
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!input.trim() || streaming}
-                aria-label="Send"
-                className={`mv-btn ${input.trim() && !streaming ? "mv-btn-primary" : "mv-btn-ghost"}`}
-                style={{
-                  padding: "6px 10px",
-                  flexShrink: 0,
-                  opacity: !input.trim() || streaming ? 0.5 : 1,
-                }}
-              >
-                {streaming ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Card modal ────────────────────────────────────────────────────────── */}
       {modalOpen && (

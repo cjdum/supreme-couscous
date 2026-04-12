@@ -68,7 +68,7 @@ export default async function GaragePage() {
             </Link>
 
             <Link
-              href="/home"
+              href="/talk"
               className="rounded-2xl bg-[var(--color-bg-card)] border border-[var(--color-border)] p-5 flex items-center justify-between card-hover group"
             >
               <div>
