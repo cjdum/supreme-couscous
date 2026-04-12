@@ -164,25 +164,46 @@ export async function POST(req: Request) {
   // Bump profile level (fire-and-forget)
   supabase.from("profiles").update({ card_level: newCardLevel }).eq("user_id", user.id).then(() => {}, () => {});
 
-  // ── Generate pixel art (text-only prompt, hard year lock) ───────────────
+  // ── Generate pixel art via DALL-E 3 ────────────────────────────────────
   let pixelCardUrl: string;
   try {
-    const pixelPrompt = `Pixel art sprite of a ${car.year} ${car.make} ${car.model}, the ${car.year} body style (not any earlier generation). Retro 16-bit video game style. Hard square pixels, no anti-aliasing, no blur, no gradients. Car body color: ${colorLabel}. 3/4 front angle. Car fills the frame. Flat dark background #0a0a18. No text, no logos, no license plates. Chunky blocky pixels only. Style reference: Super Nintendo racing game car sprite.`;
+    const pixelPrompt = `16-bit SNES-style pixel art trading card illustration of a ${car.year} ${car.make} ${car.model} (exact ${car.year} body style). Car color: ${colorLabel}. 3/4 front-left angle, car fills the frame. Hard square pixels, chunky and crisp, no anti-aliasing, no blur, no gradients. Dark near-black background (#0a0a18). No text, no logos, no license plates. Style: Super Nintendo racing game sprite, vibrant saturated colors, bold outlines.`;
 
-    // Pollinations.ai — free, no API key
-    const encodedPrompt = encodeURIComponent(pixelPrompt);
-    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=768&nologo=true&nofeed=true&model=flux`;
+    const dalleRes = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt: pixelPrompt,
+        n: 1,
+        size: "1024x1792",
+        response_format: "url",
+        quality: "standard",
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
 
-    const imgResponse = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(90_000) });
-    if (!imgResponse.ok) throw new Error(`Image generation failed: HTTP ${imgResponse.status}`);
+    if (!dalleRes.ok) {
+      const errText = await dalleRes.text();
+      throw new Error(`DALL-E error ${dalleRes.status}: ${errText}`);
+    }
+
+    const dalleData = await dalleRes.json() as { data: { url: string }[] };
+    const tempUrl = dalleData.data[0]?.url;
+    if (!tempUrl) throw new Error("No image URL in DALL-E response");
+
+    // Download generated image and upload to Supabase storage
+    const imgResponse = await fetch(tempUrl, { signal: AbortSignal.timeout(30_000) });
+    if (!imgResponse.ok) throw new Error(`Image download failed: ${imgResponse.status}`);
     const imgBuffer = await imgResponse.arrayBuffer();
-    const contentType = imgResponse.headers.get("content-type") ?? "image/jpeg";
     const buffer = Buffer.from(imgBuffer);
-    const ext = contentType.includes("png") ? "png" : contentType.includes("webp") ? "webp" : "jpg";
-    const path = `${user.id}/pixel-cards/${carId}-${Date.now()}.${ext}`;
+    const path = `${user.id}/pixel-cards/${carId}-${Date.now()}.png`;
     const { error: upErr } = await supabase.storage
       .from("car-covers")
-      .upload(path, buffer, { contentType, upsert: false });
+      .upload(path, buffer, { contentType: "image/png", upsert: false });
     if (upErr) throw new Error(upErr.message);
     const { data: { publicUrl } } = supabase.storage.from("car-covers").getPublicUrl(path);
     pixelCardUrl = publicUrl;
