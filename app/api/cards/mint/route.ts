@@ -167,7 +167,7 @@ export async function POST(req: Request) {
   // ── Generate pixel art via DALL-E 2 ────────────────────────────────────
   let pixelCardUrl: string;
   try {
-    const pixelPrompt = `${car.year} ${car.make} ${car.model} pixel art, ${colorLabel}, 3/4 front angle, 16-bit retro video game sprite style, dark background, no text`;
+    const pixelPrompt = `${car.year} ${car.make} ${car.model} (${car.year} generation body style), ${colorLabel}, pixel art, 16-bit retro sprite, 3/4 front angle, full car visible, dark background. No text, no letters, no numbers, no labels, no watermarks.`;
 
     const dalleRes = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",

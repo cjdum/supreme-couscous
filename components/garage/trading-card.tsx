@@ -443,7 +443,7 @@ export function TradingCard({
                   style={{
                     width: "100%", height: "100%",
                     objectFit: "cover",
-                    objectPosition: "center",
+                    objectPosition: "center 30%",
                     imageRendering: "auto",
                     display: "block",
                     position: "absolute", inset: 0, zIndex: 2,
