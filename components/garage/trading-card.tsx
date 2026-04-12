@@ -441,11 +441,12 @@ export function TradingCard({
                   src={cardUrl}
                   alt={nickname}
                   style={{
-                    width: "85%", height: "85%",
-                    objectFit: "contain",
-                    imageRendering: "pixelated",
+                    width: "100%", height: "100%",
+                    objectFit: "cover",
+                    objectPosition: "center",
+                    imageRendering: "auto",
                     display: "block",
-                    position: "relative", zIndex: 2,
+                    position: "absolute", inset: 0, zIndex: 2,
                     filter: dead ? "brightness(0.5) sepia(0.6) hue-rotate(-30deg) saturate(1.1)" : "none",
                   }}
                 />
